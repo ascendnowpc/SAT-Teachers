@@ -21,28 +21,39 @@ npm run dev                                    # http://localhost:5173
 | **Login** | Email + password |
 | **Question bank** | Teachers author text MCQs: passage, question, up to 4 options, correct answer, explanation |
 | **Difficulty** | Easy / medium / hard, plus an optional note on *why* it sits at that level |
-| **Sections** | Subject, and the four SAT sections the teachers assess against |
+| **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student, a time and a meeting link; queue questions; run it live |
 | **Live loop** | Publish one question at a time, watch the answer land, reveal, diagnose in one tap |
-| **Loaded bank** | The English Reading & Writing diagnostic — 25 items with passages, keys, sections and difficulty |
+| **Loaded bank** | Both English diagnostics — 65 items with passages, keys, sections and difficulty |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
-## The English diagnostic
+## The English bank
 
-The in-class *Reading and Writing – 25Q* paper is in the bank already, loaded by
-`supabase/migrations/0008_english_diagnostic_bank.sql` under the references
-`ENG-DIAG-INCLASS-Q01` … `Q25`. Each item carries its passage, four options, the correct option,
-an explanation, its SAT section and a difficulty with the reasoning behind it.
+Both English diagnostics are in the bank already — 65 published items, each with its passage,
+four options, the correct option, an explanation, its SAT section, its skill from the teachers'
+evaluation grid, and a difficulty with the reasoning behind it.
 
-Eighteen are published. **Seven are `draft`, because the key printed on the paper disagrees with
-the passage** — those stay out of the session picker until a teacher rules on them.
-[`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md)
-lists all seven with the reasoning.
+| Paper | Items | Source refs | Migration |
+| --- | --- | --- | --- |
+| In-class *Reading and Writing – 25Q* | 25 | `ENG-DIAG-INCLASS-Q01` … `Q25` | `0008` |
+| *English Diagnostic Test 4* | 40 | `ENG-DIAG-T4-M1-Q01` … `M2-Q26` | `0009` |
 
-Two of the items ask about "the underlined sentence", so the bank stores the underlined span
-alongside the passage (`questions.passage_underline`) and renders it marked wherever the passage
-appears. House content like this has no author — `questions.created_by` is null — and any teacher
-may correct it.
+The in-class paper came with an answer key; **seven of its printed answers disagreed with their
+own passage** and the bank carries the answer the text supports instead. Test 4 is a deck of
+Bluebook screenshots with no text and no key at all, so every item was transcribed off the
+screenshots and keyed here. Both sets of decisions are listed item by item in
+[`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md).
+
+Every item is fully labelled: section, skill (all eleven of the grid's Skill Focus rows) and
+level. A skill belongs to exactly one section and the database checks the pair, so an item cannot
+be mis-filed. Nothing was left blank for the teachers to fill in — they correct a label in the
+bank instead.
+
+Some items ask about "the underlined sentence", so the bank stores the underlined span alongside
+the passage (`questions.passage_underline`) and renders it marked wherever the passage appears.
+Two items are built on a chart and a table; both are transcribed into the passage as text rows,
+since the bank is text-only. House content like this has no author — `questions.created_by` is
+null — and any teacher may correct it.
 
 ## Identity codes
 

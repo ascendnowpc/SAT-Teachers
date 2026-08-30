@@ -52,9 +52,12 @@ seeds it anyway.
 
 All seven are covered by a typed `stimulus` JSON block; see `docs/02-domain-model.md`.
 
-## Two blocking gaps
+## Two blocking gaps — both now closed for this file
 
-These are not code problems. They need a decision from Ascend Now before the bank is usable.
+Kept for the record; both were real, and both are resolved. The 40 items were transcribed off
+these screenshots and keyed in `supabase/migrations/0009_english_diagnostic_test4.sql`. See
+[English Diagnostic Key Review](english-diagnostic-key-review.md) for how, and for what still
+needs a teacher's eye.
 
 ### 1. There is no answer key
 

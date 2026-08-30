@@ -1,45 +1,8 @@
 # 07 — Open Questions
 
-Ordered by how much they block. Q1–Q3 gate Phase 1 and should be answered before building
-starts.
+Ordered by how much they block. Q3 still gates anything sourced from official practice tests.
 
 ---
-
-### Q1 — Where do the answer keys come from? **(blocking, partly answered)**
-
-**Answered for one paper.** The in-class *Reading and Writing – 25Q* diagnostic ships with a key
-at the back, and all 25 items are now in the bank with correct options and explanations
-(migration `0008`). Seven of those keys disagree with their passage and are loaded as `draft`
-pending a teacher's ruling — see
-[English Diagnostic Key Review](reference/english-diagnostic-key-review.md). The question below
-still stands for the screenshot decks.
-
-The screenshot PDFs have no correct answers and no explanations, and Bluebook screenshots never
-show them. The entire session loop branches on right vs wrong, so an item without a key cannot
-be used. Someone has to supply keys for all 40 items, and for every item after them.
-
-- Do keys exist somewhere else already (a separate sheet, the original test source)?
-- If not, who keys them, and at what rate? This is the long pole for the whole project.
-- Do we also want per-distractor rationales ("why B is wrong")? They make reports much sharper
-  — a wrong answer becomes explainable rather than just wrong — but they roughly double the
-  authoring effort. **Suggestion:** correct answer + one explanation is mandatory; distractor
-  rationales optional, added for high-traffic items first.
-
-### Q2 — Where do the difficulty labels live? **(blocking)**
-
-The brief says difficulty is written next to each question, but the screenshot deck contains **28
-characters of text in total** — just "Module 1" and "Module 2" — and the in-class paper carries
-no labels either. Are they in the Google Doc wrapper, a separate sheet, the Maths file, or only
-in the teachers' heads?
-
-The 25 loaded English items were levelled on the shape of each task, with the reasoning stored in
-`difficulty_rationale`. That is a starting point to be corrected, not an answer to this
-question.
-
-Difficulty is not decorative here: escalate-on-correct / hold-on-wrong is the whole pedagogical
-loop, and it cannot run without it. Also worth deciding now: is difficulty a property of the
-**item** (fixed) or of the **student's level** (relative)? The schema assumes fixed per item,
-with `observed_p_value` accumulating later to check the labels against reality.
 
 ### Q3 — Where did these questions come from? **(blocking, non-technical)**
 
@@ -116,12 +79,21 @@ a small bug with outsized credibility cost.
 
 ## Resolved
 
+**Q1 — answer keys.** Answered for English. The in-class paper shipped a key (seven of whose
+answers were wrong and are corrected in the bank); Test 4 shipped none, so all 40 of its items
+were transcribed off the screenshots and keyed here. All 65 carry an explanation. The keys the
+teachers still owe are for Mathematics, and for anything loaded after this. See
+[English Diagnostic Key Review](reference/english-diagnostic-key-review.md).
+
 **Q1 — distractor rationales.** Not per option. Each item carries one explanation that names why
 the key is right *and* why the nearest trap is wrong, which is what the loaded English
 diagnostic does. Per-distractor rationales stay optional, for high-traffic items.
 
-**Q2 — difficulty labels.** Difficulty is set per question by the teacher when authoring, with
-an optional note on *why* it sits at that level. Not taken from the source PDF.
+**Q2 — difficulty and skill labels.** Neither is in the source papers, so both are set on the
+item: difficulty (easy / medium / hard) with a note on *why* it sits at that level, and a skill
+from the evaluation grid's Skill Focus column. All 65 English items carry both, and the authoring
+form sets both on anything added after them. Teachers correct a label in the bank rather than
+supplying it up front.
 
 **"Domain" vs "section".** The four Reading & Writing groupings are College Board *content
 domains*, and each question belongs to exactly one — that is what lets a report say a student

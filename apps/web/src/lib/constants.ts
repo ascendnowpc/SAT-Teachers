@@ -33,6 +33,54 @@ export const SECTIONS: Record<Subject, { value: string; label: string }[]> = {
   ],
 }
 
+/**
+ * The Skill Focus column of the teachers' evaluation grid. A skill belongs to
+ * exactly one section, so this is keyed by section — which is also what stops
+ * the form offering "Boundaries" under Craft and Structure. The database
+ * enforces the same pairing; this is the version the UI reads.
+ */
+export const SKILLS: Record<string, { value: string; label: string }[]> = {
+  information_and_ideas: [
+    { value: 'central_ideas_and_details', label: 'Central Ideas and Details' },
+    { value: 'command_of_evidence_textual', label: 'Command of Evidence — Textual' },
+    { value: 'command_of_evidence_quantitative', label: 'Command of Evidence — Quantitative' },
+    { value: 'inferences', label: 'Inferences' },
+  ],
+  craft_and_structure: [
+    { value: 'words_in_context', label: 'Words in Context' },
+    { value: 'text_structure_and_purpose', label: 'Text Structure and Purpose' },
+    { value: 'cross_text_connections', label: 'Cross-Text Connections' },
+  ],
+  expression_of_ideas: [
+    { value: 'rhetorical_synthesis', label: 'Rhetorical Synthesis' },
+    { value: 'transitions', label: 'Transitions' },
+  ],
+  standard_english_conventions: [
+    { value: 'boundaries', label: 'Boundaries' },
+    { value: 'form_structure_and_sense', label: 'Form, Structure and Sense' },
+  ],
+}
+
+const ALL_SKILLS = Object.values(SKILLS).flat()
+
+/** The skills of one section, or every skill when no section is chosen yet. */
+export function skillsFor(section: string | null): { value: string; label: string }[] {
+  if (!section) return ALL_SKILLS
+  return SKILLS[section] ?? []
+}
+
+/** Whether a skill belongs to a section — the pairing the database checks. */
+export function skillFitsSection(section: string | null, skill: string | null): boolean {
+  if (!skill) return true
+  if (!section) return false
+  return (SKILLS[section] ?? []).some((s) => s.value === skill)
+}
+
+export function skillLabel(value: string | null): string | null {
+  if (!value) return null
+  return ALL_SKILLS.find((s) => s.value === value)?.label ?? value
+}
+
 const ALL_SECTIONS = [...SECTIONS.english, ...SECTIONS.mathematics]
 
 export function sectionLabel(value: string | null): string | null {
