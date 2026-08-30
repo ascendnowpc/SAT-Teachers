@@ -120,4 +120,7 @@ need a `question_scores` table rather than a column. Worth confirming.
 **Subject naming.** `mathematics`, not `math`.
 
 **Identity codes.** `BATO26-1`: three letters of the given name, one of the surname, the
-two-digit join year, then a per-prefix counter starting at 1, unbounded.
+two-digit join year, then a **serial per role** starting at 1, unbounded. The number identifies
+the person, so exactly one `-1` exists for teachers and one for students. It does not reset
+annually; if it should, say so — that would reintroduce a `-1` per year, distinguished only by
+the year already in the prefix.

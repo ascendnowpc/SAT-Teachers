@@ -27,12 +27,28 @@ npm run dev                                    # http://localhost:5173
 
 ## Identity codes
 
-`BATO26-1` — first three letters of the given name, first letter of the surname, the two-digit
-year of joining, then a number within that prefix starting at 1 and unbounded. So
-*BATU Ozcelik*, joining in 2026, becomes `BATO26-1`; the next `BATO26` is `-2`.
+`BATO26-1` — three letters of the given name, one of the surname, the two-digit year of
+joining, then **a serial number for that role**, starting at 1 and unbounded.
 
-Short or single names still produce the same shape: *Jo Kim* is `JOXK26-1`, *Madonna* is
-`MADO26-1`.
+The trailing number identifies the person, so it is shared across all names of that role rather
+than restarting per name. There is exactly one `-1` for teachers and one `-1` for students:
+
+| Order | Role | Name | Code |
+| --- | --- | --- | --- |
+| 1st teacher | teacher | Malya Rao | `MALR26-1` |
+| 2nd teacher | teacher | Priya Sharma | `PRIS26-2` |
+| 1st student | student | BATU Ozcelik | `BATO26-1` |
+| 2nd student | student | Jo Kim | `JOXK26-2` |
+| 3rd student | student | Madonna | `MADO26-3` |
+| 4th student | student | Batu Ozdemir | `BATO26-4` |
+
+Short or single names still produce the same shape — `JOXK26`, `MADO26` — padding with the
+fourth letter of the given name, then `X`.
+
+The number does not reset each year, so it stays unique for the life of the account. Two people
+can still compute the same prefix (a teacher *Test* and a student *test* joining the same year
+both give `TEST26`); when that happens the code takes the next number for its role rather than
+failing the signup.
 
 ## The session workflow
 
