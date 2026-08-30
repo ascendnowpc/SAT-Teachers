@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { DifficultyBadge, Input, Notice, Passage, Select } from '../components/ui'
 import { IconChevron } from '../components/icons'
-import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, sectionLabel } from '../lib/constants'
+import {
+  DIFFICULTIES,
+  OPTION_LABELS,
+  SECTIONS,
+  SUBJECTS,
+  sectionLabel,
+  skillLabel,
+  skillsFor,
+} from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { Difficulty, Question, Subject } from '../lib/types'
 
@@ -16,6 +24,7 @@ export function Questions() {
 
   const [subject, setSubject] = useState<Subject | ''>('')
   const [section, setSection] = useState('')
+  const [skill, setSkill] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty | ''>('')
   const [search, setSearch] = useState('')
 
@@ -36,12 +45,14 @@ export function Questions() {
   }, [load])
 
   const sectionChoices = subject ? SECTIONS[subject] : [...SECTIONS.english, ...SECTIONS.mathematics]
+  const skillChoices = skillsFor(section || null)
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return questions.filter((q) => {
       if (subject && q.subject !== subject) return false
       if (section && q.section !== section) return false
+      if (skill && q.skill !== skill) return false
       if (difficulty && q.difficulty !== difficulty) return false
       if (needle) {
         const hay = `${q.stem} ${q.passage ?? ''} ${q.question_options.map((o) => o.body).join(' ')}`
@@ -49,7 +60,7 @@ export function Questions() {
       }
       return true
     })
-  }, [questions, subject, section, difficulty, search])
+  }, [questions, subject, section, skill, difficulty, search])
 
   const counts = useMemo(() => {
     const by = { easy: 0, medium: 0, hard: 0 }
@@ -112,11 +123,26 @@ export function Questions() {
             </option>
           ))}
         </Select>
-        <Select value={section} aria-label="Filter by section" onChange={(e) => setSection(e.target.value)}>
+        <Select
+          value={section}
+          aria-label="Filter by section"
+          onChange={(e) => {
+            setSection(e.target.value)
+            setSkill('')
+          }}
+        >
           <option value="">All sections</option>
           {sectionChoices.map((d) => (
             <option key={d.value} value={d.value}>
               {d.label}
+            </option>
+          ))}
+        </Select>
+        <Select value={skill} aria-label="Filter by skill" onChange={(e) => setSkill(e.target.value)}>
+          <option value="">All skills</option>
+          {skillChoices.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
             </option>
           ))}
         </Select>
@@ -181,6 +207,7 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
               {SUBJECTS.find((s) => s.value === q.subject)?.label ?? q.subject}
             </span>
             {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
+            {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
           </div>
         </div>
       </summary>

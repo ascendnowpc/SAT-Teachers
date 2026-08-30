@@ -46,9 +46,9 @@ database supplies facts; the teacher signs off.
 
 ## Status
 
-Signup, the question bank, and the live session loop are built (migrations `0001`–`0009`), and
+Signup, the question bank, and the live session loop are built (migrations `0001`–`0010`), and
 applied to the live Supabase project. Both English diagnostics are loaded — 65 items with
-passages, options, keys, sections and difficulty — so the bank is no longer empty and the
+passages, options, keys, sections, skills and difficulty — so the bank is no longer empty and the
 screenshot deck is no longer stuck behind its missing key. Q1 and Q2 are answered for English;
 [Q3](07-open-questions.md) (provenance and licensing) is still open and still blocking for
 anything sourced from official practice tests.

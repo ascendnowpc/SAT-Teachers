@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select, Textarea } from '../components/ui'
-import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS } from '../lib/constants'
+import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, skillsFor } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { Difficulty, OptionLabel, Subject } from '../lib/types'
 
@@ -11,6 +11,7 @@ export function QuestionNew() {
 
   const [subject, setSubject] = useState<Subject>('english')
   const [section, setSection] = useState('')
+  const [skill, setSkill] = useState('')
   const [passage, setPassage] = useState('')
   const [underline, setUnderline] = useState('')
   const [stem, setStem] = useState('')
@@ -24,6 +25,7 @@ export function QuestionNew() {
   const [busy, setBusy] = useState(false)
 
   const sectionChoices = useMemo(() => SECTIONS[subject], [subject])
+  const skillChoices = useMemo(() => skillsFor(section || null), [section])
 
   function setOption(label: OptionLabel, value: string) {
     setOptions((prev) => ({ ...prev, [label]: value }))
@@ -32,6 +34,7 @@ export function QuestionNew() {
   function onSubjectChange(next: Subject) {
     setSubject(next)
     setSection('') // sections are subject-specific, so the old pick is invalid
+    setSkill('')   // and the skill belonged to that section
   }
 
   async function onSubmit(e: FormEvent) {
@@ -61,6 +64,7 @@ export function QuestionNew() {
         p_correct: correct,
         p_explanation: explanation,
         p_passage_underline: underline,
+        p_skill: skill,
       })
       if (rpcError) throw new Error(rpcError.message)
       navigate(`/questions?added=${data as string}`)
@@ -102,7 +106,13 @@ export function QuestionNew() {
             </Field>
 
             <Field label="Section">
-              <Select value={section} onChange={(e) => setSection(e.target.value)}>
+              <Select
+                value={section}
+                onChange={(e) => {
+                  setSection(e.target.value)
+                  setSkill('') // a skill belongs to one section; keeping it would mis-file the item
+                }}
+              >
                 <option value="">Not set</option>
                 {sectionChoices.map((d) => (
                   <option key={d.value} value={d.value}>
@@ -112,6 +122,21 @@ export function QuestionNew() {
               </Select>
             </Field>
           </div>
+
+          <Field label="Skill">
+            <Select
+              value={skill}
+              onChange={(e) => setSkill(e.target.value)}
+              disabled={section === ''}
+            >
+              <option value="">Not set</option>
+              {skillChoices.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
           <Field label="Difficulty" required>
             <Select

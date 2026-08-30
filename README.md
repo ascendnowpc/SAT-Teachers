@@ -21,7 +21,7 @@ npm run dev                                    # http://localhost:5173
 | **Login** | Email + password |
 | **Question bank** | Teachers author text MCQs: passage, question, up to 4 options, correct answer, explanation |
 | **Difficulty** | Easy / medium / hard, plus an optional note on *why* it sits at that level |
-| **Sections** | Subject, and the four SAT sections the teachers assess against |
+| **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student, a time and a meeting link; queue questions; run it live |
 | **Live loop** | Publish one question at a time, watch the answer land, reveal, diagnose in one tap |
 | **Loaded bank** | Both English diagnostics — 65 items with passages, keys, sections and difficulty |
@@ -30,8 +30,8 @@ npm run dev                                    # http://localhost:5173
 ## The English bank
 
 Both English diagnostics are in the bank already — 65 published items, each with its passage,
-four options, the correct option, an explanation, its SAT section and a difficulty with the
-reasoning behind it.
+four options, the correct option, an explanation, its SAT section, its skill from the teachers'
+evaluation grid, and a difficulty with the reasoning behind it.
 
 | Paper | Items | Source refs | Migration |
 | --- | --- | --- | --- |
@@ -43,6 +43,11 @@ own passage** and the bank carries the answer the text supports instead. Test 4 
 Bluebook screenshots with no text and no key at all, so every item was transcribed off the
 screenshots and keyed here. Both sets of decisions are listed item by item in
 [`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md).
+
+Every item is fully labelled: section, skill (all eleven of the grid's Skill Focus rows) and
+level. A skill belongs to exactly one section and the database checks the pair, so an item cannot
+be mis-filed. Nothing was left blank for the teachers to fill in — they correct a label in the
+bank instead.
 
 Some items ask about "the underlined sentence", so the bank stores the underlined span alongside
 the passage (`questions.passage_underline`) and renders it marked wherever the passage appears.

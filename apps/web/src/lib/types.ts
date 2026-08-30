@@ -42,6 +42,8 @@ export interface Question {
   created_by: string | null
   subject: Subject
   section: string | null
+  /** Skill focus within the section, from the teachers' evaluation grid. */
+  skill: string | null
   passage: string | null
   /** Exact substring of `passage` the stem calls "the underlined sentence". */
   passage_underline: string | null

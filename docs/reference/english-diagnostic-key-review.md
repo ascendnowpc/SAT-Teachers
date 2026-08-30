@@ -67,12 +67,37 @@ never a position in the file.
 
 ---
 
-## What still needs a teacher
+## Section, skill and level are all set
 
-Nothing blocks use of the bank, but two things are ours rather than Ascend Now's and are worth a
-pass:
+Every one of the 65 items carries the full set of labels a report needs, filled in here rather
+than left for the teachers:
 
-1. **The 40 Test 4 keys**, since no key existed to check them against.
-2. **Difficulty on 57 of the 65 items.** It drives the escalate / hold / drop loop directly, so a
-   mislevelled item sends the session the wrong way. Every one carries its reasoning in the bank
-   under "Why easy / medium / hard", which is the fastest thing to review against.
+- **Section** — one of the four Reading & Writing sections.
+- **Skill** — the Skill Focus column of the evaluation grid, all eleven of them
+  (`questions.skill`, added in migration `0010`). A skill belongs to exactly one section and the
+  database checks the pair, so an item cannot be filed as "Boundaries" under Craft and Structure.
+- **Difficulty** — easy / medium / hard on every item. Module 1 Q01–Q08 of Test 4 use the levels
+  the teachers commented on the source document; the rest were levelled on the shape of the task,
+  and each carries its reasoning in `difficulty_rationale`, which the bank shows as "Why medium".
+
+How the 65 land:
+
+| Section | Skill | Items |
+| --- | --- | --- |
+| Information and Ideas | Central Ideas and Details | 7 |
+| | Command of Evidence — Textual | 6 |
+| | Command of Evidence — Quantitative | 7 |
+| | Inferences | 4 |
+| Craft and Structure | Words in Context | 8 |
+| | Text Structure and Purpose | 10 |
+| | Cross-Text Connections | 3 |
+| Expression of Ideas | Rhetorical Synthesis | 4 |
+| | Transitions | 6 |
+| Standard English Conventions | Boundaries | 6 |
+| | Form, Structure and Sense | 4 |
+
+By level: 20 easy, 40 medium, 5 hard.
+
+These are working labels, not sacred ones — every field is editable from the bank, and house
+content has no author, so any teacher can change one without asking. The point is that the loop
+and the report have something real to run on today.

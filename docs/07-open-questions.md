@@ -4,23 +4,6 @@ Ordered by how much they block. Q3 still gates anything sourced from official pr
 
 ---
 
-### Q2 — Where do the difficulty labels live? **(blocking)**
-
-The brief says difficulty is written next to each question, but the screenshot deck contains **28
-characters of text in total** — just "Module 1" and "Module 2" — and the in-class paper carries
-no labels either. Are they in the Google Doc wrapper, a separate sheet, the Maths file, or only
-in the teachers' heads?
-
-Eight items have a level: the teachers commented one on Module 1 Q01–Q08 of Test 4, and those are
-used as given. The other 57 were levelled on the shape of each task, with the reasoning stored in
-`difficulty_rationale`. That is a starting point to be corrected, not an answer to this
-question.
-
-Difficulty is not decorative here: escalate-on-correct / hold-on-wrong is the whole pedagogical
-loop, and it cannot run without it. Also worth deciding now: is difficulty a property of the
-**item** (fixed) or of the **student's level** (relative)? The schema assumes fixed per item,
-with `observed_p_value` accumulating later to check the labels against reality.
-
 ### Q3 — Where did these questions come from? **(blocking, non-technical)**
 
 If these are College Board / official practice items, hosting and serving them from a
@@ -106,8 +89,11 @@ teachers still owe are for Mathematics, and for anything loaded after this. See
 the key is right *and* why the nearest trap is wrong, which is what the loaded English
 diagnostic does. Per-distractor rationales stay optional, for high-traffic items.
 
-**Q2 — difficulty labels.** Difficulty is set per question by the teacher when authoring, with
-an optional note on *why* it sits at that level. Not taken from the source PDF.
+**Q2 — difficulty and skill labels.** Neither is in the source papers, so both are set on the
+item: difficulty (easy / medium / hard) with a note on *why* it sits at that level, and a skill
+from the evaluation grid's Skill Focus column. All 65 English items carry both, and the authoring
+form sets both on anything added after them. Teachers correct a label in the bank rather than
+supplying it up front.
 
 **"Domain" vs "section".** The four Reading & Writing groupings are College Board *content
 domains*, and each question belongs to exactly one — that is what lets a report say a student
