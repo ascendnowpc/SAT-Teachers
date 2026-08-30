@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
+import { IconCalendar, IconHome, IconLogout, IconStack } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -12,37 +13,46 @@ export function AppLayout() {
   const { profile, isTeacher, signOut } = useAuth()
   if (!profile) return null
 
+  const cls = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')
+
   return (
     <div className="shell">
-      <header className="topbar">
-        <Logo />
-        <nav>
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
-            Dashboard
-          </NavLink>
-          {isTeacher && (
-            <NavLink to="/questions" className={({ isActive }) => (isActive ? 'active' : '')}>
-              Questions
-            </NavLink>
-          )}
-        </nav>
-        <div className="spacer" />
-        <div className="who">
-          <span className="avatar">{initials(profile.full_name, profile.display_id)}</span>
-          <span className="meta">
-            <span className="name">{profile.full_name || 'Unnamed'}</span>
-            <br />
-            <span className="id">{profile.display_id}</span>
-          </span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
-      </header>
+      <aside className="side">
+        <div className="side-inner">
+          <Logo onDark />
 
-      <div className="page">
+          <nav>
+            <NavLink to="/" end className={cls}>
+              <IconHome /> Dashboard
+            </NavLink>
+            <NavLink to="/sessions" className={cls}>
+              <IconCalendar /> Sessions
+            </NavLink>
+            {isTeacher && (
+              <NavLink to="/questions" className={cls}>
+                <IconStack /> Questions
+              </NavLink>
+            )}
+          </nav>
+
+          <div className="spring" />
+
+          <div className="side-user">
+            <span className="avatar">{initials(profile.full_name, profile.display_id)}</span>
+            <span className="meta">
+              <span className="name">{profile.full_name || 'Unnamed'}</span>
+              <span className="id">{profile.display_id}</span>
+            </span>
+          <button type="button" onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
+            <IconLogout />
+          </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main">
         <Outlet />
-      </div>
+      </main>
     </div>
   )
 }

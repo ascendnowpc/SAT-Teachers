@@ -5,6 +5,9 @@ import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
 import { QuestionNew } from './pages/QuestionNew'
 import { Questions } from './pages/Questions'
+import { SessionNew } from './pages/SessionNew'
+import { SessionRoom } from './pages/SessionRoom'
+import { Sessions } from './pages/Sessions'
 import { Signup } from './pages/Signup'
 
 export function App() {
@@ -29,8 +32,11 @@ export function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/sessions" element={<Sessions />} />
+        <Route path="/sessions/:id" element={<SessionRoom />} />
         {isTeacher && (
           <>
+            <Route path="/sessions/new" element={<SessionNew />} />
             <Route path="/questions" element={<Questions />} />
             <Route path="/questions/new" element={<QuestionNew />} />
           </>

@@ -8,7 +8,7 @@ The core interaction. Everything else in the system exists to feed or consume it
 Student gets a notification with the join link.
 
 **Teacher stages questions.** This is the step that replaces hunting through Google Drive
-mid-call. The bank is filtered by *subject → domain → skill → difficulty*, and the teacher drags
+mid-call. The bank is filtered by *subject → section → skill → difficulty*, and the teacher drags
 5–10 items into the session queue. Staged items are invisible to the student.
 
 The stage list is a **plan, not a script** — the teacher will publish some, skip others, and add
