@@ -19,8 +19,9 @@ Supporting material:
 
 - [Source Material Audit](reference/source-material-audit.md) — what is actually in the supplied
   screenshot diagnostic PDFs, and the two gaps they expose
-- [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — the seven items
-  of the loaded English paper whose supplied answer disagrees with the passage, and why
+- [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — where every
+  loaded key came from: the seven printed answers that were wrong, and the 40 written from
+  scratch
 - [`schema/schema.sql`](schema/schema.sql) — proposed DDL
 - [`schema/rls.sql`](schema/rls.sql) — proposed row-level security, plus the nine tests that
   form the security contract
@@ -45,8 +46,9 @@ database supplies facts; the teacher signs off.
 
 ## Status
 
-Signup, the question bank, and the live session loop are built (migrations `0001`–`0008`). The
-English Reading & Writing diagnostic is loaded — 25 items with passages, options, keys, sections
-and difficulty — so the bank is no longer empty. Q1 and Q2 are answered for that paper; the
-screenshot decks still need keys, and [Q3](07-open-questions.md) (provenance and licensing) is
-still open and still blocking for anything sourced from official practice tests.
+Signup, the question bank, and the live session loop are built (migrations `0001`–`0009`), and
+applied to the live Supabase project. Both English diagnostics are loaded — 65 items with
+passages, options, keys, sections and difficulty — so the bank is no longer empty and the
+screenshot deck is no longer stuck behind its missing key. Q1 and Q2 are answered for English;
+[Q3](07-open-questions.md) (provenance and licensing) is still open and still blocking for
+anything sourced from official practice tests.

@@ -17,10 +17,12 @@
 --    underline    Q3 and Q25 ask about one specific sentence, underlined in
 --                 the paper.  Without the span the question is unanswerable.
 --
---  Seven items are loaded as 'draft', not 'published': their supplied key
---  disagrees with the passage.  Draft items cannot be staged into a session.
---  See docs/reference/english-diagnostic-key-review.md for the item-by-item
---  reasoning — the keys need a teacher's ruling, not a silent edit here.
+--  Seven of the keys printed at the back of the paper disagree with their own
+--  passage (Q08 subtracts to 13, not 15; Q22 puts a comma between a subject and
+--  its verb; and five more).  Those are keyed to what the text supports, not to
+--  what the paper printed, and every change is listed with its reasoning in
+--  docs/reference/english-diagnostic-key-review.md so the teachers can see what
+--  was altered and why.
 -- ============================================================================
 
 alter table questions alter column created_by drop not null;
@@ -68,11 +70,14 @@ create policy keys_house_write on question_keys
             where q.id = question_id and q.created_by is null and is_teacher())
   );
 
--- ----------------------------------------------------------------- seed ----
+-- ---------------------------------------------------------------- loader ----
 -- A loader rather than 25 hand-written INSERT triples: keyed on source_ref, so
 -- running it again updates the item in place and never orphans a session that
--- already used it.  Dropped at the end of the migration.
-create or replace function pg_temp.seed_item(
+-- already used it.  It stays in the schema because every later paper is loaded
+-- the same way (0009 loads 40 more with it), but only the migration role may
+-- call it — it writes house content, which is not something a signed-in
+-- teacher should be able to do in bulk from the client.
+create or replace function public.seed_bank_item(
   p_source_ref  text,
   p_section     text,
   p_passage     text,
@@ -124,6 +129,14 @@ begin
 end;
 $fn$;
 
+revoke execute on function public.seed_bank_item(
+  text, text, text, text, text, difficulty_level, text, jsonb, answer_option, text, question_status
+) from anon, authenticated;
+
+comment on function public.seed_bank_item(
+  text, text, text, text, text, difficulty_level, text, jsonb, answer_option, text, question_status
+) is 'Upserts one house question by source_ref, with its options and key. Used by the paper-loading migrations.';
+
 -- ---------------------------------------------- Passage 1 · urban reform ----
 -- Q1–Q5 share one stimulus; the paper prints it once, the bank stores it per
 -- item so a question is always self-contained when it lands on a student's
@@ -144,7 +157,7 @@ Hours slept | Average score
   p4 text := 'Some argue that technology isolates people. However, it can also foster connections across the globe, allowing individuals to collaborate, share ideas, and support each other in ways that were once impossible.';
 begin
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q01', 'information_and_ideas', p1, null,
   'According to the text, which choice best states the main idea of the text?',
   'easy', 'The main idea is stated outright in the first sentence; no inference is needed.',
@@ -154,7 +167,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"Modern city planning eliminated overcrowding."}]'::jsonb,
   'B', 'The opening sentence says reformers "sought to address the overcrowded and unsanitary living conditions" — that is the main idea. A takes one item from the list of measures and treats it as the whole aim; C contradicts "rapidly expanding cities"; D claims an outcome the text never reaches.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q02', 'information_and_ideas', p1, null,
   'According to the text, which detail best supports the central idea?',
   'easy', 'Only one option is a measure the reformers took; the other three are background phrases.',
@@ -164,7 +177,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"“modern urban planning practices”"}]'::jsonb,
   'A', 'The central idea is that reformers improved living conditions, so the supporting detail has to be one of the improvements they made. B and C set the scene, and D is the later legacy rather than the work itself.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q03', 'craft_and_structure', p1, u1,
   'According to the text, which choice best describes the function of the underlined sentence in the text as a whole?',
   'medium', 'Asks what a sentence does rather than what it says — the student has to read the sentence against the one before it.',
@@ -174,7 +187,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"It elaborates on the conditions of expanding cities."}]'::jsonb,
   'B', 'Sentence one names the problem, the underlined sentence answers it with parks, sewers and clean water. D is the trap: it describes the sentence before the underlined one, not the underlined one.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q04', 'information_and_ideas', p1, null,
   'According to the text, what best summarizes the passage?',
   'easy', 'A summary question over three short sentences, with two options contradicted outright.',
@@ -184,7 +197,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"Overcrowding ended with modern reforms."}]'::jsonb,
   'B', 'A summary has to cover both what the reformers did (sanitation, water, parks) and what it led to (modern planning). A contradicts the last sentence, C says "only" where the text lists three measures, and D claims an end to overcrowding the text never mentions.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q05', 'information_and_ideas', p1, null,
   'According to the text, what lasting effect did reformers have?',
   'easy', 'The answer is the final sentence, restated.',
@@ -195,7 +208,7 @@ perform pg_temp.seed_item(
   'C', '"Their work laid the foundation for many modern urban planning practices" is the lasting effect. The other three overstate the result or introduce an outcome the text does not claim.');
 
 -- ------------------------------------------------- Passage 2 · the table ----
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q06', 'information_and_ideas', p2, null,
   'Which choice best describes the data in the table that supports the claim?',
   'easy', 'The table rises monotonically, so the trend can be read straight off it.',
@@ -205,7 +218,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"Test scores peak at 7 hours of sleep."}]'::jsonb,
   'A', 'Every extra hour of sleep in the table comes with a higher average score, 72 up to 85. D is the common misread — 7 hours is a middle row, not a peak.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q07', 'information_and_ideas', p2, null,
   'Which evidence supports your answer to the previous question?',
   'medium', 'A two-step item: the student has to hold the previous answer and then find what backs it.',
@@ -215,7 +228,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"“chart shows average test scores”"}]'::jsonb,
   'A', 'Only A states a measured difference in scores. B, C and D quote setup — when the test was taken, who the group is, what the chart holds — none of which is evidence of an effect.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q08', 'information_and_ideas', p2, null,
   'Based on the table, how much higher do students who sleep 9 hours score compared to those who sleep 5?',
   'easy', 'One subtraction read off two rows of the table.',
@@ -223,9 +236,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"10 points"},
     {"label":"C","body":"13 points"},
     {"label":"D","body":"15 points"}]'::jsonb,
-  'D', null, 'draft');
+  'C', 'The table gives 85 at 9 hours and 72 at 5, and 85 - 72 = 13. There is no reading of the table that produces 15 — a student choosing D has almost always subtracted a neighbouring row.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q09', 'information_and_ideas', p2, null,
   'Based on the table, what conclusion can be drawn?',
   'easy', 'Restates the trend as a conclusion; the distractors go beyond the data in obvious ways.',
@@ -235,7 +248,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"Test scores are unrelated to sleep."}]'::jsonb,
   'B', 'The table only runs to 9 hours, so A is about data that is not there. C invents a motive, D denies the pattern. B is the trend the five rows actually show.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q10', 'information_and_ideas', p2, null,
   'Which statement is best supported by both the text and the chart?',
   'medium', 'Has to hold for both sources at once — a claim true of only one of them is wrong.',
@@ -246,7 +259,7 @@ perform pg_temp.seed_item(
   'B', 'The text names 8 hours as the threshold and the table shows 8 and 9 hours scoring highest, so B is the one claim both support. A picks a row neither source singles out.');
 
 -- -------------------------------------------- Passage 3 · the literary line ----
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q11', 'craft_and_structure', p3, null,
   'As used in the text, what does "fragile" most nearly mean?',
   'medium', 'A words-in-context item on a figurative use, where more than one option is a dictionary sense of the word.',
@@ -254,9 +267,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"Temporary"},
     {"label":"C","body":"Precious"},
     {"label":"D","body":"Breakable"}]'::jsonb,
-  'C', null, 'draft');
+  'D', '"Fragile" means easily broken, and the sentence uses it of a joy that only just survives — delicate, not sturdy. "Precious" is what the line implies about joy, not what the word means; a words-in-context answer has to be a meaning the word actually carries.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q12', 'craft_and_structure', p3, null,
   'Which choice best describes the overall structure of the text?',
   'medium', 'One sentence to analyse, but the student has to see the contrast between "spark" and "darkest moments".',
@@ -266,7 +279,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"To contrast laughter with anger"}]'::jsonb,
   'C', 'The line sets a spark of laughter against silence and darkness to say joy survives them. A ignores the emotional language, B reverses which side wins, and anger never appears.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q13', 'craft_and_structure', p3, null,
   'If paired with a passage about resilience, what would this passage most likely emphasize?',
   'medium', 'A cross-text item: the student has to carry this line into a second, hypothetical text.',
@@ -277,7 +290,7 @@ perform pg_temp.seed_item(
   'B', 'A brief spark of laughter surviving the darkest moments is exactly a small joy standing for endurance. The other three make silence or joy compete with resilience, which the line never does.');
 
 -- --------------------------------------------- Passage 4 · the argument ----
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q14', 'information_and_ideas', p4, null,
   'Which claim would best strengthen the argument?',
   'medium', 'The student has to identify whose side the passage is on before choosing evidence for it.',
@@ -287,7 +300,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"Many students use phones for entertainment."}]'::jsonb,
   'B', 'The argument is that technology connects people across the globe, so evidence of worldwide collaboration strengthens it. A supports the opposing view, and C and D are beside the point.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q15', 'expression_of_ideas', p4, null,
   'Which choice completes the text with the most logical transition?',
   'medium', 'Tests whether the concluding sentence has to agree with the paragraph it closes.',
@@ -295,9 +308,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"“Therefore, technology has no value.”"},
     {"label":"C","body":"“Thus, isolation is unavoidable.”"},
     {"label":"D","body":"“For this reason, technology is a distraction.”"}]'::jsonb,
-  'C', null, 'draft');
+  'A', 'The paragraph argues that technology connects people, so its closing sentence has to agree with it. B, C and D all conclude the opposite of what the text just argued.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q16', 'expression_of_ideas', p4, null,
   'Which choice joins the statement with the most logical transition?
 "Some argue that technology isolates people. ____ it can also foster connections across the globe…"',
@@ -308,7 +321,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"As a result,"}]'::jsonb,
   'B', 'The second sentence sets connection against isolation, so the link is contrast. "Furthermore" adds to the first claim and "As a result" makes it a cause, both of which get the relationship backwards.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q17', 'expression_of_ideas', p4, null,
   'The author wants to emphasize technology’s positive uses. Which revision achieves this?',
   'medium', 'A rhetorical-synthesis item: the goal is stated, and the revision has to serve it.',
@@ -316,9 +329,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"Replace “foster” with “weaken”"},
     {"label":"C","body":"Add: “These connections can lead to meaningful social change.”"},
     {"label":"D","body":"Remove: “allowing individuals to collaborate.”"}]'::jsonb,
-  'A', null, 'draft');
+  'C', 'The goal is to emphasise the positive, so the revision has to add to it. A deletes the only positive claim in the passage, B reverses it, and D removes an example of it.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q18', 'craft_and_structure', p4, null,
   'Which best describes the main purpose of the passage?',
   'medium', 'The passage concedes one view before arguing another, and the purpose has to account for both halves.',
@@ -326,7 +339,7 @@ perform pg_temp.seed_item(
     {"label":"B","body":"To show technology has both positive and negative aspects"},
     {"label":"C","body":"To claim technology prevents communication"},
     {"label":"D","body":"To provide a historical overview of technology"}]'::jsonb,
-  'C', null, 'draft');
+  'B', 'The passage states the isolation view and then answers it with the connection view, so it presents both sides. C is the view the passage argues against, and A is its opposite.');
 
 end
 $seed$;
@@ -336,7 +349,7 @@ $seed$;
 do $seed$
 begin
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q19', 'craft_and_structure',
   'The invention in 1958 of the integrated circuit (or microchip) radically altered the semiconductor industry. In fact, some historians argue that it fundamentally ______ the industry by enabling it to take advantage of mass production methods for the first time.',
   null,
@@ -348,7 +361,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"transformed"}]'::jsonb,
   'D', '"Radically altered" in the first sentence sets the meaning the blank has to repeat, and enabling mass production is a change for the better. "Overwhelmed", "bypassed" and "obstructed" all cast the microchip as a hindrance.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q20', 'craft_and_structure',
   'The field of study called affective neuroscience seeks instinctive, physiological causes for feelings such as pleasure or displeasure. Because these sensations are linked to a chemical component (for example, the release of the neurotransmitter dopamine in the brain when one receives or expects a reward), they can be said to have a partly physiological basis. These processes have been described in mammals, but Jingnan Huang and his colleagues have recently observed that some behaviors of honeybees (such as foraging) are also motivated by a dopamine-based signaling process.',
   null,
@@ -358,9 +371,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"It illustrates processes by which certain insects can express how they are feeling."},
     {"label":"C","body":"It summarizes a finding suggesting that some mechanisms in the brains of certain insects resemble mechanisms in mammalian brains."},
     {"label":"D","body":"It presents research showing that certain insects and mammals behave similarly when there is a possibility of a reward for their actions."}]'::jsonb,
-  'B', null, 'draft');
+  'C', 'The text reports one finding: a dopamine-based signalling process seen in mammals also appears in honeybees. That is a resemblance between mechanisms, which is C. B goes further than the text does — it never claims bees express feelings.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q21', 'standard_english_conventions',
   'The Mission 66 initiative, which was approved by Congress in 1956, represented a major investment in the infrastructure of overburdened national ______ it prioritized physical improvements to the parks’ roads, utilities, employee housing, and visitor facilities while also establishing educational programming for the public.',
   null,
@@ -372,7 +385,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"parks,"}]'::jsonb,
   'C', 'Both halves stand alone as sentences, so they need a semicolon between them. A comma (D) or nothing (B) leaves a run-on, and "and" without a comma before it (A) does not fix the splice.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q22', 'standard_english_conventions',
   'A recent study tracked the number of bee species present in twenty-seven New York apple orchards over a ten-year period. ______ found that when wild growth near an orchard was cleared, the number of different bee species visiting the orchard decreased.',
   null,
@@ -382,9 +395,9 @@ perform pg_temp.seed_item(
     {"label":"B","body":"Entomologist, Heather Grab,"},
     {"label":"C","body":"Entomologist Heather Grab"},
     {"label":"D","body":"Entomologist Heather Grab,"}]'::jsonb,
-  'D', null, 'draft');
+  'C', 'The blank is the subject of "found", and nothing separates a subject from its verb. A comma (D), a comma pair around the name (B) or a colon (A) all break that rule.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q23', 'standard_english_conventions',
   'In recent years, economists around the world have created new tools that quantify the overall well-being of a country’s citizens. Economists in India, for example, use an Ease of Living Index. This tool ______ economic potential, sustainability, and citizens’ quality of life.',
   null,
@@ -396,7 +409,7 @@ perform pg_temp.seed_item(
     {"label":"D","body":"will have been measuring"}]'::jsonb,
   'A', 'The passage describes what the index does now — "economists in India use an Ease of Living Index" — so the simple present is the only tense that fits. The other three place the action in the past or the future.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q24', 'craft_and_structure',
   'Text 1
 In 1916, H. Dugdale Sykes disputed claims that The Two Noble Kinsmen was coauthored by William Shakespeare and John Fletcher. Sykes felt Fletcher’s contributions to the play were obvious — Fletcher had a distinct style in his other plays, so much so that lines with that style were considered sufficient evidence of Fletcher’s authorship. But for the lines not deemed to be by Fletcher, Sykes felt that their depiction of women indicated that their author was not Shakespeare but Philip Massinger.
@@ -412,7 +425,7 @@ Scholars have accepted The Two Noble Kinsmen as coauthored by Shakespeare since 
     {"label":"D","body":"Philip Massinger’s style in the first and last acts of The Two Noble Kinsmen is an homage to Shakespeare’s style."}]'::jsonb,
   'A', 'Sykes calls Fletcher’s style distinct enough to identify his lines, and Text 2 assigns Fletcher the middle acts "on the basis of style" — so both rely on the same premise. C is what they disagree about, and B and D are claims only one text could make.');
 
-perform pg_temp.seed_item(
+perform seed_bank_item(
   'ENG-DIAG-INCLASS-Q25', 'craft_and_structure',
   'The Bayeux Tapestry, from eleventh-century France, depicts 75 scenes over 250 feet of fabric. It was likely produced by workers embroidering in sections and then joining the resulting panels together. It’s plausible that the workshop that produced the tapestry had never produced one so large, and some researchers claim that a close examination of the joins — the places where the panels are stitched together — suggests that the workers developed and refined their joining process over the course of production. For example, the first join the workers completed exhibits a clear misalignment of the borders of the two panels, whereas the later joins are virtually invisible.',
   'For example, the first join the workers completed exhibits a clear misalignment of the borders of the two panels, whereas the later joins are virtually invisible.',
