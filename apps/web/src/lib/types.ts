@@ -38,10 +38,15 @@ export interface QuestionKey {
 
 export interface Question {
   id: string
-  created_by: string
+  /** Null for house content loaded from a source paper; set when a teacher authored it. */
+  created_by: string | null
   subject: Subject
   section: string | null
   passage: string | null
+  /** Exact substring of `passage` the stem calls "the underlined sentence". */
+  passage_underline: string | null
+  /** Where the item came from, e.g. ENG-DIAG-INCLASS-Q03. Null for authored questions. */
+  source_ref: string | null
   stem: string
   difficulty: Difficulty
   difficulty_rationale: string | null

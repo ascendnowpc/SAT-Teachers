@@ -12,6 +12,7 @@ export function QuestionNew() {
   const [subject, setSubject] = useState<Subject>('english')
   const [section, setSection] = useState('')
   const [passage, setPassage] = useState('')
+  const [underline, setUnderline] = useState('')
   const [stem, setStem] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [rationale, setRationale] = useState('')
@@ -59,6 +60,7 @@ export function QuestionNew() {
         p_options: filled.map((l) => ({ label: l, body: options[l].trim() })),
         p_correct: correct,
         p_explanation: explanation,
+        p_passage_underline: underline,
       })
       if (rpcError) throw new Error(rpcError.message)
       navigate(`/questions?added=${data as string}`)
@@ -146,6 +148,18 @@ export function QuestionNew() {
               value={passage}
               onChange={(e) => setPassage(e.target.value)}
               placeholder="Paste the passage, notes, or poem the question refers to."
+            />
+          </Field>
+
+          <Field
+            label="Underlined sentence"
+            hint="Optional — paste it exactly as it appears above, for “function of the underlined sentence”."
+          >
+            <Textarea
+              rows={2}
+              value={underline}
+              onChange={(e) => setUnderline(e.target.value)}
+              disabled={passage.trim().length === 0}
             />
           </Field>
 

@@ -24,6 +24,25 @@ npm run dev                                    # http://localhost:5173
 | **Sections** | Subject, and the four SAT sections the teachers assess against |
 | **Sessions** | Schedule with a student, a time and a meeting link; queue questions; run it live |
 | **Live loop** | Publish one question at a time, watch the answer land, reveal, diagnose in one tap |
+| **Loaded bank** | The English Reading & Writing diagnostic — 25 items with passages, keys, sections and difficulty |
+| **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
+
+## The English diagnostic
+
+The in-class *Reading and Writing – 25Q* paper is in the bank already, loaded by
+`supabase/migrations/0008_english_diagnostic_bank.sql` under the references
+`ENG-DIAG-INCLASS-Q01` … `Q25`. Each item carries its passage, four options, the correct option,
+an explanation, its SAT section and a difficulty with the reasoning behind it.
+
+Eighteen are published. **Seven are `draft`, because the key printed on the paper disagrees with
+the passage** — those stay out of the session picker until a teacher rules on them.
+[`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md)
+lists all seven with the reasoning.
+
+Two of the items ask about "the underlined sentence", so the bank stores the underlined span
+alongside the passage (`questions.passage_underline`) and renders it marked wherever the passage
+appears. House content like this has no author — `questions.created_by` is null — and any teacher
+may correct it.
 
 ## Identity codes
 

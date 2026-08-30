@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
+import { DifficultyBadge, Input, Notice, Passage, Select } from '../components/ui'
 import { IconChevron } from '../components/icons'
 import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, sectionLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
@@ -186,7 +186,7 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
       </summary>
 
       <div className="q-body">
-        {q.passage && <div className="q-passage">{q.passage}</div>}
+        {q.passage && <Passage body={q.passage} underline={q.passage_underline} />}
 
         <div className="q-options">
           {options.map((o) => (

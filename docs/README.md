@@ -18,7 +18,9 @@ question loop during Zoom sessions, and an evidence-backed report for the paying
 Supporting material:
 
 - [Source Material Audit](reference/source-material-audit.md) — what is actually in the supplied
-  diagnostic PDF, and the two gaps it exposes
+  screenshot diagnostic PDFs, and the two gaps they expose
+- [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — the seven items
+  of the loaded English paper whose supplied answer disagrees with the passage, and why
 - [`schema/schema.sql`](schema/schema.sql) — proposed DDL
 - [`schema/rls.sql`](schema/rls.sql) — proposed row-level security, plus the nine tests that
   form the security contract
@@ -43,5 +45,8 @@ database supplies facts; the teacher signs off.
 
 ## Status
 
-Planning. Nothing is built and no migrations have been applied.
-Three blocking questions ([Q1–Q3](07-open-questions.md)) need answers before Phase 1 starts.
+Signup, the question bank, and the live session loop are built (migrations `0001`–`0008`). The
+English Reading & Writing diagnostic is loaded — 25 items with passages, options, keys, sections
+and difficulty — so the bank is no longer empty. Q1 and Q2 are answered for that paper; the
+screenshot decks still need keys, and [Q3](07-open-questions.md) (provenance and licensing) is
+still open and still blocking for anything sourced from official practice tests.

@@ -232,6 +232,9 @@ function QuestionPicker({
       .from('questions')
       .select('*, question_options(*)')
       .eq('subject', subject)
+      // Draft items are the ones whose key is still under review. They stay out
+      // of the picker so a disputed answer can never reach a live session.
+      .eq('status', 'published')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (active && data) setQuestions(data as Question[])
@@ -407,7 +410,7 @@ function Board({
                       {it.student_confidence ? ['low', 'med', 'high'][it.student_confidence - 1] : <span className="dash">—</span>}
                     </td>
                     <td>
-                      {it.status === 'published' && <span className="badge badge-cyan">Working</span>}
+                      {it.status === 'published' && <span className="badge badge-sky">Working</span>}
                       {it.status === 'answered' && <span className="badge badge-neutral">Answered</span>}
                       {it.status === 'revealed' &&
                         (it.revealed_result === 'correct' ? (
@@ -483,7 +486,7 @@ function ItemDetail({
                 {o.body}
               </span>
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {chosen && <span className="badge badge-cyan">Chose</span>}
+                {chosen && <span className="badge badge-sky">Chose</span>}
                 {isKey && <span className="tick">Correct</span>}
               </span>
             </div>
