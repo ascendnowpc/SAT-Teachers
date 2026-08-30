@@ -100,3 +100,27 @@ hard, but it should be a decision rather than a surprise.
 Sessions are timestamptz and `profiles.timezone` defaults to `Asia/Singapore`. Confirm where
 teachers, students and parents actually are — a report header showing the wrong local date is
 a small bug with outsized credibility cost.
+
+---
+
+## Resolved
+
+**Q2 — difficulty labels.** Difficulty is set per question by the teacher when authoring, with
+an optional note on *why* it sits at that level. Not taken from the source PDF.
+
+**"Domain" vs "section".** The four Reading & Writing groupings are College Board *content
+domains*, and each question belongs to exactly one — that is what lets a report say a student
+is weak in Craft and Structure. Ascend Now's teachers call them **sections**, so the product
+uses that word throughout (`questions.section`). The structure is unchanged: one per question.
+
+If teachers actually score every question against all four rather than filing it under one,
+that is a different feature — a rubric, with four scores per attempt — and the schema would
+need a `question_scores` table rather than a column. Worth confirming.
+
+**Subject naming.** `mathematics`, not `math`.
+
+**Identity codes.** `BATO26-1`: three letters of the given name, one of the surname, the
+two-digit join year, then a **serial per role** starting at 1, unbounded. The number identifies
+the person, so exactly one `-1` exists for teachers and one for students. It does not reset
+annually; if it should, say so — that would reintroduce a `-1` per year, distinguished only by
+the year already in the prefix.

@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select, Textarea } from '../components/ui'
-import { DIFFICULTIES, DOMAINS, OPTION_LABELS, SUBJECTS } from '../lib/constants'
+import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { Difficulty, OptionLabel, Subject } from '../lib/types'
 
@@ -9,7 +10,7 @@ export function QuestionNew() {
   const navigate = useNavigate()
 
   const [subject, setSubject] = useState<Subject>('english')
-  const [domain, setDomain] = useState('')
+  const [section, setSection] = useState('')
   const [passage, setPassage] = useState('')
   const [stem, setStem] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
@@ -21,7 +22,7 @@ export function QuestionNew() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const domainChoices = useMemo(() => DOMAINS[subject], [subject])
+  const sectionChoices = useMemo(() => SECTIONS[subject], [subject])
 
   function setOption(label: OptionLabel, value: string) {
     setOptions((prev) => ({ ...prev, [label]: value }))
@@ -29,7 +30,7 @@ export function QuestionNew() {
 
   function onSubjectChange(next: Subject) {
     setSubject(next)
-    setDomain('') // the domain list is subject-specific, so the old pick is invalid
+    setSection('') // sections are subject-specific, so the old pick is invalid
   }
 
   async function onSubmit(e: FormEvent) {
@@ -50,7 +51,7 @@ export function QuestionNew() {
     try {
       const { data, error: rpcError } = await supabase.rpc('create_question', {
         p_subject: subject,
-        p_domain: domain,
+        p_section: section,
         p_passage: passage,
         p_stem: stem.trim(),
         p_difficulty: difficulty,
@@ -69,7 +70,11 @@ export function QuestionNew() {
   }
 
   return (
-    <>
+    <div className="page">
+      <Link className="back-link" to="/questions">
+        <IconBack /> Question bank
+      </Link>
+
       <div className="page-head">
         <div>
           <h1>New question</h1>
@@ -94,10 +99,10 @@ export function QuestionNew() {
               </Select>
             </Field>
 
-            <Field label="Domain">
-              <Select value={domain} onChange={(e) => setDomain(e.target.value)}>
+            <Field label="Section">
+              <Select value={section} onChange={(e) => setSection(e.target.value)}>
                 <option value="">Not set</option>
-                {domainChoices.map((d) => (
+                {sectionChoices.map((d) => (
                   <option key={d.value} value={d.value}>
                     {d.label}
                   </option>
@@ -208,6 +213,6 @@ export function QuestionNew() {
           </button>
         </div>
       </form>
-    </>
+    </div>
   )
 }

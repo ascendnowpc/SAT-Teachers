@@ -44,8 +44,8 @@ Core columns:
 | --- | --- |
 | `id` | uuid, stable and permanent |
 | `organization_id` | multi-tenant from day one (see below) |
-| `subject_id` | `english` \| `math` |
-| `domain_id`, `skill_id` | the taxonomy; drives every report grouping |
+| `subject_id` | `english` \| `mathematics` |
+| `section_id`, `skill_id` | the taxonomy; drives every report grouping |
 | `render_mode` | `image` \| `structured` |
 | `response_type` | `mcq` \| `spr` — **see the Maths note below** |
 | `stimulus` | typed JSONB, `structured` mode only |
@@ -96,7 +96,7 @@ future query being written carefully.
 > **Rule that follows from this:** *any field a student must not see lives in a table a
 > student cannot read.* It applies twice — here, and to `session_item_grades` below.
 
-### Taxonomy: `subjects → domains → skills`
+### Taxonomy: `subjects → sections → skills`
 
 Tables, not enums, because Maths is coming and the report groups by skill. Seeded from the
 official College Board structure:

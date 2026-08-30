@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Chevron, DifficultyBadge, Input, Notice, Select } from '../components/ui'
-import { DIFFICULTIES, DOMAINS, OPTION_LABELS, SUBJECTS, domainLabel } from '../lib/constants'
+import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
+import { IconChevron } from '../components/icons'
+import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, sectionLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { Difficulty, Question, Subject } from '../lib/types'
 
@@ -14,7 +15,7 @@ export function Questions() {
   const [error, setError] = useState<string | null>(null)
 
   const [subject, setSubject] = useState<Subject | ''>('')
-  const [domain, setDomain] = useState('')
+  const [section, setSection] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty | ''>('')
   const [search, setSearch] = useState('')
 
@@ -34,13 +35,13 @@ export function Questions() {
     void load()
   }, [load])
 
-  const domainChoices = subject ? DOMAINS[subject] : [...DOMAINS.english, ...DOMAINS.math]
+  const sectionChoices = subject ? SECTIONS[subject] : [...SECTIONS.english, ...SECTIONS.mathematics]
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return questions.filter((q) => {
       if (subject && q.subject !== subject) return false
-      if (domain && q.domain !== domain) return false
+      if (section && q.section !== section) return false
       if (difficulty && q.difficulty !== difficulty) return false
       if (needle) {
         const hay = `${q.stem} ${q.passage ?? ''} ${q.question_options.map((o) => o.body).join(' ')}`
@@ -48,7 +49,7 @@ export function Questions() {
       }
       return true
     })
-  }, [questions, subject, domain, difficulty, search])
+  }, [questions, subject, section, difficulty, search])
 
   const counts = useMemo(() => {
     const by = { easy: 0, medium: 0, hard: 0 }
@@ -57,7 +58,7 @@ export function Questions() {
   }, [questions])
 
   return (
-    <>
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>Question bank</h1>
@@ -66,7 +67,7 @@ export function Questions() {
             {counts.medium} medium · {counts.hard} hard
           </p>
         </div>
-        <div className="spacer" />
+        <div className="spring" />
         <Link className="btn btn-primary" to="/questions/new">
           Add question
         </Link>
@@ -87,7 +88,7 @@ export function Questions() {
       )}
       {error && <Notice kind="error">{error}</Notice>}
 
-      <div className="q-toolbar">
+      <div className="toolbar">
         <div className="grow">
           <Input
             type="search"
@@ -101,7 +102,7 @@ export function Questions() {
           aria-label="Filter by subject"
           onChange={(e) => {
             setSubject(e.target.value as Subject | '')
-            setDomain('')
+            setSection('')
           }}
         >
           <option value="">All subjects</option>
@@ -111,9 +112,9 @@ export function Questions() {
             </option>
           ))}
         </Select>
-        <Select value={domain} aria-label="Filter by domain" onChange={(e) => setDomain(e.target.value)}>
-          <option value="">All domains</option>
-          {domainChoices.map((d) => (
+        <Select value={section} aria-label="Filter by section" onChange={(e) => setSection(e.target.value)}>
+          <option value="">All sections</option>
+          {sectionChoices.map((d) => (
             <option key={d.value} value={d.value}>
               {d.label}
             </option>
@@ -142,7 +143,7 @@ export function Questions() {
             <p>
               {questions.length === 0
                 ? 'Add your first multiple-choice question and set its difficulty.'
-                : 'Try widening the subject, domain or level.'}
+                : 'Try widening the subject, section or level.'}
             </p>
             {questions.length === 0 && (
               <Link className="btn btn-primary" to="/questions/new">
@@ -158,7 +159,7 @@ export function Questions() {
           ))}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -171,7 +172,7 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
   return (
     <details className="q-card" open={defaultOpen}>
       <summary>
-        <Chevron />
+        <IconChevron />
         <div className="q-main">
           <div className="q-stem">{q.stem}</div>
           <div className="q-tags">
@@ -179,7 +180,7 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
             <span className="badge badge-neutral">
               {SUBJECTS.find((s) => s.value === q.subject)?.label ?? q.subject}
             </span>
-            {q.domain && <span className="badge badge-neutral">{domainLabel(q.domain)}</span>}
+            {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
           </div>
         </div>
       </summary>
