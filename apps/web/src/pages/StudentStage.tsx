@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IconBack, IconCheck, IconCross, IconVideo } from '../components/icons'
-import { Notice, Textarea } from '../components/ui'
+import { Notice, Passage, Textarea } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { OPTION_LABELS, subjectLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
@@ -199,7 +199,13 @@ function ItemCard({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
           </div>
         )}
 
-        {item.questions?.passage && <div className="stage-passage">{item.questions.passage}</div>}
+        {item.questions?.passage && (
+          <Passage
+            body={item.questions.passage}
+            underline={item.questions.passage_underline}
+            className="stage-passage"
+          />
+        )}
         <div className="stage-stem">{item.questions?.stem}</div>
 
         <div className="choices">

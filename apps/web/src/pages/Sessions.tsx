@@ -143,7 +143,7 @@ export function StatusBadge({ status }: { status: Session['status'] }) {
         <span className="dot" aria-hidden="true" /> Live
       </span>
     )
-  if (status === 'scheduled') return <span className="badge badge-cyan">Scheduled</span>
+  if (status === 'scheduled') return <span className="badge badge-sky">Scheduled</span>
   if (status === 'completed') return <span className="badge badge-neutral">Completed</span>
   return <span className="badge badge-neutral">Cancelled</span>
 }

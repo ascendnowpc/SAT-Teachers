@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
+import { splitPassage } from '../lib/passage'
 import type { Difficulty } from '../lib/types'
 
 /**
@@ -75,6 +76,35 @@ export function Notice({
   return (
     <div className={`notice notice-${kind}`} role={kind === 'error' ? 'alert' : undefined}>
       {children}
+    </div>
+  )
+}
+
+/**
+ * The stimulus a question is about. `className` picks the surface it sits on
+ * (the bank card, the student's stage); the underline handling is the same
+ * everywhere, because it is part of the question rather than of the styling.
+ */
+export function Passage({
+  body,
+  underline,
+  className = 'q-passage',
+}: {
+  body: string
+  underline?: string | null
+  className?: string
+}) {
+  return (
+    <div className={className}>
+      {splitPassage(body, underline).map((seg, i) =>
+        seg.underlined ? (
+          <u key={i} className="underlined">
+            {seg.text}
+          </u>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
     </div>
   )
 }

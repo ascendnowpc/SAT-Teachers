@@ -5,9 +5,16 @@ starts.
 
 ---
 
-### Q1 — Where do the answer keys come from? **(blocking)**
+### Q1 — Where do the answer keys come from? **(blocking, partly answered)**
 
-The supplied PDF has no correct answers and no explanations, and Bluebook screenshots never
+**Answered for one paper.** The in-class *Reading and Writing – 25Q* diagnostic ships with a key
+at the back, and all 25 items are now in the bank with correct options and explanations
+(migration `0008`). Seven of those keys disagree with their passage and are loaded as `draft`
+pending a teacher's ruling — see
+[English Diagnostic Key Review](reference/english-diagnostic-key-review.md). The question below
+still stands for the screenshot decks.
+
+The screenshot PDFs have no correct answers and no explanations, and Bluebook screenshots never
 show them. The entire session loop branches on right vs wrong, so an item without a key cannot
 be used. Someone has to supply keys for all 40 items, and for every item after them.
 
@@ -20,10 +27,14 @@ be used. Someone has to supply keys for all 40 items, and for every item after t
 
 ### Q2 — Where do the difficulty labels live? **(blocking)**
 
-The brief says difficulty is written next to each question, but this file contains **28
-characters of text in total** — just "Module 1" and "Module 2". The labels are not in it. Are
-they in the Google Doc wrapper, a separate sheet, the Maths file, or only in the teachers'
-heads?
+The brief says difficulty is written next to each question, but the screenshot deck contains **28
+characters of text in total** — just "Module 1" and "Module 2" — and the in-class paper carries
+no labels either. Are they in the Google Doc wrapper, a separate sheet, the Maths file, or only
+in the teachers' heads?
+
+The 25 loaded English items were levelled on the shape of each task, with the reasoning stored in
+`difficulty_rationale`. That is a starting point to be corrected, not an answer to this
+question.
 
 Difficulty is not decorative here: escalate-on-correct / hold-on-wrong is the whole pedagogical
 loop, and it cannot run without it. Also worth deciding now: is difficulty a property of the
@@ -104,6 +115,10 @@ a small bug with outsized credibility cost.
 ---
 
 ## Resolved
+
+**Q1 — distractor rationales.** Not per option. Each item carries one explanation that names why
+the key is right *and* why the nearest trap is wrong, which is what the loaded English
+diagnostic does. Per-distractor rationales stay optional, for high-traffic items.
 
 **Q2 — difficulty labels.** Difficulty is set per question by the teacher when authoring, with
 an optional note on *why* it sits at that level. Not taken from the source PDF.
