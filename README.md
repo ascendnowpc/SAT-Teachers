@@ -30,6 +30,7 @@ npm run dev                                    # http://localhost:5173
 | **Tests** | Build a paper once, use it with every student |
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
 | **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
+| **Transcript** | Drop in the Fathom recording; it lines up against the questions and is read back as findings |
 | **Loaded bank** | Both English diagnostics — 66 items with passages, keys, sections and difficulty |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
@@ -220,6 +221,43 @@ the report can separate *wrong* from *wrong in nineteen seconds* — those need 
 target, the teacher's diagnoses, and every miss with the student's own reasoning and the teacher's
 note beside it. Everything is computed from the session's rows — nothing is stored and nothing is
 written by hand, so the report cannot say something the session did not.
+
+**Save as PDF** gives the parent's copy. The app furniture drops away — sidebar, back link,
+buttons — and what is left is the report as it appears on screen, keeping its heading (student,
+subject, date, teacher) and keeping cards off page breaks. There is no second document to hold in
+step with the data: the PDF is the report.
+
+## Writing it up from the recording
+
+`/sessions/:id/report/edit`. The session finishes, the teacher drops in the Fathom transcript, and
+the page does the part nobody wants to do by hand: it lines the recording up against the questions
+and reads it back.
+
+Alignment is a lookup, not a guess. Every question already knows when it was on the student's
+screen, and every Fathom turn knows how many minutes into the recording it was said. The one
+unknown is where question 1 sits in the recording — Fathom starts before the lesson does — so
+there is one dial for that, and **Find it** sets it by trying every offset and keeping the one
+that leaves the fewest questions with nobody talking about them.
+
+Then it reads the conversation. The teacher asks for the reasoning on every question, including
+the ones the student gets right, and that is the thing the answer rows cannot see: a tick is a tick
+whether the student explained it or shrugged. So each question gets a verdict — *explained it*,
+*self-corrected*, *right but no reason given*, *misread the stem*, *talked out of the right one*,
+*method held but the concept did not*, *no reasoning* — together with who did the talking on it. A
+miss the teacher explained is not the same finding as one the student worked and still lost.
+
+Those become findings, per domain, offered as buttons under the two written columns of the grid.
+Each one names the questions it came from and shows the student's own words underneath, so it can
+be checked before it goes in. Clicking appends it; the teacher edits it into their own words or
+ignores it and writes their own. **Nothing is written into the report by the analysis**, and the
+sentences that reach a parent are the teacher's.
+
+It is deterministic — no model, no network call — so the same transcript gives the same findings
+twice and the whole thing is unit tested. Who is who in the recording is a control rather than an
+inference, because Fathom labels turns with whatever people typed into Zoom and attributing the
+teacher's explanation to the student would poison every finding under it.
+[`docs/reference/transcript-analysis.md`](docs/reference/transcript-analysis.md) is the structure
+in full.
 
 ## The session workflow
 

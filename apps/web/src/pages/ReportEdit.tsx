@@ -4,6 +4,16 @@ import { IconBack } from '../components/icons'
 import { Field, Notice, Select, Textarea } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { sectionLabel, skillLabel } from '../lib/constants'
+import {
+  MARKER_LABELS,
+  VERDICT_LABELS,
+  analyseSession,
+  inferRoles,
+  suggestOffset,
+  type Role,
+  type SessionAnalysis,
+  type Suggestion,
+} from '../lib/analysis'
 import { DOMAIN_ORDER, buildGrid, recommendedPriority } from '../lib/grid'
 import { buildReport, formatDuration } from '../lib/report'
 import { rows, supabase } from '../lib/supabase'
@@ -20,11 +30,16 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
  * Writing up the report after the session.
  *
  * The flow is: the session finishes, the teacher drops in the Fathom
- * transcript, and the page lines the recording up against the questions so each
- * one carries what was actually said about it. The answer data fills the
- * computed half of the grid on its own; the teacher writes the two observed
- * columns with the conversation in front of them rather than from memory, and
- * publishes.
+ * transcript, the page lines the recording up against the questions so each one
+ * carries what was actually said about it, and it reads that conversation back
+ * as findings — who explained what, who was talked out of a right answer, which
+ * ticks nobody could account for.
+ *
+ * The findings are offered, not written in. Each one names the questions it came
+ * from and the line that raised it, and the teacher puts it into the grid or
+ * writes their own instead. That keeps the same split the rest of the report
+ * keeps: the numbers are computed, the words are the teacher's, and nothing on
+ * the page says something the session did not.
  */
 export function ReportEdit() {
   const { id = '' } = useParams()
@@ -35,6 +50,7 @@ export function ReportEdit() {
   const [draftBody, setDraftBody] = useState('')
   const [filename, setFilename] = useState<string | null>(null)
   const [offset, setOffset] = useState(DEFAULT_OFFSET_SECONDS)
+  const [roles, setRoles] = useState<Record<string, Role>>({})
 
   const [notes, setNotes] = useState<Record<string, { strengths: string; gaps: string }>>({})
   const [meta, setMeta] = useState<Partial<SessionReportRow>>({})
@@ -94,11 +110,67 @@ export function ReportEdit() {
     )
   }, [parsed, items, offset])
 
+  // Fathom labels a turn with whatever the person typed into Zoom, which is
+  // frequently neither name on the account. Guess from the given names, then let
+  // it be corrected — mistaking the teacher's explanation for the student's
+  // reasoning would make every finding below it wrong.
+  useEffect(() => {
+    if (!parsed || parsed.speakers.length === 0) return
+    setRoles((prev) => {
+      if (parsed.speakers.every((s) => s in prev)) return prev
+      return {
+        ...inferRoles(parsed.speakers, session?.teacher?.full_name, session?.student?.full_name),
+        ...prev,
+      }
+    })
+  }, [parsed, session])
+
+  const analysis: SessionAnalysis | null = useMemo(() => {
+    if (!parsed || parsed.lines.length === 0) return null
+    if (!Object.values(roles).includes('student')) return null
+    return analyseSession(report, parsed, windows, roles)
+  }, [parsed, report, windows, roles])
+
+  function findOffset() {
+    if (!parsed) return
+    setOffset(
+      suggestOffset(
+        parsed,
+        (o) =>
+          windowsFor(
+            items.map((i) => ({ id: i.id, startedAt: i.first_viewed_at ?? i.published_at })),
+            parsed.duration,
+            o,
+          ),
+        items.map((i) => i.id),
+        roles,
+      ),
+    )
+  }
+
   function setNote(domain: string, field: 'strengths' | 'gaps', value: string) {
     setNotes((prev) => ({
       ...prev,
       [domain]: { ...(prev[domain] ?? { strengths: '', gaps: '' }), [field]: value },
     }))
+  }
+
+  /** Puts a finding into a box without overwriting what is already typed. */
+  function appendNote(domain: string, field: 'strengths' | 'gaps', text: string) {
+    setNotes((prev) => {
+      const row = prev[domain] ?? { strengths: '', gaps: '' }
+      const current = row[field].trim()
+      if (current.includes(text)) return prev
+      return { ...prev, [domain]: { ...row, [field]: current ? `${current} ${text}` : text } }
+    })
+  }
+
+  function appendMeta(field: 'time_management' | 'engagement', text: string) {
+    setMeta((prev) => {
+      const current = (prev[field] ?? '').trim()
+      if (current.includes(text)) return prev
+      return { ...prev, [field]: current ? `${current} ${text}` : text }
+    })
   }
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
@@ -177,6 +249,7 @@ export function ReportEdit() {
   if (!session) return <div className="page">Session not found.</div>
 
   const suggested = recommendedPriority(report)
+  const found = (domain: string) => analysis?.domains.find((d) => d.domain === domain) ?? null
 
   return (
     <div className="page page-wide">
@@ -240,23 +313,47 @@ export function ReportEdit() {
         />
 
         {parsed && parsed.lines.length > 0 && (
-          <div className="offset-row">
-            <label htmlFor="offset">First question starts at</label>
-            <input
-              id="offset"
-              className="input"
-              type="number"
-              min={0}
-              step={15}
-              value={offset}
-              onChange={(e) => setOffset(Number(e.target.value))}
-              style={{ width: 110 }}
-            />
-            <span className="muted">
-              seconds into the recording — Fathom starts before the lesson does, and this is what
-              lines the quotes up with the right questions.
-            </span>
-          </div>
+          <>
+            <div className="offset-row">
+              <label htmlFor="offset">First question starts at</label>
+              <input
+                id="offset"
+                className="input"
+                type="number"
+                min={0}
+                step={15}
+                value={offset}
+                onChange={(e) => setOffset(Number(e.target.value))}
+                style={{ width: 110 }}
+              />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={findOffset}>
+                Find it
+              </button>
+              <span className="muted">
+                seconds into the recording — Fathom starts before the lesson does, and this is what
+                lines the quotes up with the right questions.
+              </span>
+            </div>
+
+            <div className="speaker-row">
+              <span className="muted">Who is who in the recording</span>
+              {parsed.speakers.map((name) => (
+                <label key={name} className="speaker">
+                  <span>{name}</span>
+                  <Select
+                    value={roles[name] ?? 'other'}
+                    onChange={(e) =>
+                      setRoles((prev) => ({ ...prev, [name]: e.target.value as Role }))
+                    }
+                  >
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="other">Someone else</option>
+                  </Select>
+                </label>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -268,6 +365,7 @@ export function ReportEdit() {
             {report.attempts.map((a) => {
               const w = windows.get(a.itemId)
               const said = w ? linesIn(parsed, w) : []
+              const read = analysis?.items.find((i) => i.itemId === a.itemId) ?? null
               return (
                 <details key={a.itemId} className="qtalk-row">
                   <summary>
@@ -276,17 +374,34 @@ export function ReportEdit() {
                     </span>
                     <span className="sk">{skillLabel(a.skill) ?? '—'}</span>
                     <span className="muted">{formatDuration(a.seconds)}</span>
+                    {read && read.verdict !== 'not_covered' && (
+                      <span className="badge badge-sky">{VERDICT_LABELS[read.verdict]}</span>
+                    )}
                     <span className="spring" />
+                    {read?.talkShare !== null && read?.talkShare !== undefined && (
+                      <span className="muted">
+                        she spoke {Math.round(read.talkShare * 100)}%
+                      </span>
+                    )}
                     <span className="muted">{said.length} turns</span>
                   </summary>
                   <div className="qtalk-body">
+                    {read && read.markers.length > 0 && (
+                      <div className="marker-row">
+                        {read.markers.map((m) => (
+                          <span key={m} className="badge badge-neutral">
+                            {MARKER_LABELS[m]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {said.length === 0 ? (
                       <p className="muted">
                         Nothing lines up here — check the offset above.
                       </p>
                     ) : (
                       said.map((l, i) => (
-                        <p key={i} className="qtalk-line">
+                        <p key={i} className={`qtalk-line ${roles[l.speaker] ?? 'other'}`}>
                           <span className="who">{l.speaker}</span>
                           {l.text}
                         </p>
@@ -297,6 +412,42 @@ export function ReportEdit() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------- what it shows --- */}
+      {analysis && (
+        <div className="card card-pad">
+          <div className="section-title">What the transcript shows</div>
+
+          {!analysis.alignment.ok && (
+            <Notice kind="info">
+              Only {analysis.alignment.covered} of {analysis.alignment.total} questions have the
+              student talking in them. That is the offset, not the lesson — press <b>Find it</b>{' '}
+              above, or nudge the number until the quotes sit under the right questions.
+            </Notice>
+          )}
+
+          <div className="read-row">
+            {analysis.talkShare !== null && (
+              <span className="badge badge-sky">
+                Student did {Math.round(analysis.talkShare * 100)}% of the talking
+              </span>
+            )}
+            <span className="badge badge-neutral">
+              Reasoning given on {analysis.explained} of {analysis.alignment.covered}
+            </span>
+            {analysis.secondGuess.total > 0 && (
+              <span className="badge badge-neutral">
+                Second-guessed {analysis.secondGuess.total}×, wrong {analysis.secondGuess.wrong}
+              </span>
+            )}
+          </div>
+
+          <p className="muted read-note">
+            Every line below names the questions it came from. Click one to put it in the box it
+            belongs to — then edit it into your own words, or ignore it and write your own.
+          </p>
         </div>
       )}
 
@@ -318,20 +469,32 @@ export function ReportEdit() {
                 ))}
               </div>
               <div className="note-cols">
-                <Field label="Strengths observed">
-                  <Textarea
-                    rows={2}
-                    value={notes[r.domain]?.strengths ?? ''}
-                    onChange={(e) => setNote(r.domain, 'strengths', e.target.value)}
+                <div>
+                  <Field label="Strengths observed">
+                    <Textarea
+                      rows={2}
+                      value={notes[r.domain]?.strengths ?? ''}
+                      onChange={(e) => setNote(r.domain, 'strengths', e.target.value)}
+                    />
+                  </Field>
+                  <Suggestions
+                    items={found(r.domain)?.strengths ?? []}
+                    onPick={(t) => appendNote(r.domain, 'strengths', t)}
                   />
-                </Field>
-                <Field label="Gaps observed">
-                  <Textarea
-                    rows={2}
-                    value={notes[r.domain]?.gaps ?? ''}
-                    onChange={(e) => setNote(r.domain, 'gaps', e.target.value)}
+                </div>
+                <div>
+                  <Field label="Gaps observed">
+                    <Textarea
+                      rows={2}
+                      value={notes[r.domain]?.gaps ?? ''}
+                      onChange={(e) => setNote(r.domain, 'gaps', e.target.value)}
+                    />
+                  </Field>
+                  <Suggestions
+                    items={found(r.domain)?.gaps ?? []}
+                    onPick={(t) => appendNote(r.domain, 'gaps', t)}
                   />
-                </Field>
+                </div>
               </div>
             </div>
           ))}
@@ -348,6 +511,10 @@ export function ReportEdit() {
             onChange={(e) => setMeta({ ...meta, time_management: e.target.value })}
           />
         </Field>
+        <Suggestions
+          items={analysis?.timeManagement ?? []}
+          onPick={(t) => appendMeta('time_management', t)}
+        />
         <Field label="Engagement / confidence">
           <Textarea
             rows={2}
@@ -355,6 +522,10 @@ export function ReportEdit() {
             onChange={(e) => setMeta({ ...meta, engagement: e.target.value })}
           />
         </Field>
+        <Suggestions
+          items={analysis?.engagement ?? []}
+          onPick={(t) => appendMeta('engagement', t)}
+        />
         <Field
           label="Recommended practice priority"
           hint={
@@ -397,6 +568,33 @@ export function ReportEdit() {
           Publish report
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The findings, offered.
+ *
+ * A finding is a button rather than a filled-in box on purpose. The teacher
+ * signs the report, so the sentence has to pass through them — and the quote
+ * underneath is what they check it against before it does.
+ */
+function Suggestions({
+  items,
+  onPick,
+}: {
+  items: Suggestion[]
+  onPick: (text: string) => void
+}) {
+  if (items.length === 0) return null
+  return (
+    <div className="suggests">
+      {items.map((s) => (
+        <button key={s.text} type="button" className="suggest" onClick={() => onPick(s.text)}>
+          <span className="suggest-text">{s.text}</span>
+          {s.quote && <span className="suggest-quote">“{s.quote.text}”</span>}
+        </button>
+      ))}
     </div>
   )
 }
