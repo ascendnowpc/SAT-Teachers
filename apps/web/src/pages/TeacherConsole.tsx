@@ -45,6 +45,25 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
 
   const staged = items.filter((i) => i.status === 'staged')
   const live = items.filter((i) => i.status !== 'staged')
+  const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
+  const unrevealed = items.filter((i) => i.status === 'answered').length
+
+  /**
+   * The whole result, in one go. The student learns how they did when their
+   * teacher says so — but that is one decision about the paper, not
+   * twenty-six decisions about twenty-six questions, and revealing them one at
+   * a time only ever meant clicking twenty-six times.
+   */
+  async function publishResults() {
+    setActionError(null)
+    setBusy(true)
+    const reveal = await supabase.rpc('reveal_answered_items', { p_session: sessionId })
+    const report = await supabase.rpc('publish_report', { p_session: sessionId })
+    const err = reveal.error ?? report.error
+    if (err) setActionError(err.message)
+    await reload()
+    setBusy(false)
+  }
 
   return (
     <div className="page page-wide">
@@ -81,6 +100,16 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
             <Link className="btn btn-primary btn-sm" to={`/sessions/${sessionId}/paper`}>
               {staged.length === 0 ? 'Pick the questions' : 'Edit the paper'}
             </Link>
+          )}
+          {answered > 0 && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy || unrevealed === 0}
+              onClick={() => void publishResults()}
+            >
+              {unrevealed > 0 ? `Publish results (${answered})` : 'Results published'}
+            </button>
           )}
           {session.status === 'live' && (
             <button
@@ -326,16 +355,6 @@ function ItemDetail({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <span className="pill-opt">{item.sequence_no}</span>
         <strong style={{ fontSize: 14.5, flex: 1 }}>{item.questions?.stem}</strong>
-        {item.status === 'answered' && (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={busy}
-            onClick={() => void onCall('reveal_item', { p_item: item.id })}
-          >
-            Reveal to student
-          </button>
-        )}
       </div>
 
       <div className="q-options" style={{ marginBottom: 14 }}>
@@ -365,7 +384,7 @@ function ItemDetail({
         </div>
       )}
 
-      {item.status === 'revealed' && (
+      {a && (
         <div style={{ marginTop: 14 }}>
           <div className="section-title">Diagnosis — one tap</div>
           <div className="chips">
