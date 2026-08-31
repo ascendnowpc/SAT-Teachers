@@ -1,65 +1,42 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconBack, IconCheck, IconCross, IconVideo } from '../components/icons'
+import { IconBack, IconCheck, IconClock, IconCross, IconVideo } from '../components/icons'
 import { Notice, Passage, Textarea } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
+import { clock, openState } from '../lib/countdown'
 import { OPTION_LABELS, subjectLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
-import type { OptionLabel, SessionItem } from '../lib/types'
+import type { OptionLabel, Session, SessionItem } from '../lib/types'
 
 /**
- * The student's screen, in the shape of the test they are actually sitting:
- * stimulus on the left, question and choices on the right, the question number
- * and a Next control along the bottom.
+ * The student's screen: a lobby, then the paper, one question at a time.
  *
- * The teacher can hand over one question at a time or publish a whole pre-test.
- * Both land here — with one open question this is a single card, and with
- * twenty it becomes a paper the student walks through. That is the only
- * difference, so there is one screen rather than two.
+ * The teacher built this paper days ago and is not driving anything now. At
+ * the scheduled time the student opens the session themselves, and from then
+ * on exactly one question is in front of them — the next arrives when the
+ * current one is answered, and it arrives because the server publishes it,
+ * not because this screen decides to show it.
+ *
+ * Which is also what makes the clock on each question honest: there is no way
+ * to read ahead while it runs.
  */
 export function StudentStage({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
     withAssessments: false,
   })
-  const [cursor, setCursor] = useState<number | null>(null)
 
-  // Everything the student may look at: open questions, plus anything already
-  // answered or gone through, so they can page back over the paper.
-  const visible = useMemo(
-    () => items.filter((i) => i.status !== 'staged' && i.status !== 'voided'),
+  const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
+  const done = useMemo(
+    () => items.filter((i) => i.status === 'answered' || i.status === 'revealed'),
     [items],
   )
-
-  const firstUnanswered = visible.findIndex((i) => i.status === 'published')
-  // Follow the paper until the student takes over, then leave them where they are.
-  const index = cursor ?? (firstUnanswered === -1 ? Math.max(0, visible.length - 1) : firstUnanswered)
-  const current = visible[index] ?? null
-
-  const answered = visible.filter((i) => i.status === 'revealed').length
-  const correct = visible.filter((i) => i.revealed_result === 'correct').length
 
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  const waiting =
-    session.status === 'scheduled'
-      ? {
-          title: 'Not started yet',
-          body: `Your session begins at ${new Date(session.scheduled_at).toLocaleString(undefined, {
-            day: 'numeric',
-            month: 'short',
-            hour: 'numeric',
-            minute: '2-digit',
-          })}. This page will update on its own when your teacher starts.`,
-        }
-      : session.status === 'completed' && visible.length === 0
-        ? { title: 'Session finished', body: 'This session has ended.' }
-        : visible.length === 0
-          ? {
-              title: 'Waiting for your teacher',
-              body: 'Your questions will appear here as soon as they are sent to you.',
-            }
-          : null
+  const total = Math.max(session.question_count, items.length)
+  const number = open ? open.sequence_no : done.length
+  const finished = !open && done.length > 0
 
   return (
     <div className="exam">
@@ -74,14 +51,13 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           </span>
         </div>
 
-        <ExamClock startedAt={session.started_at} live={session.status === 'live'} />
+        {open && total > 0 && (
+          <div className="exam-progress-plain">
+            Question {number} of {total}
+          </div>
+        )}
 
         <div className="exam-actions">
-          {answered > 0 && (
-            <span className="exam-score">
-              {correct} of {answered} right
-            </span>
-          )}
           {session.meeting_url && session.status !== 'completed' && (
             <a
               className="btn btn-ghost btn-sm"
@@ -101,131 +77,156 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {waiting ? (
+      {session.status === 'scheduled' ? (
+        <Lobby session={session} onStarted={reload} />
+      ) : open ? (
+        <ItemPane key={open.id} item={open} total={total} onChanged={reload} />
+      ) : finished ? (
+        <Finished items={done} />
+      ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
-          <h2>{waiting.title}</h2>
-          <p>{waiting.body}</p>
+          <h2>{session.status === 'completed' ? 'Session finished' : 'Nothing to answer yet'}</h2>
+          <p>
+            {session.status === 'completed'
+              ? 'This session has ended. Your teacher will go through it with you.'
+              : 'Your teacher has not put any questions in this session yet. It will start on its own once they do.'}
+          </p>
         </div>
-      ) : (
-        current && <ItemPane key={current.id} item={current} onChanged={reload} />
-      )}
-
-      {visible.length > 0 && !waiting && (
-        <footer className="exam-foot">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={index === 0}
-            onClick={() => setCursor(index - 1)}
-          >
-            Back
-          </button>
-
-          <ProgressPicker
-            items={visible}
-            index={index}
-            onPick={(i) => setCursor(i)}
-          />
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={index >= visible.length - 1}
-            onClick={() => setCursor(index + 1)}
-          >
-            Next
-          </button>
-        </footer>
       )}
     </div>
   )
 }
 
-/** Time on the whole session, which is the clock the real test shows. */
-function ExamClock({ startedAt, live }: { startedAt: string | null; live: boolean }) {
-  const [shown, setShown] = useState(true)
+/* --------------------------------------------------------------- lobby --- */
+
+/**
+ * Before the scheduled time this is a countdown; after it, a Start button.
+ *
+ * The button is only the polite half of the gate — start_session_as_student
+ * refuses anything early on the server, so a student who finds the call by
+ * hand gets the same answer this screen would have given them.
+ */
+function Lobby({
+  session,
+  onStarted,
+}: {
+  session: Session
+  onStarted: () => Promise<void>
+}) {
   const [now, setNow] = useState(() => Date.now())
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!live) return
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [live])
+  }, [])
 
-  if (!startedAt) return <div className="exam-clock" />
+  const state = openState(session.scheduled_at, now)
+  const when = new Date(session.scheduled_at)
 
-  const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000))
-  const m = Math.floor(seconds / 60)
+  async function start() {
+    setBusy(true)
+    setErr(null)
+    const { error } = await supabase.rpc('start_session_as_student', { p_session: session.id })
+    if (error) setErr(error.message)
+    await onStarted()
+    setBusy(false)
+  }
 
   return (
-    <div className="exam-clock">
-      <div className="t" aria-live="off">
-        {shown ? `${m}:${String(seconds % 60).padStart(2, '0')}` : '—:—'}
+    <div className="exam-wait">
+      <div className="ring" aria-hidden="true" />
+      <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
+      <p>
+        {session.question_count > 0
+          ? `${session.question_count} question${session.question_count === 1 ? '' : 's'}. `
+          : ''}
+        You answer them one at a time, and each one is timed from the moment it appears. Once you
+        submit an answer you move on to the next.
+      </p>
+      <p className="exam-when">
+        {when.toLocaleString(undefined, {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          hour: 'numeric',
+          minute: '2-digit',
+        })}{' '}
+        — {state.label}
+      </p>
+
+      {err && <Notice kind="error">{err}</Notice>}
+
+      <button
+        type="button"
+        className="btn btn-primary btn-lg"
+        disabled={!state.open || busy || session.question_count === 0}
+        onClick={() => void start()}
+      >
+        {busy ? 'Starting…' : 'Start the test'}
+      </button>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------ finished --- */
+
+function Finished({ items }: { items: SessionItem[] }) {
+  const revealed = items.filter((i) => i.status === 'revealed')
+
+  return (
+    <div className="exam-done">
+      <div className="exam-done-head">
+        <h2>That is the whole paper</h2>
+        <p>
+          {items.length} answered.{' '}
+          {revealed.length === items.length
+            ? 'Your results are below.'
+            : 'Your teacher will go through it with you — the results appear here as they do.'}
+        </p>
       </div>
-      <button type="button" className="pill" onClick={() => setShown((v) => !v)}>
-        {shown ? 'Hide' : 'Show'}
-      </button>
+
+      <ol className="done-list">
+        {items.map((it) => (
+          <li key={it.id} className={it.revealed_result ?? undefined}>
+            <span className="no">{it.sequence_no}</span>
+            <span className="stem">{it.questions?.stem}</span>
+            <span className="pick">You chose {it.selected_option}</span>
+            {it.status === 'revealed' && (
+              <span className={`mark ${it.revealed_result}`}>
+                {it.revealed_result === 'correct' ? <IconCheck /> : <IconCross />}
+                {it.revealed_result === 'correct'
+                  ? 'Right'
+                  : `Answer ${it.revealed_correct_option ?? '—'}`}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
 
-function ProgressPicker({
-  items,
-  index,
-  onPick,
+/* ---------------------------------------------------------------- item --- */
+
+function ItemPane({
+  item,
+  total,
+  onChanged,
 }: {
-  items: SessionItem[]
-  index: number
-  onPick: (i: number) => void
+  item: SessionItem
+  total: number
+  onChanged: () => Promise<void>
 }) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div className="exam-progress">
-      <button type="button" className="exam-progress-btn" onClick={() => setOpen((v) => !v)}>
-        Question {String(index + 1).padStart(2, '0')} out of {items.length}
-        <span className={`caret ${open ? 'up' : ''}`} aria-hidden="true" />
-      </button>
-
-      {open && (
-        <div className="exam-grid" role="listbox">
-          {items.map((it, i) => {
-            const done = it.status === 'answered' || it.status === 'revealed'
-            return (
-              <button
-                key={it.id}
-                type="button"
-                role="option"
-                aria-selected={i === index}
-                className={`sq ${i === index ? 'here' : ''} ${done ? 'done' : ''} ${it.marked_for_review ? 'marked' : ''}`}
-                onClick={() => {
-                  onPick(i)
-                  setOpen(false)
-                }}
-              >
-                {i + 1}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Promise<void> }) {
   const [selected, setSelected] = useState<OptionLabel | null>(item.selected_option)
   const [struck, setStruck] = useState<OptionLabel[]>(item.eliminated_options ?? [])
   const [crossoutOn, setCrossoutOn] = useState(false)
-  const [marked, setMarked] = useState(item.marked_for_review)
   const [confidence, setConfidence] = useState<number | null>(item.student_confidence)
   const [reasoning, setReasoning] = useState(item.student_reasoning ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-
-  const open = item.status === 'published'
-  const revealed = item.status === 'revealed'
 
   const options = useMemo(
     () =>
@@ -236,26 +237,20 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
   )
 
   // Tell the server the question is actually on screen, so time-on-question
-  // measures reading rather than however long the teacher took to publish.
+  // measures reading rather than however long the row took to arrive.
   const viewed = useRef(false)
   useEffect(() => {
-    if (!open || viewed.current) return
+    if (viewed.current) return
     viewed.current = true
     void supabase.rpc('mark_item_viewed', { p_item: item.id })
-  }, [open, item.id])
-
-  const toggleMark = useCallback(async () => {
-    const next = !marked
-    setMarked(next)
-    await supabase.rpc('set_marked_for_review', { p_item: item.id, p_marked: next })
-  }, [marked, item.id])
+  }, [item.id])
 
   function toggleStrike(label: OptionLabel) {
     setStruck((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]))
     if (selected === label) setSelected(null)
   }
 
-  async function submit() {
+  const submit = useCallback(async () => {
     if (!selected) return
     setBusy(true)
     setErr(null)
@@ -267,9 +262,10 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
       p_reasoning: reasoning,
     })
     if (error) setErr(error.message)
+    // Answering publishes the next question, so the reload brings it with it.
     await onChanged()
     setBusy(false)
-  }
+  }, [selected, struck, confidence, reasoning, item.id, onChanged])
 
   return (
     <div className="exam-body">
@@ -288,21 +284,13 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
       <section className="exam-question">
         <div className="exam-qhead">
           <span className="qn">{String(item.sequence_no).padStart(2, '0')}</span>
-          <button
-            type="button"
-            className={`mark ${marked ? 'on' : ''}`}
-            onClick={() => void toggleMark()}
-            disabled={!open}
-            aria-pressed={marked}
-          >
-            <BookmarkIcon filled={marked} /> Mark for Review
-          </button>
+          <span className="qof">of {total}</span>
           <span className="spring" />
+          <QuestionClock itemId={item.id} running={!busy} />
           <button
             type="button"
             className={`abc ${crossoutOn ? 'on' : ''}`}
             onClick={() => setCrossoutOn((v) => !v)}
-            disabled={!open}
             aria-pressed={crossoutOn}
             title="Cross out answers"
           >
@@ -312,39 +300,19 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
 
         {err && <Notice kind="error">{err}</Notice>}
 
-        {revealed && (
-          <div className={`verdict ${item.revealed_result === 'correct' ? 'ok' : 'bad'}`}>
-            <span className="icon">
-              {item.revealed_result === 'correct' ? <IconCheck /> : <IconCross />}
-            </span>
-            <span>
-              <span className="t">
-                {item.revealed_result === 'correct' ? 'That was right' : 'That one was wrong'}
-              </span>
-              {item.revealed_explanation && <span className="s">{item.revealed_explanation}</span>}
-            </span>
-          </div>
-        )}
-
         <h2 className="exam-stem">{item.questions?.stem}</h2>
 
         <div className="exam-choices">
           {options.map((o) => {
             const isStruck = struck.includes(o.label)
             const isSel = selected === o.label
-            const wasChosen = item.selected_option === o.label
-            const isKey = revealed && item.revealed_correct_option === o.label
-            let state = ''
-            if (isKey) state = 'right'
-            else if (revealed && wasChosen) state = 'wrong'
-            else if (isSel) state = 'selected'
 
             return (
-              <div key={o.id} className={`ch ${state} ${isStruck && !revealed ? 'struck' : ''}`}>
+              <div key={o.id} className={`ch ${isSel ? 'selected' : ''} ${isStruck ? 'struck' : ''}`}>
                 <button
                   type="button"
                   className="ch-main"
-                  disabled={!open}
+                  disabled={busy}
                   onClick={() => {
                     if (isStruck) setStruck((p) => p.filter((l) => l !== o.label))
                     setSelected(o.label)
@@ -352,11 +320,8 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
                 >
                   <span className="lab">{o.label}</span>
                   <span className="body">{o.body}</span>
-                  {revealed && (isKey || wasChosen) && (
-                    <span className="mark-note">{isKey ? 'Correct answer' : 'You picked this'}</span>
-                  )}
                 </button>
-                {open && crossoutOn && (
+                {crossoutOn && (
                   <button
                     type="button"
                     className={`ch-strike ${isStruck ? 'on' : ''}`}
@@ -372,57 +337,78 @@ function ItemPane({ item, onChanged }: { item: SessionItem; onChanged: () => Pro
           })}
         </div>
 
-        {open && (
-          <div className="exam-after">
-            <div className="section-title">How sure are you?</div>
-            <div className="confidence">
-              {['Not sure', 'Fairly sure', 'Certain'].map((label, i) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
-                  onClick={() => setConfidence(i + 1)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="section-title" style={{ marginTop: 16 }}>
-              Why did you pick it?
-            </div>
-            <Textarea
-              rows={2}
-              value={reasoning}
-              onChange={(e) => setReasoning(e.target.value)}
-              placeholder="Optional — one line on how you got there."
-              aria-label="Why did you pick it?"
-            />
-
-            <button
-              type="button"
-              className="btn btn-primary btn-lg btn-block"
-              style={{ marginTop: 16 }}
-              disabled={!selected || busy}
-              onClick={() => void submit()}
-            >
-              {busy ? 'Sending…' : selected ? `Submit answer ${selected}` : 'Pick an answer'}
-            </button>
+        <div className="exam-after">
+          <div className="section-title">How sure are you?</div>
+          <div className="confidence">
+            {['Not sure', 'Fairly sure', 'Certain'].map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
+                onClick={() => setConfidence(i + 1)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        )}
 
-        {item.status === 'answered' && <p className="exam-sent">Answer sent.</p>}
+          <div className="section-title" style={{ marginTop: 16 }}>
+            Why did you pick it?
+          </div>
+          <Textarea
+            rows={2}
+            value={reasoning}
+            onChange={(e) => setReasoning(e.target.value)}
+            placeholder="Optional — one line on how you got there."
+            aria-label="Why did you pick it?"
+          />
+
+          <button
+            type="button"
+            className="btn btn-primary btn-lg btn-block"
+            style={{ marginTop: 16 }}
+            disabled={!selected || busy}
+            onClick={() => void submit()}
+          >
+            {busy
+              ? 'Sending…'
+              : selected
+                ? `Submit ${selected} and go on`
+                : 'Pick an answer'}
+          </button>
+          <p className="exam-lock">
+            You cannot come back to a question once you have submitted it.
+          </p>
+        </div>
       </section>
     </div>
   )
 }
 
-function BookmarkIcon({ filled }: { filled: boolean }) {
+/**
+ * The clock on this question. It starts when the question appears and stops
+ * when the answer goes in — which is exactly the interval the server records
+ * as elapsed_seconds, so the number the student watches is the number their
+ * teacher reads in the report.
+ */
+function QuestionClock({ itemId, running }: { itemId: string; running: boolean }) {
+  const started = useRef(Date.now())
+  const [seconds, setSeconds] = useState(0)
+
+  useEffect(() => {
+    started.current = Date.now()
+    setSeconds(0)
+  }, [itemId])
+
+  useEffect(() => {
+    if (!running) return
+    const t = setInterval(() => setSeconds((Date.now() - started.current) / 1000), 1000)
+    return () => clearInterval(t)
+  }, [running, itemId])
+
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'}
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
+    <span className={`q-clock ${running ? '' : 'stopped'}`} aria-live="off">
+      <IconClock /> {clock(seconds)}
+    </span>
   )
 }

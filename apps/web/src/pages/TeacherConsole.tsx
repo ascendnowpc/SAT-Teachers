@@ -1,30 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconBack, IconPlus, IconTrash, IconVideo } from '../components/icons'
-import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
+import { IconBack, IconVideo } from '../components/icons'
+import { DifficultyBadge, Notice } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import {
   DIAGNOSES,
-  DIFFICULTIES,
   OPTION_LABELS,
-  SECTIONS,
   diagnosisLabel,
   sectionLabel,
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
-import { rows, supabase } from '../lib/supabase'
-import type {
-  Diagnosis,
-  Difficulty,
-  Question,
-  QuestionSet,
-  Session,
-  SessionItem,
-  Subject,
-} from '../lib/types'
+import { supabase } from '../lib/supabase'
+import type { Diagnosis, Session, SessionItem } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
+/**
+ * The teacher's side of a session — which is now mostly a place to watch.
+ *
+ * The paper is chosen beforehand in the builder, and the student opens the
+ * session themselves at the scheduled time. What is left here is the part
+ * that needs a teacher: seeing each answer land with its time and confidence,
+ * revealing, and saying why the student missed it. That last one is what the
+ * report is built out of.
+ */
 export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
     withAssessments: true,
@@ -84,14 +83,22 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
             </a>
           )}
           {session.status === 'scheduled' && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy}
-              onClick={() => void call('set_session_status', { p_session: sessionId, p_status: 'live' })}
-            >
-              Start session
-            </button>
+            <>
+              <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
+                Edit the paper
+              </Link>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy || staged.length === 0}
+                title="The student can open this themselves at the scheduled time — use this only to let them in early."
+                onClick={() =>
+                  void call('set_session_status', { p_session: sessionId, p_status: 'live' })
+                }
+              >
+                Open early
+              </button>
+            </>
           )}
           {session.status === 'live' && (
             <button
@@ -112,312 +119,92 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
       <div className="room">
-        <Queue
-          sessionId={sessionId}
-          session={session}
-          staged={staged}
-          busy={busy}
-          onPublish={(id) => void call('publish_item', { p_item: id })}
-          onPublishAll={() => void call('publish_staged_items', { p_session: sessionId })}
-          onRemove={(id) => void call('unstage_item', { p_item: id })}
-          onStaged={reload}
-        />
+        <Queue sessionId={sessionId} session={session} staged={staged} done={live.length} />
         <Board items={live} busy={busy} onCall={call} />
       </div>
     </div>
   )
 }
 
-/* -------------------------------------------------------------- queue --- */
+/* -------------------------------------------------------------- paper --- */
 
+/**
+ * The paper this session is carrying, and how far through it the student is.
+ *
+ * It is read-only on purpose. The questions were chosen and ordered in the
+ * builder before the day; changing them from here mid-session would renumber
+ * a paper the student is part-way through.
+ */
 function Queue({
   sessionId,
   session,
   staged,
-  busy,
-  onPublish,
-  onPublishAll,
-  onRemove,
-  onStaged,
+  done,
 }: {
   sessionId: string
   session: Session
   staged: SessionItem[]
-  busy: boolean
-  onPublish: (id: string) => void
-  onPublishAll: () => void
-  onRemove: (id: string) => void
-  onStaged: () => Promise<void>
+  done: number
 }) {
-  const [picking, setPicking] = useState(false)
+  const total = staged.length + done
 
   return (
     <div className="queue">
       <div className="queue-head">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="section-title" style={{ marginBottom: 0, flex: 1 }}>
-            Queue · {staged.length}
+            The paper · {total}
           </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setPicking((p) => !p)}
-          >
-            <IconPlus /> {picking ? 'Done' : 'Add'}
-          </button>
+          {session.status === 'scheduled' && (
+            <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
+              Edit
+            </Link>
+          )}
         </div>
 
-        <PretestLoader sessionId={sessionId} subject={session.subject} onStaged={onStaged} />
-
-        {staged.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm btn-block"
-            style={{ marginTop: 8 }}
-            disabled={busy || session.status !== 'live'}
-            title={session.status !== 'live' ? 'Start the session first' : undefined}
-            onClick={() => onPublishAll()}
-          >
-            Publish all {staged.length}
-          </button>
-        )}
+        <p className="queue-note">
+          {total === 0 ? (
+            <>
+              No questions yet.{' '}
+              <Link to={`/sessions/${sessionId}/paper`}>Pick them now</Link> — the student cannot
+              start an empty session.
+            </>
+          ) : session.status === 'scheduled' ? (
+            <>
+              Ready. {session.student?.full_name?.split(' ')[0] ?? 'The student'} opens this at the
+              scheduled time and works through it one question at a time.
+            </>
+          ) : (
+            <>
+              {done} of {total} handed over. The next question is published the moment the current
+              one is answered.
+            </>
+          )}
+        </p>
       </div>
 
-      {picking && (
-        <QuestionPicker
-          sessionId={sessionId}
-          subject={session.subject}
-          alreadyStaged={new Set(staged.map((s) => s.question_id))}
-          onStaged={onStaged}
-        />
-      )}
-
       <div className="queue-body">
-        {staged.length === 0 && !picking && (
-          <p style={{ color: 'var(--muted)', fontSize: 13.5, fontWeight: 300, padding: '6px 4px' }}>
-            Nothing queued. Add questions before you start — the student cannot see them until you
-            publish each one.
-          </p>
-        )}
-
-        {staged.map((item) => (
+        {staged.map((item, i) => (
           <div className="qi" key={item.id}>
             <div className="top">
               <span className="no">{item.sequence_no}</span>
               {item.questions && <DifficultyBadge level={item.questions.difficulty} />}
+              {i === 0 && session.status === 'live' && (
+                <span className="badge badge-sky">Up next</span>
+              )}
             </div>
             <div className="stem">{item.questions?.stem}</div>
-            <div className="row">
-              {item.questions?.section && (
+            {item.questions?.section && (
+              <div className="row">
                 <span className="badge badge-neutral">{sectionLabel(item.questions.section)}</span>
-              )}
-              <span className="spring" />
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                disabled={busy}
-                onClick={() => onRemove(item.id)}
-                aria-label="Remove from queue"
-              >
-                <IconTrash />
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={busy || session.status !== 'live'}
-                title={session.status !== 'live' ? 'Start the session first' : undefined}
-                onClick={() => onPublish(item.id)}
-              >
-                Publish
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         ))}
-      </div>
-    </div>
-  )
-}
 
-/**
- * Drop a whole pre-test into the queue. This is the reusable half of the
- * workflow: the paper is built once under /pretests and run with every student
- * after that, so two students' reports are answering the same questions.
- */
-function PretestLoader({
-  sessionId,
-  subject,
-  onStaged,
-}: {
-  sessionId: string
-  subject: Subject
-  onStaged: () => Promise<void>
-}) {
-  const [sets, setSets] = useState<QuestionSet[]>([])
-  const [choice, setChoice] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    void supabase
-      .from('question_sets')
-      .select('*, question_set_items(count)')
-      .eq('subject', subject)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setSets(rows<QuestionSet>(data)))
-  }, [subject])
-
-  if (sets.length === 0) return null
-
-  async function load() {
-    if (!choice) return
-    setBusy(true)
-    await supabase.rpc('stage_question_set', { p_session: sessionId, p_set: choice })
-    await onStaged()
-    setChoice('')
-    setBusy(false)
-  }
-
-  return (
-    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-      <Select
-        value={choice}
-        onChange={(e) => setChoice(e.target.value)}
-        aria-label="Pre-test"
-        style={{ flex: 1 }}
-      >
-        <option value="">Load a pre-test…</option>
-        {sets.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.title} ({s.question_set_items?.[0]?.count ?? 0})
-          </option>
-        ))}
-      </Select>
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm"
-        disabled={!choice || busy}
-        onClick={() => void load()}
-      >
-        Queue
-      </button>
-    </div>
-  )
-}
-
-function QuestionPicker({
-  sessionId,
-  subject,
-  alreadyStaged,
-  onStaged,
-}: {
-  sessionId: string
-  subject: Session['subject']
-  alreadyStaged: Set<string>
-  onStaged: () => Promise<void>
-}) {
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [search, setSearch] = useState('')
-  const [section, setSection] = useState('')
-  const [difficulty, setDifficulty] = useState<Difficulty | ''>('')
-  const [adding, setAdding] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    void supabase
-      .from('questions')
-      .select('*, question_options(*)')
-      .eq('subject', subject)
-      // Draft items are the ones whose key is still under review. They stay out
-      // of the picker so a disputed answer can never reach a live session.
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (active && data) setQuestions(data as Question[])
-      })
-    return () => {
-      active = false
-    }
-  }, [subject])
-
-  const visible = useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    return questions
-      .filter((q) => !alreadyStaged.has(q.id))
-      .filter((q) => (section ? q.section === section : true))
-      .filter((q) => (difficulty ? q.difficulty === difficulty : true))
-      .filter((q) => (needle ? q.stem.toLowerCase().includes(needle) : true))
-      .slice(0, 40)
-  }, [questions, alreadyStaged, section, difficulty, search])
-
-  async function stage(questionId: string) {
-    setAdding(questionId)
-    await supabase.rpc('stage_question', { p_session: sessionId, p_question: questionId })
-    await onStaged()
-    setAdding(null)
-  }
-
-  return (
-    <div style={{ padding: '10px 14px 0', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-        <Input
-          type="search"
-          placeholder="Search the bank…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search questions"
-        />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Select
-            value={section}
-            aria-label="Filter by section"
-            onChange={(e) => setSection(e.target.value)}
-          >
-            <option value="">All sections</option>
-            {SECTIONS[subject].map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={difficulty}
-            aria-label="Filter by level"
-            onChange={(e) => setDifficulty(e.target.value as Difficulty | '')}
-          >
-            <option value="">All levels</option>
-            {DIFFICULTIES.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-
-      <div style={{ maxHeight: '38vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 12 }}>
-        {visible.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>
-            No questions match. Add some to the bank first.
-          </p>
+        {staged.length === 0 && total > 0 && (
+          <p className="queue-note">Every question has been handed over.</p>
         )}
-        {visible.map((q) => (
-          <button
-            key={q.id}
-            type="button"
-            className="qi"
-            style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }}
-            disabled={adding === q.id}
-            onClick={() => void stage(q.id)}
-          >
-            <div className="top">
-              <DifficultyBadge level={q.difficulty} />
-              {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
-            </div>
-            <div className="stem" style={{ marginBottom: 0 }}>
-              {q.stem}
-            </div>
-          </button>
-        ))}
       </div>
     </div>
   )

@@ -84,7 +84,8 @@ export function SessionNew() {
         .single()
 
       if (err) throw new Error(err.message)
-      navigate(`/sessions/${(data as { id: string }).id}`)
+      // Straight into the builder: a session with no paper is not yet a session.
+      navigate(`/sessions/${(data as { id: string }).id}/paper`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the session.')
     } finally {
@@ -101,7 +102,10 @@ export function SessionNew() {
       <div className="page-head">
         <div>
           <h1>New session</h1>
-          <p className="sub">Pick a student and a time. You can queue questions next.</p>
+          <p className="sub">
+            Pick a student and a time. Next you choose the questions — the student opens the
+            session themselves once that time has passed.
+          </p>
         </div>
       </div>
 
@@ -174,7 +178,10 @@ export function SessionNew() {
             </Field>
           </div>
 
-          <Field label="Meeting link" hint="Paste the Zoom link. The student sees a Join button.">
+          <Field
+            label="Meeting link"
+            hint="Optional. Paste the Zoom link if you are going through it together on a call."
+          >
             <Input
               type="url"
               value={meetingUrl}
@@ -186,7 +193,7 @@ export function SessionNew() {
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
-            {busy ? 'Creating…' : 'Create session'}
+            {busy ? 'Creating…' : 'Create and pick questions'}
           </button>
           <Link className="btn btn-ghost" to="/sessions">
             Cancel

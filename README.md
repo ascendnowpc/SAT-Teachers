@@ -20,33 +20,56 @@ npm run dev                                    # http://localhost:5173
 | **Signup** | Direct, for teachers and students. Each person gets a readable ID (see below) |
 | **Login** | Email + password |
 | **Question bank** | Teachers author text MCQs: passage, question, up to 4 options, correct answer, explanation |
+| **Papers** | The bank opens on the source papers, not 66 loose items — click one and read it as printed |
 | **Difficulty** | Easy / medium / hard, plus an optional note on *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
-| **Sessions** | Schedule with a student, a time and a meeting link; queue questions; run it live |
-| **Live loop** | Publish one question at a time, watch the answer land, reveal, diagnose in one tap |
-| **Pre-tests** | Build a paper once, run it with every student: queue the set, publish it all at once |
-| **Exam screen** | The student sits it in the shape of the real test — stimulus left, question right, mark for review, cross-out, question grid |
+| **Sessions** | Schedule with a student and a time; build the paper up front; the student sits it themselves |
+| **Paper builder** | The bank shown whole — passage, stem, all four choices — ticked into a paper and dragged into order |
+| **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
+| **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
+| **Pre-tests** | Build a paper once, run it with every student |
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
 | **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
-| **Loaded bank** | Both English diagnostics — 65 items with passages, keys, sections and difficulty |
+| **Loaded bank** | Both English diagnostics — 66 items with passages, keys, sections and difficulty |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
 ## The English bank
 
-Both English diagnostics are in the bank already — 65 published items, each with its passage,
+Both English diagnostics are in the bank already — 66 published items, each with its passage,
 four options, the correct option, an explanation, its SAT section, its skill from the teachers'
 evaluation grid, and a difficulty with the reasoning behind it.
 
 | Paper | Items | Source refs | Migration |
 | --- | --- | --- | --- |
 | In-class *Reading and Writing – 25Q* | 25 | `ENG-DIAG-INCLASS-Q01` … `Q25` | `0008` |
-| *English Diagnostic Test 4* | 40 | `ENG-DIAG-T4-M1-Q01` … `M2-Q26` | `0009` |
+| *English Diagnostic Test 4*, Module 1 | 20 | `ENG-DIAG-T4-M1-Q01` … `Q25` | `0009` |
+| *English Diagnostic Test 4*, Module 2 | 21 | `ENG-DIAG-T4-M2-Q01` … `Q26` | `0009`, `0012` |
 
 The in-class paper came with an answer key; **seven of its printed answers disagreed with their
 own passage** and the bank carries the answer the text supports instead. Test 4 is a deck of
 Bluebook screenshots with no text and no key at all, so every item was transcribed off the
 screenshots and keyed here. Both sets of decisions are listed item by item in
 [`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md).
+
+### Reading one as a paper
+
+`/questions` opens on **Papers** — the three source documents rather than the items inside them.
+Opening one prints it: the directions block at the top, each passage set once above the questions
+that hang off it, the choices as the paper's own `A)`–`D)` run, and the paper's own numbering
+(Test 4 skips numbers, and renumbering them would make a teacher's "look at 17" mean two
+different questions). The answers are a toggle and start hidden — a key on screen while a teacher
+is talking a student through a question is a key read out by accident. **Print** gives them the
+paper on paper.
+
+The tabs and tables the papers print are stored as text in the bank, so both the paper view and
+the student's screen parse a stored passage back into what the paper set: paragraphs, the
+"Text 1"/"Text 2" headings of a paired-text item, and a real table for the two chart items. The
+student sees the same passage, the same stem and the same four choices the paper prints —
+`apps/web/src/lib/paper.ts` is the one place that decides what that looks like.
+
+`question_sets` is the paper — the same object the pre-tests are built from, so a paper a teacher
+reads is a paper they can run. Migration `0015` registers the three source papers with their
+directions and their order.
 
 Every item is fully labelled: section, skill (all eleven of the grid's Skill Focus rows) and
 level. A skill belongs to exactly one section and the database checks the pair, so an item cannot
@@ -84,21 +107,38 @@ can still compute the same prefix (a teacher *Test* and a student *test* joining
 both give `TEST26`); when that happens the code takes the next number for its role rather than
 failing the signup.
 
-## Two shapes of session
+## How a session runs
 
-The teacher hands over **one question at a time** — publish, watch, reveal, diagnose — or
-publishes a **pre-test**: a whole paper the student works through at their own pace, then goes
-through with the teacher afterwards. Both land on the same student screen; with one open question
-it is a single card, with twenty-seven it is a paper with a question grid and a Next button.
+The work is done before the day, not on the call.
 
-A pre-test is a reusable set (`/pretests`), not a pile of queued questions. Build the paper once,
-run it with every student after that — which is what makes two students' reports comparable.
+**The teacher** creates a session with a student and a time, then builds the paper at
+`/sessions/:id/paper`: the bank on the left as the papers it came from, every question shown
+whole — its passage, its stem and all four choices — with a tick box on each and an **Add all**
+on each passage. Ticked questions land in the list on the right, which is the order the student
+will meet them in; drag a row to move it, or use the arrows. Save, and the teacher is done.
+
+**The student** sees the session on their list with a countdown. Once the scheduled time passes
+the **Start** button turns on — no one has to let them in. They then work through the paper one
+question at a time, each with its own clock, and submitting moves them on. They cannot go back.
+
+**Afterwards** the teacher reveals and diagnoses in the console as before, which is what the
+report is built out of.
+
+One question is in front of the student at a time and it is the *server* that holds that line:
+only the current item is published, and the next one is published by `submit_answer` once the
+current one is answered. So the clock on question 3 cannot be spent reading question 4 — question
+4 is not in reach yet. That is also why the length lives on `sessions.question_count`: the
+student is shown "question 3 of 25" and has no way to count the paper for themselves.
+
+A pre-test (`/pretests`) is still a reusable set — build a paper once, then pick it wholesale in
+the builder for every student after that, which is what makes two students' reports comparable.
 
 ## Speed
 
 Every answer is timed server-side: `session_items.first_viewed_at` (set when the question is
-actually on the student's screen, not when the teacher published it) to `answered_at`, stored as
-`session_item_assessments.elapsed_seconds`. Each question carries a `target_seconds` benchmark, so
+actually on the student's screen, not when it was published) to `answered_at`, stored as
+`session_item_assessments.elapsed_seconds`. The student watches the same interval count up on
+the question itself. Each question carries a `target_seconds` benchmark, so
 the report can separate *wrong* from *wrong in nineteen seconds* — those need different fixes.
 
 ## The report
@@ -111,12 +151,14 @@ written by hand, so the report cannot say something the session did not.
 ## The session workflow
 
 ```
-teacher creates a session with a student, a time and a meeting link
-  → queues questions from the bank        (invisible to the student)
-  → starts the session; student joins
-  → publishes one question                (it appears on the student's screen)
+teacher creates a session with a student and a time
+  → builds the paper: ticks questions, drags them into order, saves
+                                          (invisible to the student)
+  → the scheduled time passes
+  → student opens the session themselves; question 1 is published to them
   → student crosses out options, answers, says how sure and why
-  → teacher sees the answer, the eliminations, the time and the confidence
+  → answering publishes the next question; repeat to the end of the paper
+  → teacher sees each answer, the eliminations, the time and the confidence
   → teacher reveals                       (only now does the student learn the result)
   → teacher taps one diagnosis chip; the system suggests the next move
 ```
@@ -141,13 +183,20 @@ only when the teacher reveals — which is the only route by which any of them r
 ```bash
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
+psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
 ```
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible
-to the student. Every row must read PASS.
+to the student. `prepared_session.sql` adds the new flow: a student cannot open a session early
+or open somebody else's, exactly one question is within their reach at a time, answering brings
+up the next in the paper's order, and a paper already with a student cannot be renumbered under
+them. Every row must read PASS.
+
+The first two are written for a scratch database — they reset the display-id counters on their
+way out. `prepared_session.sql` leaves them alone and is safe to run against a real one.
 
 ## Layout
 
