@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { subjectLabel } from '../lib/constants'
+import { formatUtc, utcParts } from '../lib/time'
 import { rows, supabase } from '../lib/supabase'
 import type { Session } from '../lib/types'
 
@@ -101,24 +102,21 @@ export function Sessions() {
 }
 
 export function SessionCard({ session: s, isTeacher }: { session: Session; isTeacher: boolean }) {
-  const when = new Date(s.scheduled_at)
+  // Every session time in the product is written in UTC, so a teacher and a
+  // student in different countries mean the same moment by it.
+  const when = utcParts(s.scheduled_at)
   const counterpart = isTeacher ? s.student : s.teacher
 
   return (
     <Link className="sess-card" to={`/sessions/${s.id}`}>
       <div className="when">
-        <div className="d">{when.getDate()}</div>
-        <div className="m">{when.toLocaleString(undefined, { month: 'short' })}</div>
+        <div className="d">{when.day}</div>
+        <div className="m">{when.month}</div>
       </div>
       <div className="body">
         <h3>{s.title || `${subjectLabel(s.subject)} session`}</h3>
         <div className="meta">
-          {when.toLocaleString(undefined, {
-            weekday: 'short',
-            hour: 'numeric',
-            minute: '2-digit',
-          })}{' '}
-          · {s.duration_mins} min
+          {formatUtc(s.scheduled_at)} · {s.duration_mins} min
           {counterpart && (
             <>
               {' '}

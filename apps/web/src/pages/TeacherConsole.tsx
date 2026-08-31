@@ -7,11 +7,11 @@ import {
   DIAGNOSES,
   OPTION_LABELS,
   diagnosisLabel,
-  sectionLabel,
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import { formatUtc } from '../lib/time'
 import type { Diagnosis, Session, SessionItem } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
@@ -58,12 +58,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           <div className="meta">
             {session.student?.full_name}{' '}
             <span className="num">({session.student?.display_id})</span> ·{' '}
-            {new Date(session.scheduled_at).toLocaleString(undefined, {
-              day: 'numeric',
-              month: 'short',
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
+            {formatUtc(session.scheduled_at)}
           </div>
         </div>
         <div className="spring" />
@@ -83,22 +78,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
             </a>
           )}
           {session.status === 'scheduled' && (
-            <>
-              <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
-                Edit the paper
-              </Link>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={busy || staged.length === 0}
-                title="The student can open this themselves at the scheduled time — use this only to let them in early."
-                onClick={() =>
-                  void call('set_session_status', { p_session: sessionId, p_status: 'live' })
-                }
-              >
-                Open early
-              </button>
-            </>
+            <Link className="btn btn-primary btn-sm" to={`/sessions/${sessionId}/paper`}>
+              {staged.length === 0 ? 'Pick the questions' : 'Edit the paper'}
+            </Link>
           )}
           {session.status === 'live' && (
             <button
@@ -119,7 +101,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
       <div className="room">
-        <Queue sessionId={sessionId} session={session} staged={staged} done={live.length} />
+        <Paper sessionId={sessionId} session={session} staged={staged} done={live.length} />
         <Board items={live} busy={busy} onCall={call} />
       </div>
     </div>
@@ -129,13 +111,14 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
 /* -------------------------------------------------------------- paper --- */
 
 /**
- * The paper this session is carrying, and how far through it the student is.
+ * The paper this session carries, as one box.
  *
- * It is read-only on purpose. The questions were chosen and ordered in the
- * builder before the day; changing them from here mid-session would renumber
- * a paper the student is part-way through.
+ * Not a card per question: twenty-six of those is a wall to scroll past, and
+ * there is nothing to do to any of them from here. What a teacher wants to
+ * know before the day is that the paper is saved and how long it is, and
+ * during the session, how far through the student has got.
  */
-function Queue({
+function Paper({
   sessionId,
   session,
   staged,
@@ -147,63 +130,62 @@ function Queue({
   done: number
 }) {
   const total = staged.length + done
+  const first = session.student?.full_name?.split(' ')[0] ?? 'The student'
+
+  if (total === 0) {
+    return (
+      <div className="paper-box empty-paper">
+        <div className="section-title">No paper yet</div>
+        <p>
+          This session has no questions in it, so {first} cannot start it. Pick them and put them
+          in order — it takes one pass through a diagnostic.
+        </p>
+        <Link className="btn btn-primary" to={`/sessions/${sessionId}/paper`}>
+          Pick the questions
+        </Link>
+      </div>
+    )
+  }
 
   return (
-    <div className="queue">
-      <div className="queue-head">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="section-title" style={{ marginBottom: 0, flex: 1 }}>
-            The paper · {total}
+    <div className="paper-box">
+      <div className="paper-box-head">
+        <div>
+          <div className="section-title" style={{ marginBottom: 2 }}>
+            The paper
           </div>
-          {session.status === 'scheduled' && (
-            <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
-              Edit
-            </Link>
-          )}
+          <div className="count">
+            {total} question{total === 1 ? '' : 's'}
+          </div>
         </div>
-
-        <p className="queue-note">
-          {total === 0 ? (
-            <>
-              No questions yet.{' '}
-              <Link to={`/sessions/${sessionId}/paper`}>Pick them now</Link> — the student cannot
-              start an empty session.
-            </>
-          ) : session.status === 'scheduled' ? (
-            <>
-              Ready. {session.student?.full_name?.split(' ')[0] ?? 'The student'} opens this at the
-              scheduled time and works through it one question at a time.
-            </>
-          ) : (
-            <>
-              {done} of {total} handed over. The next question is published the moment the current
-              one is answered.
-            </>
-          )}
-        </p>
+        {session.status === 'scheduled' ? (
+          <span className="badge badge-ok">Saved</span>
+        ) : (
+          <span className="badge badge-sky">
+            {done} of {total} done
+          </span>
+        )}
       </div>
 
-      <div className="queue-body">
-        {staged.map((item, i) => (
-          <div className="qi" key={item.id}>
-            <div className="top">
-              <span className="no">{item.sequence_no}</span>
-              {item.questions && <DifficultyBadge level={item.questions.difficulty} />}
-              {i === 0 && session.status === 'live' && (
-                <span className="badge badge-sky">Up next</span>
-              )}
-            </div>
-            <div className="stem">{item.questions?.stem}</div>
-            {item.questions?.section && (
-              <div className="row">
-                <span className="badge badge-neutral">{sectionLabel(item.questions.section)}</span>
-              </div>
-            )}
-          </div>
-        ))}
+      {session.status !== 'scheduled' && (
+        <div className="paper-bar" aria-hidden="true">
+          <span style={{ width: `${Math.round((done / total) * 100)}%` }} />
+        </div>
+      )}
 
-        {staged.length === 0 && total > 0 && (
-          <p className="queue-note">Every question has been handed over.</p>
+      <p className="paper-box-note">
+        {session.status === 'scheduled'
+          ? `Ready. ${first} opens this themselves at the scheduled time and works through it one question at a time.`
+          : staged.length === 0
+            ? 'Every question has been answered.'
+            : `${first} is working through it. The next question is published the moment the current one is answered.`}
+      </p>
+
+      <div className="paper-box-actions">
+        {session.status === 'scheduled' && (
+          <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
+            Edit the paper
+          </Link>
         )}
       </div>
     </div>
@@ -225,10 +207,10 @@ function Board({
     return (
       <div className="board">
         <div className="empty">
-          <h3>Nothing published yet</h3>
+          <h3>Nothing answered yet</h3>
           <p>
-            Publish a question from the queue and the student sees it straight away. Their answer,
-            eliminations and time land here.
+            The student opens this session themselves at its scheduled time. Every answer lands
+            here as it happens, with the time it took and how sure they were.
           </p>
         </div>
       </div>
@@ -342,7 +324,7 @@ function ItemDetail({
   return (
     <div className="card card-pad" style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span className="qi-no pill-opt">{item.sequence_no}</span>
+        <span className="pill-opt">{item.sequence_no}</span>
         <strong style={{ fontSize: 14.5, flex: 1 }}>{item.questions?.stem}</strong>
         {item.status === 'answered' && (
           <button

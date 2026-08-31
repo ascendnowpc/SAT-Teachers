@@ -4,6 +4,7 @@ import { IconBack } from '../components/icons'
 import { PaperBuilder, useBankData } from '../components/PaperBuilder'
 import { Notice } from '../components/ui'
 import { row, rows, supabase } from '../lib/supabase'
+import { formatUtc } from '../lib/time'
 import type { Session, SessionItem } from '../lib/types'
 
 /**
@@ -99,7 +100,6 @@ export function SessionPaper() {
   // their screen, so renumbering underneath is not something the server will
   // accept either.
   const locked = session.status !== 'scheduled'
-  const when = new Date(session.scheduled_at)
 
   return (
     <div className="page page-wide">
@@ -113,14 +113,7 @@ export function SessionPaper() {
           <p className="sub">
             {session.student?.full_name}
             {session.student && <span className="num"> ({session.student.display_id})</span>} ·
-            opens{' '}
-            {when.toLocaleString(undefined, {
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
+            opens {formatUtc(session.scheduled_at)}
           </p>
         </div>
         <div className="spring" />

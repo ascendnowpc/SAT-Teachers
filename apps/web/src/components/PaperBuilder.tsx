@@ -266,13 +266,16 @@ function Choose({
           one — what you tick builds up across all of them.
         </p>
 
-        {mine.length > 0 && (
-          <>
-            <div className="section-title">Your pre-tests</div>
-            <div className="set-list" style={{ marginBottom: 24 }}>
-              {shelf(mine)}
-            </div>
-          </>
+        <div className="section-title">Your pre-tests</div>
+        {mine.length > 0 ? (
+          <div className="set-list" style={{ marginBottom: 24 }}>
+            {shelf(mine)}
+          </div>
+        ) : (
+          <p className="builder-lede">
+            None saved yet. A paper you build under <strong>Pre-tests</strong> shows up here, so
+            the next student's session is one click rather than a page of ticking.
+          </p>
         )}
 
         <div className="section-title">The source papers</div>
