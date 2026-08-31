@@ -90,6 +90,19 @@ Clock drift between the recording and the app is handled with a single adjustabl
 teacher can nudge if quotes look shifted; alignment confidence is stored per segment and
 low-confidence segments are excluded from quoting.
 
+### What is built
+
+Steps up to and including alignment are built and running on the write-up page, and so is the
+layer above them: the recording is read into per-question verdicts and per-domain findings, each
+carrying its questions and the student's own words. It is deterministic — no model, no network —
+which is why it can be unit tested and why the same transcript gives the same findings twice.
+[`reference/transcript-analysis.md`](reference/transcript-analysis.md) is the whole structure:
+roles, markers, verdicts, findings, and the line between what is computed and what the teacher
+writes.
+
+What follows below is the tier-2 drafting layer, which is not built. It is the step where a model
+turns accepted findings into a parent-facing paragraph — phrasing, never facts.
+
 ## Drafting
 
 Input to the model, per section:

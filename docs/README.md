@@ -21,6 +21,11 @@ Supporting material:
   screenshot diagnostic PDFs, and the two gaps they expose
 - [The Recorded Session](reference/recorded-session.md) — the real diagnostic seeded as data, what
   the report makes of it, and the one key the teaching corrected
+- [Reading the Transcript](reference/transcript-analysis.md) — what happens between the Fathom
+  upload and the written report: alignment, the markers, the seven verdicts, and where a model
+  would and would not go
+- [The AI Layer](reference/report-ai-layer.md) — the four options for putting a model on top of
+  the analysis, what it must never be given, where it runs, and what to measure
 - [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — where every
   loaded key came from: the seven printed answers that were wrong, and the 40 written from
   scratch

@@ -76,6 +76,9 @@ export function SessionReport() {
         ) : (
           <span className="badge badge-neutral">Draft</span>
         )}
+        <button type="button" className="btn btn-sm" onClick={() => window.print()}>
+          Save as PDF
+        </button>
         {isTeacher && (
           <Link className="btn btn-primary btn-sm" to={`/sessions/${id}/report/edit`}>
             Write up
