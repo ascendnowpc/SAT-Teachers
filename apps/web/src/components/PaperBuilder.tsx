@@ -238,7 +238,6 @@ function Choose({
               </span>
               <span className="main">
                 <span className="t">{p.title}</span>
-                {p.description && <span className="d">{p.description}</span>}
               </span>
               <span className="tags">
                 {c.picked > 0 && <span className="badge badge-ok">{c.picked} picked</span>}
@@ -261,24 +260,16 @@ function Choose({
 
     return (
       <div>
-        <p className="builder-lede">
-          Take a whole paper in one go, or open one and pick from it. You can take from more than
-          one — what you tick builds up across all of them.
-        </p>
-
-        <div className="section-title">Your pre-tests</div>
-        {mine.length > 0 ? (
-          <div className="set-list" style={{ marginBottom: 24 }}>
-            {shelf(mine)}
-          </div>
-        ) : (
-          <p className="builder-lede">
-            None saved yet. A paper you build under <strong>Pre-tests</strong> shows up here, so
-            the next student's session is one click rather than a page of ticking.
-          </p>
+        {mine.length > 0 && (
+          <>
+            <div className="section-title">Your tests</div>
+            <div className="set-list" style={{ marginBottom: 24 }}>
+              {shelf(mine)}
+            </div>
+          </>
         )}
 
-        <div className="section-title">The source papers</div>
+        <div className="section-title">Question bank</div>
         <div className="set-list">
           {shelf(sources)}
 
@@ -472,8 +463,8 @@ function Order({
   return (
     <div className="order-pane">
       <p className="builder-lede">
-        {picked.length} question{picked.length === 1 ? '' : 's'} · about {minutes} minutes at
-        target pace. Drag a card to move it.
+        {picked.length} question{picked.length === 1 ? '' : 's'} · about {minutes} min. Drag to
+        reorder.
       </p>
 
       <ol className="order-list">

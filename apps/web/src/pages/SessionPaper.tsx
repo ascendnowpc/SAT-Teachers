@@ -135,12 +135,9 @@ export function SessionPaper() {
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
-      {saved && <Notice kind="ok">Saved. The student sits exactly this paper, in this order.</Notice>}
+      {saved && <Notice kind="ok">Saved.</Notice>}
       {locked && (
-        <Notice kind="info">
-          This session has already opened, so its paper is fixed — renumbering it now would
-          renumber questions the student has answered.
-        </Notice>
+        <Notice kind="info">This session has opened, so its paper is fixed.</Notice>
       )}
 
       {bankLoading ? (

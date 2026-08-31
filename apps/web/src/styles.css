@@ -1077,9 +1077,14 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
   color: var(--ink-2); font-size: 12px; font-weight: 600;
 }
 .qch .body { flex: 1; min-width: 0; }
-.qch.is-key { border-color: var(--easy-fg); background: var(--easy-bg); }
-.qch.is-key .lab { background: var(--easy-fg); border-color: var(--easy-fg); color: #fff; }
-.qch .tick { margin-left: auto; padding-left: 10px; color: var(--easy-fg); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.qch.is-key { border-color: var(--sky); background: var(--sky-wash); }
+.qch.is-key .lab { background: var(--sky-dark); border-color: var(--sky-dark); color: #fff; }
+.qch.is-key .body { font-weight: 500; }
+.qch .tick {
+  margin-left: auto; padding-left: 10px; flex-shrink: 0;
+  color: var(--sky-dark); font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+}
 
 /* The bank card and the ordering card are frames around one of these. */
 .bank-q, .order-card { padding: 0; }

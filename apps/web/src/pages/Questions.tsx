@@ -19,9 +19,12 @@ import type { Difficulty, Question, QuestionSet, Subject } from '../lib/types'
  *
  * *Papers* is the default and the one the teachers named: the diagnostics as
  * whole documents — "SAT Diagnostic Test (Reading and Writing - 25Q)" — which
- * open as the paper itself, in its order, with its passages set once above the
- * questions that hang off them. *All questions* is the flat bank underneath,
- * which is the right unit only when you are hunting one item by skill or level.
+ * open as the paper itself, in its order. *All questions* is the flat bank
+ * underneath, which is the right unit only when hunting one item by skill or
+ * level.
+ *
+ * Only the source papers are here. A test a teacher assembled out of these
+ * questions is under Tests: it is their paper, not the bank's.
  */
 export function Questions() {
   const [params, setParams] = useSearchParams()
@@ -47,11 +50,13 @@ export function Questions() {
         .from('questions')
         .select('*, question_options(*), question_keys(*)')
         .order('created_at', { ascending: false }),
+      // Only the bank's own source papers. A test a teacher assembled is
+      // their work, not the bank's, and lives under Tests.
       supabase
         .from('question_sets')
         .select('*, question_set_items(count)')
-        .order('source_ref', { nullsFirst: false })
-        .order('title'),
+        .not('source_ref', 'is', null)
+        .order('source_ref'),
     ])
 
     if (qRes.error) setError(qRes.error.message)
@@ -150,11 +155,8 @@ export function Questions() {
         ) : papers.length === 0 ? (
           <div className="card">
             <div className="empty">
-              <h3>No papers yet</h3>
-              <p>A paper is a set of questions in the order they are printed.</p>
-              <Link className="btn btn-primary" to="/pretests/new">
-                Build one
-              </Link>
+              <h3>No papers loaded</h3>
+              <p>The source papers arrive with the bank, through a migration.</p>
             </div>
           </div>
         ) : (

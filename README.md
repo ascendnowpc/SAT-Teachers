@@ -27,7 +27,7 @@ npm run dev                                    # http://localhost:5173
 | **Paper builder** | The bank shown whole — passage, stem, all four choices — ticked into a paper and dragged into order |
 | **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
 | **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
-| **Pre-tests** | Build a paper once, run it with every student |
+| **Tests** | Build a paper once, use it with every student |
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
 | **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
 | **Loaded bank** | Both English diagnostics — 66 items with passages, keys, sections and difficulty |
@@ -117,6 +117,12 @@ whole — its passage, its stem and all four choices — with a tick box on each
 on each passage. Ticked questions land in the list on the right, which is the order the student
 will meet them in; drag a row to move it, or use the arrows. Save, and the teacher is done.
 
+**Routes.** Every screen is a place: `/tests`, `/tests/new`, `/tests/:id` (read it),
+`/tests/:id/edit` (change it), `/questions/papers/:id`, `/sessions/:id/paper`. Opening a test
+shows the paper with an **Edit** button rather than dropping into the builder — you read it
+first, and edit it if you meant to. The exam is `/exam/:id`, deliberately outside the app shell:
+a student sitting a paper should see the paper and nothing else.
+
 **Times are UTC**, everywhere and always — written on the schedule form, printed on every
 session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
 and a student in Dubai have to mean the same moment by "half four", and rendering each browser's
@@ -125,6 +131,10 @@ own zone meant they did not. `apps/web/src/lib/time.ts` is the only place that f
 **The student** sees the session on their list with a countdown. Once the scheduled time passes
 the **Start** button turns on — no one has to let them in. They then work through the paper one
 question at a time, each with its own clock, and submitting moves them on. They cannot go back.
+
+The paper runs full screen, asked for inside the click that starts it — the only moment a browser
+grants it. Leaving full screen is not blocked (no browser allows that, and none should), so it is
+treated as what it is: the screen asks them to come back or to finish.
 
 Nor can they wander off: while a question is open, the browser's back button and a refresh are
 both caught, and leaving is a decision the screen asks about first. Saying yes submits the paper
@@ -143,19 +153,25 @@ current one is answered. So the clock on question 3 cannot be spent reading ques
 4 is not in reach yet. That is also why the length lives on `sessions.question_count`: the
 student is shown "question 3 of 25" and has no way to count the paper for themselves.
 
-**Why pre-tests still exist.** A session's paper belongs to one student on one day. A pre-test is
-a paper you intend to run again — build it once at `/pretests`, and it appears on the builder's
-shelf beside the three source papers with a **Take all** button, so the next student's session is
-one click rather than twenty-five ticks. Two students who sat the same pre-test have comparable
-reports; two students whose papers were assembled by hand do not. Both are `question_sets`, and
-the builder is the same screen, which is the point — a pre-test is just a paper you saved.
+**Why tests exist.** A session's paper belongs to one student on one day. A *test* is a paper you
+intend to use again — build it once at `/tests`, and it appears on the session builder's shelf
+above the source papers with a **Take all** button, so the next student's session is one click
+rather than twenty-five ticks. Two students who sat the same test have comparable reports; two
+students whose papers were assembled by hand do not.
+
+Both are rows in `question_sets` and the builder is the same screen — a test is just a paper you
+saved. What tells them apart is `source_ref`: a paper that came in with the bank has one and is
+filed under **Questions**; a test a teacher assembled has none and is filed under **Tests**.
+Neither list shows the other's rows.
 
 ## Speed
 
 Every answer is timed server-side: `session_items.first_viewed_at` (set when the question is
-actually on the student's screen, not when it was published) to `answered_at`, stored as
-`session_item_assessments.elapsed_seconds`. The student watches the same interval count up on
-the question itself. Each question carries a `target_seconds` benchmark, so
+actually on the student's screen, not when it was published) to `decided_at` — the moment the
+student has an answer and a confidence down. The seconds after that are finding the Submit
+button, and they were landing in the number the report calls pace. Stored as
+`session_item_assessments.elapsed_seconds`; the student watches the same interval stop on the
+question itself. A change of mind afterwards does not restart it. Each question carries a `target_seconds` benchmark, so
 the report can separate *wrong* from *wrong in nineteen seconds* — those need different fixes.
 
 ## The report

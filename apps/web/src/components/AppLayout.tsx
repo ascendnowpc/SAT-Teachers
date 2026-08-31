@@ -33,8 +33,8 @@ export function AppLayout() {
                 <NavLink to="/questions" className={cls}>
                   <IconStack /> Questions
                 </NavLink>
-                <NavLink to="/pretests" className={cls}>
-                  <IconClipboard /> Pre-tests
+                <NavLink to="/tests" className={cls}>
+                  <IconClipboard /> Tests
                 </NavLink>
               </>
             )}
