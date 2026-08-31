@@ -98,8 +98,21 @@ screen that must not stall mid-test. Paths are random UUIDs, so an image is *unl
 than secret — the standing of an unlisted document. No answer key is in the picture. Writing to
 the bucket is teacher-only.
 
-A new question can be filed into a test on the way past, including one that does not exist yet —
-"write a question" and "put it somewhere" are one thought.
+### Papers and tests
+
+`question_sets` holds both, told apart by `kind` rather than by inference:
+
+| | `kind = 'paper'` | `kind = 'test'` |
+| --- | --- | --- |
+| What it is | A paper in the bank — questions are **written into** it | A paper **assembled** from questions that already exist |
+| Where | Under **Questions** | Under **Tests** |
+| How it grows | *Add question* writes a new one onto the end | *Choose questions* picks from the bank |
+| Examples | The three diagnostics; "English Module 3" | "Diagnostic — first session" |
+
+Both are an ordered list of questions, which is why they are one table. A teacher makes a paper
+with **New paper** on the Questions tab, opens it, and writes questions into it — the New Question
+form arrives at `/questions/new?paper=<id>` and files the question there on save. Every question
+on a paper carries an **Edit** link, so a typo is fixed where you found it.
 
 ## Identity codes
 

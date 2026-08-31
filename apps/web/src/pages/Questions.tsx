@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
 import { IconChevron, IconStack } from '../components/icons'
@@ -27,10 +27,15 @@ import type { Difficulty, Question, QuestionSet, Subject } from '../lib/types'
  * questions is under Tests: it is their paper, not the bank's.
  */
 export function Questions() {
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const justAdded = params.get('added')
 
   const [view, setView] = useState<'papers' | 'questions'>(justAdded ? 'questions' : 'papers')
+  const [naming, setNaming] = useState(false)
+  const [newPaper, setNewPaper] = useState('')
+  const [newSubject, setNewSubject] = useState<Subject>('english')
+  const [creating, setCreating] = useState(false)
   const [papers, setPapers] = useState<QuestionSet[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,13 +55,14 @@ export function Questions() {
         .from('questions')
         .select('*, question_options(*), question_keys(*)')
         .order('created_at', { ascending: false }),
-      // Only the bank's own source papers. A test a teacher assembled is
-      // their work, not the bank's, and lives under Tests.
+      // Papers: the diagnostics the bank was loaded with, and any a teacher
+      // has made to write into. A test — assembled from questions that already
+      // exist, to be sat — is a different thing and lives under Tests.
       supabase
         .from('question_sets')
         .select('*, question_set_items(count)')
-        .not('source_ref', 'is', null)
-        .order('source_ref'),
+        .eq('kind', 'paper')
+        .order('source_ref', { nullsFirst: false }),
     ])
 
     if (qRes.error) setError(qRes.error.message)
@@ -71,6 +77,20 @@ export function Questions() {
   useEffect(() => {
     void load()
   }, [load])
+
+  /** A paper of the teacher's own, empty, ready to be written into. */
+  async function createPaper() {
+    setCreating(true)
+    setError(null)
+    const { data, error: err } = await supabase
+      .from('question_sets')
+      .insert({ title: newPaper.trim(), subject: newSubject, kind: 'paper' })
+      .select('id')
+      .single()
+    setCreating(false)
+    if (err) return setError(err.message)
+    navigate(`/questions/papers/${(data as { id: string }).id}`)
+  }
 
   const sectionChoices = subject ? SECTIONS[subject] : [...SECTIONS.english, ...SECTIONS.mathematics]
   const skillChoices = skillsFor(section || null)
@@ -108,10 +128,57 @@ export function Questions() {
           </p>
         </div>
         <div className="spring" />
+        {view === 'papers' && (
+          <button type="button" className="btn" onClick={() => setNaming(true)}>
+            New paper
+          </button>
+        )}
         <Link className="btn btn-primary" to="/questions/new">
           Add question
         </Link>
       </div>
+
+      {naming && (
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div className="section-title">New paper</div>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            A paper you write questions into — a module, a worksheet, a set of your own.
+          </p>
+          <div className="toolbar">
+            <div className="grow">
+              <Input
+                value={newPaper}
+                onChange={(e) => setNewPaper(e.target.value)}
+                placeholder="English Module 3"
+                aria-label="Paper name"
+                autoFocus
+              />
+            </div>
+            <Select
+              value={newSubject}
+              onChange={(e) => setNewSubject(e.target.value as Subject)}
+              aria-label="Subject"
+            >
+              {SUBJECTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!newPaper.trim() || creating}
+              onClick={() => void createPaper()}
+            >
+              {creating ? 'Creating…' : 'Create'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setNaming(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {justAdded && (
         <Notice kind="ok">
@@ -155,8 +222,11 @@ export function Questions() {
         ) : papers.length === 0 ? (
           <div className="card">
             <div className="empty">
-              <h3>No papers loaded</h3>
-              <p>The source papers arrive with the bank, through a migration.</p>
+              <h3>No papers yet</h3>
+              <p>Make one to write questions into.</p>
+              <button type="button" className="btn btn-primary" onClick={() => setNaming(true)}>
+                New paper
+              </button>
             </div>
           </div>
         ) : (

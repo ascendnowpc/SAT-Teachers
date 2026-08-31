@@ -74,7 +74,7 @@ export function TestEdit() {
       if (isNew) {
         const { data: made, error: err } = await supabase
           .from('question_sets')
-          .insert({ title: title.trim(), subject, description: description.trim() || null })
+          .insert({ title: title.trim(), subject, description: description.trim() || null, kind: 'test' })
           .select('id')
           .single()
         if (err) throw new Error(err.message)

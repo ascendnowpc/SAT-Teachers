@@ -67,8 +67,10 @@ export function Paper() {
   }, [load])
 
   const groups = useMemo(() => buildPaper(questions), [questions])
-  // A test is a set a teacher built; a paper came in with the bank.
-  const isTest = set !== null && set.source_ref === null
+  const isTest = set?.kind === 'test'
+  // A paper the teacher made is one they can write into; a source paper is a
+  // record of a document and gains nothing by being added to.
+  const isOwnPaper = set?.kind === 'paper' && set.source_ref === null
 
   if (loading) return <div className="page">Loading…</div>
   if (error) {
@@ -128,6 +130,11 @@ export function Paper() {
             Edit
           </Link>
         )}
+        {isOwnPaper && (
+          <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+            Add question
+          </Link>
+        )}
       </div>
 
       <article className="paper">
@@ -139,7 +146,13 @@ export function Paper() {
         {groups.length === 0 ? (
           <div className="empty">
             <h3>Nothing in this paper yet</h3>
-            <p>{isTest ? 'Edit it to add questions.' : 'This paper loaded empty.'}</p>
+            {isOwnPaper ? (
+              <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+                Write the first question
+              </Link>
+            ) : (
+              <p>{isTest ? 'Edit it to add questions.' : 'This paper loaded empty.'}</p>
+            )}
           </div>
         ) : (
           groups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)
@@ -169,6 +182,11 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
             question={question}
             number={number}
             showKey={showKey}
+            header={
+              <Link className="btn btn-ghost btn-sm" to={`/questions/${question.id}/edit`}>
+                Edit
+              </Link>
+            }
             tags={
               <>
                 <DifficultyBadge level={question.difficulty} />

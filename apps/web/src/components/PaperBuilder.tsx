@@ -217,8 +217,8 @@ function Choose({
     // saved to run with every student. Taking a whole pre-test is the point of
     // having built one, so that is one button rather than a page of ticking.
     const shelved = data.papers.filter((p) => p.id !== excludePaper)
-    const sources = shelved.filter((p) => p.source_ref)
-    const mine = shelved.filter((p) => !p.source_ref)
+    const sources = shelved.filter((p) => p.kind === 'paper')
+    const mine = shelved.filter((p) => p.kind === 'test')
 
     const shelf = (papers: QuestionSet[]) =>
       papers.map((p) => {

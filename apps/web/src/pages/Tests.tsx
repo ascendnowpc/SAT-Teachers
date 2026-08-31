@@ -29,7 +29,7 @@ export function Tests() {
     const { data, error: err } = await supabase
       .from('question_sets')
       .select('*, question_set_items(count)')
-      .is('source_ref', null)
+      .eq('kind', 'test')
       .order('created_at', { ascending: false })
     if (err) setError(err.message)
     else setSets(rows<QuestionSet>(data))

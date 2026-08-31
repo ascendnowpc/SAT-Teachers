@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select, Textarea } from '../components/ui'
 import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, skillsFor } from '../lib/constants'
-import { row, rows, supabase } from '../lib/supabase'
+import { row, supabase } from '../lib/supabase'
 import type { Difficulty, OptionLabel, Question, QuestionSet, Subject } from '../lib/types'
 
 /**
@@ -38,26 +38,29 @@ export function QuestionNew() {
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
 
-  const [tests, setTests] = useState<QuestionSet[]>([])
-  const [addTo, setAddTo] = useState('')
-  const [newTestName, setNewTestName] = useState('')
+  // Writing into a paper: /questions/new?paper=<id> comes from that paper's
+  // own Add question button, and the question is filed there on save.
+  const [params] = useSearchParams()
+  const paperId = params.get('paper')
+  const [paper, setPaper] = useState<QuestionSet | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(editing)
 
-  // The tests a new question can be filed into. Only teacher-built ones: the
-  // bank's own papers are a record of what a source document contained.
   useEffect(() => {
-    if (editing) return
+    if (!paperId) return
     void supabase
       .from('question_sets')
       .select('*')
-      .is('source_ref', null)
-      .eq('subject', subject)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setTests(rows<QuestionSet>(data)))
-  }, [editing, subject])
+      .eq('id', paperId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const found = row<QuestionSet>(data)
+        setPaper(found)
+        if (found) setSubject(found.subject)
+      })
+  }, [paperId])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -160,35 +163,23 @@ export function QuestionNew() {
 
       const questionId = data as string
 
-      if (!editing && addTo) {
-        let setId = addTo
-        if (addTo === 'new') {
-          if (!newTestName.trim()) throw new Error('Name the new test.')
-          const made = await supabase
-            .from('question_sets')
-            .insert({ title: newTestName.trim(), subject })
-            .select('id')
-            .single()
-          if (made.error) throw new Error(made.error.message)
-          setId = (made.data as { id: string }).id
-        }
-
-        // Onto the end of that test, wherever its numbering has got to.
+      if (!editing && paperId) {
+        // Onto the end of the paper, wherever its numbering has got to.
         const last = await supabase
           .from('question_set_items')
           .select('position')
-          .eq('set_id', setId)
+          .eq('set_id', paperId)
           .order('position', { ascending: false })
           .limit(1)
         const next = ((last.data?.[0] as { position: number } | undefined)?.position ?? 0) + 1
 
         const added = await supabase
           .from('question_set_items')
-          .insert({ set_id: setId, question_id: questionId, position: next })
+          .insert({ set_id: paperId, question_id: questionId, position: next })
         if (added.error) throw new Error(added.error.message)
       }
 
-      navigate(editing ? `/questions?added=${questionId}` : `/questions?added=${questionId}`)
+      navigate(paperId ? `/questions/papers/${paperId}` : `/questions?added=${questionId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the question.')
     } finally {
@@ -200,14 +191,16 @@ export function QuestionNew() {
 
   return (
     <div className="page">
-      <Link className="back-link" to="/questions">
-        <IconBack /> Question bank
+      <Link className="back-link" to={paperId ? `/questions/papers/${paperId}` : '/questions'}>
+        <IconBack /> {paper ? paper.title : 'Question bank'}
       </Link>
 
       <div className="page-head">
         <div>
           <h1>{editing ? 'Edit question' : 'New question'}</h1>
-          <p className="sub">The answer key is visible to teachers only.</p>
+          <p className="sub">
+            {paper ? `It goes on the end of ${paper.title}.` : 'The answer key is visible to teachers only.'}
+          </p>
         </div>
       </div>
 
@@ -386,32 +379,6 @@ export function QuestionNew() {
             </Field>
           </div>
         </div>
-
-        {!editing && (
-          <div className="card card-pad">
-            <div className="section-title">Add it to a test</div>
-            <Field label="Test" hint="Optional. It goes on the end of whichever test you pick.">
-              <Select value={addTo} onChange={(e) => setAddTo(e.target.value)}>
-                <option value="">Just the bank</option>
-                {tests.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-                <option value="new">A new test…</option>
-              </Select>
-            </Field>
-            {addTo === 'new' && (
-              <Field label="Name the test" required>
-                <Input
-                  value={newTestName}
-                  onChange={(e) => setNewTestName(e.target.value)}
-                  placeholder="Algebra — week 3"
-                />
-              </Field>
-            )}
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button type="submit" className="btn btn-primary" disabled={busy || uploading}>
