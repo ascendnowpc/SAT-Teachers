@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IconGrip, IconTrash } from './icons'
 import { QuestionView } from './QuestionView'
-import { DifficultyBadge, Input, Passage, Select } from './ui'
+import { DifficultyBadge, Input, Select } from './ui'
 import { DIFFICULTIES, SECTIONS, sectionLabel, skillLabel } from '../lib/constants'
 import { buildPaper } from '../lib/paper'
 import { addAll, move, removeAll, toggle } from '../lib/reorder'
@@ -228,6 +228,7 @@ function Choose({
           .sort((x, y) => x.position - y.position)
           .map((m) => m.question_id)
           .filter((qid) => byId.has(qid))
+        const allIn = c.total > 0 && c.picked === c.total
 
         return (
           <div className="shelf-item" key={p.id}>
@@ -247,10 +248,12 @@ function Choose({
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              disabled={locked || ids.length === 0 || c.picked === c.total}
-              onClick={() => onChange(addAll(picked, ids))}
+              disabled={locked || ids.length === 0}
+              onClick={() =>
+                onChange(allIn ? removeAll(picked, ids) : addAll(picked, ids))
+              }
             >
-              {c.picked === c.total && c.total > 0 ? 'All in' : `Take all ${c.total}`}
+              {allIn ? `Unselect all ${c.total}` : `Take all ${c.total}`}
             </button>
           </div>
         )
@@ -349,12 +352,18 @@ function Choose({
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          disabled={locked || visible.length === 0}
-          onClick={() =>
-            onChange(addAll(picked, visible.map((q) => q.id)))
-          }
+          disabled={locked || visible.every((q) => pickedSet.has(q.id))}
+          onClick={() => onChange(addAll(picked, visible.map((q) => q.id)))}
         >
           Add all {visible.length}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={locked || !visible.some((q) => pickedSet.has(q.id))}
+          onClick={() => onChange(removeAll(picked, visible.map((q) => q.id)))}
+        >
+          Unselect all
         </button>
       </div>
 
@@ -389,13 +398,6 @@ function Choose({
                   {all ? 'Remove all' : `Add all ${ids.length}`}
                 </button>
               </div>
-
-              {g.label && g.passage && (
-                <details className="bank-passage" open>
-                  <summary>The passage these {g.questions.length} share</summary>
-                  <Passage body={g.passage} underline={g.underline} className="q-passage" />
-                </details>
-              )}
 
               {g.questions.map(({ question, number }) => (
                 <QuestionCard
@@ -503,16 +505,20 @@ function Order({
                 <QuestionView
                   question={q}
                   number={String(i + 1)}
+                  tags={
+                    <>
+                      <DifficultyBadge level={q.difficulty} />
+                      {q.section && (
+                        <span className="badge badge-neutral">{sectionLabel(q.section)}</span>
+                      )}
+                      {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
+                    </>
+                  }
                   header={
                     <>
                       <span className="grip" aria-hidden="true">
                         <IconGrip />
                       </span>
-                      <DifficultyBadge level={q.difficulty} />
-                      {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
-                      {!q.skill && q.section && (
-                        <span className="badge badge-neutral">{sectionLabel(q.section)}</span>
-                      )}
                       <span className="spring" />
                       <button
                         type="button"
@@ -578,15 +584,17 @@ function QuestionCard({
         question={q}
         number={number}
         header={
+          <label className="bank-pick">
+            <input type="checkbox" checked={picked} disabled={locked} onChange={onToggle} />
+            <span>{picked ? 'In this paper' : 'Add'}</span>
+          </label>
+        }
+        tags={
           <>
-            <label className="bank-pick">
-              <input type="checkbox" checked={picked} disabled={locked} onChange={onToggle} />
-              <span>{picked ? 'In this paper' : 'Add'}</span>
-            </label>
-            <span className="spring" />
             <DifficultyBadge level={q.difficulty} />
             {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
             {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
+            {q.target_seconds && <span className="muted">{q.target_seconds}s target</span>}
           </>
         }
       />

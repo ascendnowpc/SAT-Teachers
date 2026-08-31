@@ -163,7 +163,7 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
             number={number}
             layout={shared ? 'stacked' : 'split'}
             showKey={showKey}
-            header={
+            tags={
               <>
                 <DifficultyBadge level={question.difficulty} />
                 {question.section && (
