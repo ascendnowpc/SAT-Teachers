@@ -94,7 +94,7 @@ export function Paper() {
   }
 
   return (
-    <div className="page">
+    <div className="page page-wide">
       <div className="page-head paper-head">
         <Link
           className="paper-back"

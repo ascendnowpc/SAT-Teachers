@@ -142,8 +142,11 @@ as it stands — `finish_session_as_student` completes the session and voids eve
 never answered, including the one on screen. A test you can leave and come back to is not a test,
 and the per-question clock would mean nothing.
 
-**Afterwards** the teacher reveals and diagnoses in the console as before, which is what the
-report is built out of. The console shows the paper as a single box — saved, or how far through
+**Afterwards** the teacher presses **Publish results** once: every answered question is revealed
+to the student and the report is published in the same action. Whether the student learns how
+they did is one decision about the paper, not twenty-six decisions about twenty-six questions.
+Diagnoses are still per question — that is the teacher's judgement, and it is what the report is
+built out of — but they can be tapped as soon as an answer lands rather than only after a reveal. The console shows the paper as a single box — saved, or how far through
 the student is — rather than a card per question: there is nothing to do to any one of them from
 there, and twenty-six cards is a wall to scroll past.
 

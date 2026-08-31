@@ -541,7 +541,12 @@ table.board-table tr.live-row { background: var(--sky-wash); }
    The exam screen — the shape of the test the student is actually sitting:
    stimulus left, question right, progress along the bottom.
    ========================================================================= */
-.exam { display: flex; flex-direction: column; min-height: 100vh; background: #fff; }
+/* Fixed to the viewport rather than merely tall: a paper in progress is the
+   only thing on screen, whatever is mounted around it. */
+.exam {
+  position: fixed; inset: 0; z-index: 60; overflow-y: auto;
+  display: flex; flex-direction: column; background: #fff;
+}
 
 .exam-head {
   display: flex; align-items: center; gap: 16px;
@@ -858,7 +863,7 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 
 .paper {
   background: #fff; border: 1px solid var(--border); border-radius: var(--r);
-  padding: 42px clamp(20px, 5vw, 60px) 52px; max-width: 860px; margin: 0 auto;
+  padding: 36px clamp(16px, 3vw, 40px) 48px; margin: 0 auto;
   color: var(--ink); font-size: 15px; line-height: 1.62;
 }
 .paper-title { text-align: center; margin-bottom: 30px; }
