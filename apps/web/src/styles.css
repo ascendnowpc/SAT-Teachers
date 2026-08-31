@@ -376,27 +376,6 @@ button { font-family: inherit; }
 .room-head .spring { flex: 1; }
 .room-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.queue { background: #fff; border: 1px solid var(--border); border-radius: var(--r); }
-.queue-head { padding: 16px 18px 0; }
-.queue-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; max-height: 62vh; overflow-y: auto; }
-
-.qi {
-  border: 1px solid var(--border); border-radius: var(--r-sm);
-  padding: 11px 12px; background: #fff;
-}
-.qi.is-live { border-color: var(--sky); background: var(--sky-wash); }
-.qi.is-done { opacity: .62; }
-.qi .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.qi .no {
-  width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0;
-  display: grid; place-items: center; background: var(--input);
-  font-size: 11px; font-weight: 600; color: var(--ink-2);
-}
-.qi.is-live .no { background: var(--sky); color: #fff; }
-.qi .stem { font-size: 13.5px; line-height: 1.45; margin-bottom: 9px; }
-.qi .row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.qi .spring { flex: 1; }
-
 .board { background: #fff; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
 .board-scroll { overflow-x: auto; }
 table.board-table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 660px; }
@@ -930,8 +909,19 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .done-list li.correct { border-color: var(--easy-fg); }
 .done-list li.incorrect { border-color: var(--danger); }
 
-.queue-note { color: var(--muted); font-size: 13px; font-weight: 300; line-height: 1.55; margin-top: 10px; }
-.queue-note a { font-weight: 500; }
+/* The session's paper, as one box rather than a card per question. */
+.paper-box {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px;
+}
+.paper-box-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.paper-box-head > div:first-child { flex: 1; }
+.paper-box-head .count { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.paper-bar { height: 6px; border-radius: var(--pill); background: var(--input); overflow: hidden; margin-bottom: 12px; }
+.paper-bar span { display: block; height: 100%; background: var(--sky); border-radius: var(--pill); }
+.paper-box-note { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; }
+.paper-box-actions { display: flex; gap: 8px; margin-top: 14px; }
+.paper-box-actions:empty { display: none; }
+.empty-paper p { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; margin-bottom: 14px; }
 
 /* --------------------------------------------------------- the builder --- */
 /* Picking questions and putting them in order, shared by a session's paper and

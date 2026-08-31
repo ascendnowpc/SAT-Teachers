@@ -117,12 +117,19 @@ whole — its passage, its stem and all four choices — with a tick box on each
 on each passage. Ticked questions land in the list on the right, which is the order the student
 will meet them in; drag a row to move it, or use the arrows. Save, and the teacher is done.
 
+**Times are UTC**, everywhere and always — written on the schedule form, printed on every
+session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
+and a student in Dubai have to mean the same moment by "half four", and rendering each browser's
+own zone meant they did not. `apps/web/src/lib/time.ts` is the only place that formats one.
+
 **The student** sees the session on their list with a countdown. Once the scheduled time passes
 the **Start** button turns on — no one has to let them in. They then work through the paper one
 question at a time, each with its own clock, and submitting moves them on. They cannot go back.
 
 **Afterwards** the teacher reveals and diagnoses in the console as before, which is what the
-report is built out of.
+report is built out of. The console shows the paper as a single box — saved, or how far through
+the student is — rather than a card per question: there is nothing to do to any one of them from
+there, and twenty-six cards is a wall to scroll past.
 
 One question is in front of the student at a time and it is the *server* that holds that line:
 only the current item is published, and the next one is published by `submit_answer` once the

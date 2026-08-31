@@ -4,15 +4,8 @@ import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import { defaultUtcSlot, utcInputToIso } from '../lib/time'
 import type { Profile, Subject } from '../lib/types'
-
-/** Rounds to the next half hour, so the default time is a plausible one. */
-function defaultSlot(): string {
-  const d = new Date()
-  d.setMinutes(d.getMinutes() + 30 - (d.getMinutes() % 30), 0, 0)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 export function SessionNew() {
   const navigate = useNavigate()
@@ -23,7 +16,7 @@ export function SessionNew() {
   const [studentId, setStudentId] = useState('')
   const [subject, setSubject] = useState<Subject>('english')
   const [title, setTitle] = useState('')
-  const [scheduledAt, setScheduledAt] = useState(defaultSlot)
+  const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
   const [duration, setDuration] = useState(60)
   const [meetingUrl, setMeetingUrl] = useState('')
 
@@ -75,8 +68,8 @@ export function SessionNew() {
           student_id: studentId,
           subject,
           title: title.trim() || null,
-          // datetime-local has no zone; the browser's own offset is the right one.
-          scheduled_at: new Date(scheduledAt).toISOString(),
+          // The field is labelled UTC, so it is read as UTC — see lib/time.
+          scheduled_at: utcInputToIso(scheduledAt),
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
         })
@@ -158,7 +151,11 @@ export function SessionNew() {
           <div className="section-title">When and where</div>
 
           <div className="grid-2">
-            <Field label="Date and time" required>
+            <Field
+              label="Date and time (UTC)"
+              required
+              hint="All session times are UTC, for everyone."
+            >
               <Input
                 type="datetime-local"
                 value={scheduledAt}

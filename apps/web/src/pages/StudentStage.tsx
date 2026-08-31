@@ -4,6 +4,7 @@ import { IconBack, IconCheck, IconClock, IconCross, IconVideo } from '../compone
 import { Notice, Passage, Textarea } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { clock, openState } from '../lib/countdown'
+import { formatUtcLong } from '../lib/time'
 import { OPTION_LABELS, subjectLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { OptionLabel, Session, SessionItem } from '../lib/types'
@@ -37,6 +38,12 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   const total = Math.max(session.question_count, items.length)
   const number = open ? open.sequence_no : done.length
   const finished = !open && done.length > 0
+  const over = session.status === 'completed' || session.status === 'cancelled'
+  // Nothing open and nothing answered means the paper is still waiting to be
+  // started — whether or not the teacher has already flipped the session live.
+  // Keying this off the status alone stranded a student on a live session with
+  // a full queue and no way to open it.
+  const waiting = !open && !finished && !over
 
   return (
     <div className="exam">
@@ -77,21 +84,17 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {session.status === 'scheduled' ? (
-        <Lobby session={session} onStarted={reload} />
-      ) : open ? (
+      {open ? (
         <ItemPane key={open.id} item={open} total={total} onChanged={reload} />
+      ) : waiting ? (
+        <Lobby session={session} onStarted={reload} />
       ) : finished ? (
         <Finished items={done} />
       ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
-          <h2>{session.status === 'completed' ? 'Session finished' : 'Nothing to answer yet'}</h2>
-          <p>
-            {session.status === 'completed'
-              ? 'This session has ended. Your teacher will go through it with you.'
-              : 'Your teacher has not put any questions in this session yet. It will start on its own once they do.'}
-          </p>
+          <h2>Session finished</h2>
+          <p>This session has ended. Your teacher will go through it with you.</p>
         </div>
       )}
     </div>
@@ -124,7 +127,6 @@ function Lobby({
   }, [])
 
   const state = openState(session.scheduled_at, now)
-  const when = new Date(session.scheduled_at)
 
   async function start() {
     setBusy(true)
@@ -135,26 +137,25 @@ function Lobby({
     setBusy(false)
   }
 
+  const empty = session.question_count === 0
+
   return (
     <div className="exam-wait">
       <div className="ring" aria-hidden="true" />
-      <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
+      <h2>{empty ? 'Nothing to answer yet' : state.open ? 'Ready when you are' : 'Not open yet'}</h2>
       <p>
-        {session.question_count > 0
-          ? `${session.question_count} question${session.question_count === 1 ? '' : 's'}. `
-          : ''}
-        You answer them one at a time, and each one is timed from the moment it appears. Once you
-        submit an answer you move on to the next.
+        {empty ? (
+          'Your teacher has not put any questions in this session yet. This page will update on its own once they do.'
+        ) : (
+          <>
+            {session.question_count} question{session.question_count === 1 ? '' : 's'}. You answer
+            them one at a time, and each one is timed from the moment it appears. Once you submit an
+            answer you move on to the next.
+          </>
+        )}
       </p>
       <p className="exam-when">
-        {when.toLocaleString(undefined, {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          hour: 'numeric',
-          minute: '2-digit',
-        })}{' '}
-        — {state.label}
+        {formatUtcLong(session.scheduled_at)} — {state.label}
       </p>
 
       {err && <Notice kind="error">{err}</Notice>}

@@ -15,6 +15,7 @@ import {
 } from '../lib/grid'
 import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from '../lib/report'
 import { rows, supabase } from '../lib/supabase'
+import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow } from '../lib/types'
 
 /**
@@ -54,11 +55,7 @@ export function SessionReport() {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  const when = new Date(session.scheduled_at).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const when = formatUtc(session.scheduled_at)
 
   return (
     <div className="page report">
