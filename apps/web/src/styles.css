@@ -927,10 +927,16 @@ table.board-table tr.live-row { background: var(--sky-wash); }
    like the link it replaces. */
 button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
 
-.exam-done { padding: 34px clamp(20px, 5vw, 48px) 48px; max-width: 780px; margin: 0 auto; width: 100%; }
+.exam-done { padding: 34px clamp(16px, 4vw, 40px) 48px; max-width: 1240px; margin: 0 auto; width: 100%; }
 .exam-done-head { text-align: center; margin-bottom: 26px; }
 .exam-done-head h2 { font-size: 22px; }
 .exam-done-head p { color: var(--muted); font-weight: 300; margin-top: 6px; }
+.done-card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; margin-bottom: 14px;
+}
+.done-card .qsplit-head { margin-bottom: 14px; }
+
 .done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .done-list li {
   display: flex; align-items: center; gap: 12px; padding: 11px 14px;
@@ -1085,6 +1091,17 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
 .qch.is-key { border-color: var(--sky); background: var(--sky-wash); }
 .qch.is-key .lab { background: var(--sky-dark); border-color: var(--sky-dark); color: #fff; }
 .qch.is-key .body { font-weight: 500; }
+.qch.is-chosen { border-color: var(--navy-400); background: var(--navy-50); }
+.qch .pick {
+  margin-left: auto; padding-left: 10px; flex-shrink: 0;
+  color: var(--ink-2); font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.qch.is-key .pick { color: var(--sky-dark); }
+.stim-figure {
+  display: block; max-width: 100%; height: auto; margin: 4px 0 0;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff;
+}
 .qch .tick {
   margin-left: auto; padding-left: 10px; flex-shrink: 0;
   color: var(--sky-dark); font-size: 11.5px; font-weight: 600;
@@ -1104,3 +1121,14 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
   margin: -18px -20px 15px; padding: 9px 12px;
   background: var(--navy-50); border-bottom: 1px solid var(--border);
 }
+
+/* A figure on a question, in the form that sets it. */
+.figure-field { display: flex; flex-direction: column; gap: 10px; }
+.figure-field input[type='file'] { font-size: 13.5px; }
+.figure-field .muted { font-size: 13px; color: var(--muted); font-weight: 300; }
+.figure-preview { display: flex; align-items: flex-start; gap: 12px; }
+.figure-preview img {
+  max-width: 260px; max-height: 200px; border: 1px solid var(--border);
+  border-radius: var(--r-sm); background: #fff;
+}
+.qsplit-head .muted { font-size: 12px; color: var(--muted); font-weight: 300; }

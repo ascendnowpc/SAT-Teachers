@@ -19,6 +19,7 @@ function q(over: Partial<Question> & { id: string }): Question {
     skill: null,
     passage: null,
     passage_underline: null,
+    image_url: null,
     source_ref: null,
     stem: 'A question.',
     difficulty: 'easy',

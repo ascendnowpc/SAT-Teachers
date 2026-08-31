@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Passage } from './ui'
 import { OPTION_LABELS } from '../lib/constants'
-import type { Question } from '../lib/types'
+import type { OptionLabel, Question } from '../lib/types'
 
 /**
  * One question, laid out the way the student meets it: stimulus on the left,
@@ -33,6 +33,8 @@ export function QuestionView({
   footer,
   showKey = true,
   layout = 'split',
+  correct,
+  chosen,
 }: {
   question: Question
   /** The number badge, if this question has a position worth showing. */
@@ -47,8 +49,16 @@ export function QuestionView({
   showKey?: boolean
   /** 'stacked' when the passage is already set above this question. */
   layout?: 'split' | 'stacked'
+  /**
+   * The key, when the caller has it and the question does not carry it. A
+   * student never reads question_keys — RLS keeps it out of their reach — so
+   * their own results screen passes the revealed answer in from the item.
+   */
+  correct?: OptionLabel | null
+  /** What this student picked, marked alongside the key. */
+  chosen?: OptionLabel | null
 }) {
-  const correct = question.question_keys?.correct_option
+  const key = correct ?? question.question_keys?.correct_option ?? null
   const options = [...question.question_options].sort(
     (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
   )
@@ -63,8 +73,11 @@ export function QuestionView({
               underline={question.passage_underline}
               className="stim"
             />
-          ) : (
+          ) : question.image_url ? null : (
             <p className="stim-empty">This question stands on its own — read it on the right.</p>
+          )}
+          {question.image_url && (
+            <img className="stim-figure" src={question.image_url} alt="Figure for this question" />
           )}
           {tags && <div className="qsplit-tags">{tags}</div>}
         </div>
@@ -83,11 +96,16 @@ export function QuestionView({
 
         <div className="qsplit-choices">
           {options.map((o) => {
-            const isKey = showKey && o.label === correct
+            const isKey = showKey && o.label === key
+            const isChosen = o.label === chosen
             return (
-              <div key={o.id} className={`qch ${isKey ? 'is-key' : ''}`}>
+              <div
+                key={o.id}
+                className={`qch ${isKey ? 'is-key' : ''} ${isChosen && !isKey ? 'is-chosen' : ''}`}
+              >
                 <span className="lab">{o.label}</span>
                 <span className="body">{o.body}</span>
+                {isChosen && <span className="pick">You chose this</span>}
                 {isKey && <span className="tick">Correct</span>}
               </div>
             )

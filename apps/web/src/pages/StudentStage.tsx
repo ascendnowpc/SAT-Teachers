@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { IconBack, IconCheck, IconClock, IconCross, IconVideo } from '../components/icons'
+import { IconBack, IconClock, IconVideo } from '../components/icons'
+import { QuestionView } from '../components/QuestionView'
 import { Notice, Passage } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { clock, openState } from '../lib/countdown'
@@ -296,8 +297,21 @@ function Lobby({
 
 /* ------------------------------------------------------------ finished --- */
 
+/**
+ * The paper, afterwards.
+ *
+ * Every question as they met it — stimulus, stem, all four choices — with what
+ * they picked and, once the teacher has published the results, which one was
+ * right and why. A list of stems and letters told a student nothing they could
+ * learn from; going back over the question is the point of going back at all.
+ *
+ * The key is not in the student's reach (question_keys is teacher-only), so it
+ * comes from what the reveal copied onto the item itself.
+ */
 function Finished({ items }: { items: SessionItem[] }) {
   const revealed = items.filter((i) => i.status === 'revealed')
+  const right = items.filter((i) => i.revealed_result === 'correct').length
+  const out = revealed.length
 
   return (
     <div className="exam-done">
@@ -305,29 +319,42 @@ function Finished({ items }: { items: SessionItem[] }) {
         <h2>That is the whole paper</h2>
         <p>
           {items.length} answered.{' '}
-          {revealed.length === items.length
-            ? 'Your results are below.'
-            : 'Your teacher will go through it with you — the results appear here as they do.'}
+          {out === 0
+            ? 'Your teacher will go through it with you — your results appear here when they do.'
+            : `You got ${right} of ${out} right.`}
         </p>
       </div>
 
-      <ol className="done-list">
-        {items.map((it) => (
-          <li key={it.id} className={it.revealed_result ?? undefined}>
-            <span className="no">{it.sequence_no}</span>
-            <span className="stem">{it.questions?.stem}</span>
-            <span className="pick">You chose {it.selected_option}</span>
-            {it.status === 'revealed' && (
-              <span className={`mark ${it.revealed_result}`}>
-                {it.revealed_result === 'correct' ? <IconCheck /> : <IconCross />}
-                {it.revealed_result === 'correct'
-                  ? 'Right'
-                  : `Answer ${it.revealed_correct_option ?? '—'}`}
-              </span>
-            )}
-          </li>
-        ))}
-      </ol>
+      {items.map((it) =>
+        it.questions ? (
+          <article className="done-card" key={it.id}>
+            <QuestionView
+              question={it.questions}
+              number={String(it.sequence_no)}
+              showKey={it.status === 'revealed'}
+              correct={it.revealed_correct_option}
+              chosen={it.selected_option}
+              header={
+                it.status === 'revealed' ? (
+                  <span className={`badge ${it.revealed_result === 'correct' ? 'badge-ok' : 'badge-bad'}`}>
+                    {it.revealed_result === 'correct' ? 'Right' : 'Wrong'}
+                  </span>
+                ) : (
+                  <span className="badge badge-neutral">Answered</span>
+                )
+              }
+              footer={
+                it.revealed_explanation && (
+                  <div className="q-note">
+                    <div className="section-title">Why</div>
+                    {it.revealed_explanation}
+                  </div>
+                )
+              }
+            />
+          </article>
+        ) : null,
+      )}
     </div>
   )
 }
