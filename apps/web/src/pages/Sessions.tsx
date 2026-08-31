@@ -40,8 +40,8 @@ export function Sessions() {
           <h1>Sessions</h1>
           <p className="sub">
             {isTeacher
-              ? 'Schedule a session, queue up questions, then run it live.'
-              : 'Your tutoring sessions. Open one when your teacher starts it.'}
+              ? 'Schedule a session, pick its questions, and the student sits it at that time.'
+              : 'Your tutoring sessions. Open one once its time has come.'}
           </p>
         </div>
         <div className="spring" />
@@ -62,7 +62,7 @@ export function Sessions() {
             <h3>No sessions yet</h3>
             <p>
               {isTeacher
-                ? 'Create a session with a student, add the meeting link, and queue the questions you plan to use.'
+                ? 'Create a session with a student, pick the questions they should sit, and set the time it opens.'
                 : 'Once a teacher schedules a session with you, it will show up here.'}
             </p>
             {isTeacher && (

@@ -312,7 +312,7 @@ button { font-family: inherit; }
 
 .q-passage {
   background: var(--page); border-radius: var(--r-sm); padding: 13px 15px; margin-bottom: 15px;
-  font-size: 14px; color: var(--ink-2); line-height: 1.6; white-space: pre-wrap;
+  font-size: 14px; color: var(--ink-2); line-height: 1.6;
 }
 .q-options { display: flex; flex-direction: column; gap: 7px; }
 .q-option {
@@ -572,28 +572,13 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .exam-title strong { font-weight: 600; }
 .exam-back { display: inline-flex; color: var(--muted); }
 .exam-back:hover { color: var(--ink); }
-.exam-clock { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.exam-clock .t { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.exam-clock .pill {
-  border: 1px solid var(--border-strong); background: #fff; color: var(--ink-2);
-  border-radius: var(--pill); padding: 2px 14px; font-size: 12.5px; font-weight: 500; cursor: pointer;
+/* One question at a time, so the header carries the position rather than a
+   pager, and the clock sits on the question itself. */
+.exam-progress-plain {
+  flex: 1; text-align: center; font-size: 14px; font-weight: 600; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
-.exam-clock .pill:hover { background: var(--input); }
-.exam-actions { display: flex; align-items: center; gap: 10px; }
-.exam-score { font-size: 13.5px; color: var(--muted); }
-.exam-notice { padding: 12px 22px 0; }
 
-.exam-body { flex: 1; display: grid; grid-template-columns: 1fr; gap: 0; }
-@media (min-width: 900px) { .exam-body { grid-template-columns: 1fr 1fr; } }
-
-.exam-stimulus { padding: 26px 30px; }
-@media (min-width: 900px) { .exam-stimulus { border-right: 1px solid var(--border); } }
-.exam-stimulus .stim {
-  font-size: 15.5px; line-height: 1.65; color: var(--ink); white-space: pre-wrap;
-}
-.exam-stimulus .stim .underlined {
-  text-decoration-color: var(--sky); text-decoration-thickness: 2px; text-underline-offset: 3px;
-}
 .stim-empty { color: var(--muted); font-size: 14px; font-weight: 300; }
 
 .exam-question { padding: 22px 30px 30px; }
@@ -602,6 +587,14 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm);
   background: #6b6bd6; color: #fff; font-weight: 700; font-size: 15px;
 }
+.exam-qhead .qof { font-size: 13px; color: var(--muted); font-weight: 300; }
+.exam-qhead .q-clock {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; padding: 5px 10px;
+  border-radius: var(--pill); background: var(--page);
+}
+.exam-qhead .q-clock.stopped { color: var(--muted); }
 .exam-qhead .mark, .exam-qhead .abc {
   display: inline-flex; align-items: center; gap: 7px;
   border: none; background: none; color: var(--muted);
@@ -655,38 +648,6 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 }
 .exam-wait h2 { font-size: 20px; }
 .exam-wait p { color: var(--muted); font-weight: 300; max-width: 42ch; }
-
-.exam-foot {
-  position: sticky; bottom: 0; display: flex; align-items: center; gap: 14px;
-  padding: 12px 22px; border-top: 1px solid var(--border); background: #fff;
-}
-.exam-foot .btn { min-width: 92px; justify-content: center; }
-.exam-progress { flex: 1; display: flex; justify-content: center; position: relative; }
-.exam-progress-btn {
-  display: inline-flex; align-items: center; gap: 9px;
-  border: 1px solid var(--border-strong); background: #fff; border-radius: var(--r);
-  padding: 9px 20px; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer;
-}
-.exam-progress-btn:hover { background: var(--input); }
-.exam-progress-btn .caret {
-  width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent;
-  border-top: 5px solid var(--ink-2); transition: transform .15s;
-}
-.exam-progress-btn .caret.up { transform: rotate(180deg); }
-.exam-grid {
-  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
-  display: grid; grid-template-columns: repeat(9, 34px); gap: 8px;
-  padding: 14px; background: #fff; border: 1px solid var(--border);
-  border-radius: var(--r); box-shadow: var(--shadow-lift); z-index: 5;
-}
-.exam-grid .sq {
-  width: 34px; height: 34px; border-radius: var(--r-sm); cursor: pointer;
-  border: 1px dashed var(--border-strong); background: #fff; color: var(--ink-2);
-  font-size: 13px; font-weight: 600;
-}
-.exam-grid .sq.done { border-style: solid; background: var(--navy-600); border-color: var(--navy-600); color: #fff; }
-.exam-grid .sq.here { outline: 2px solid var(--focus); outline-offset: 1px; }
-.exam-grid .sq.marked { box-shadow: inset 0 3px 0 var(--lime); }
 
 /* ---------------------------------------------------------------- report -- */
 .stat-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
@@ -859,3 +820,192 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .note-head .muted { font-size: 12.5px; color: var(--muted); }
 .note-cols { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
 @media (min-width: 780px) { .note-cols { grid-template-columns: 1fr 1fr; } }
+
+/* -------------------------------------------------------- passage blocks --- */
+/* A stored passage is one text field, but a paper prints paragraphs, the
+   "Text 1"/"Text 2" headings of a paired-text item, and — for the chart and
+   table items — a table. These style the blocks wherever a passage appears:
+   the bank card, the student's stage and the printed paper. */
+.passage-text { white-space: pre-wrap; margin: 0 0 .85em; }
+.passage-text:last-child { margin-bottom: 0; }
+.passage-heading {
+  margin: 1.1em 0 .45em; font-weight: 600; color: var(--ink);
+  font-size: .95em; letter-spacing: .01em;
+}
+.passage-heading:first-child { margin-top: 0; }
+
+.passage-table-wrap { overflow-x: auto; margin: 0 0 .9em; }
+.passage-table { border-collapse: collapse; font-size: .95em; min-width: 220px; }
+.passage-table th, .passage-table td {
+  border: 1px solid var(--border-strong); padding: 6px 14px; text-align: left;
+}
+.passage-table th { background: var(--navy-50); font-weight: 600; color: var(--ink); }
+.passage-table td { color: inherit; }
+
+/* ------------------------------------------------------------------ tabs --- */
+.tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+.tab {
+  appearance: none; background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 9px 14px; margin-bottom: -1px; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--muted);
+}
+.tab:hover { color: var(--ink-2); }
+.tab.on { color: var(--navy-600); border-bottom-color: var(--sky); }
+.tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: var(--r-sm) var(--r-sm) 0 0; }
+
+/* ----------------------------------------------------------------- paper --- */
+/* The source document itself: directions at the top, each passage set once
+   above the questions that hang off it, choices as the paper's plain A)-D)
+   run. Narrow measure on purpose — a paper is read, not scanned. */
+.paper-head { align-items: flex-start; gap: 12px; }
+.paper-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: var(--r-sm);
+  color: var(--ink-2); border: 1px solid var(--border); background: #fff; flex-shrink: 0;
+}
+.paper-back:hover { border-color: var(--border-strong); }
+
+.paper {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r);
+  padding: 42px clamp(20px, 5vw, 60px) 52px; max-width: 860px; margin: 0 auto;
+  color: var(--ink); font-size: 15px; line-height: 1.62;
+}
+.paper-title { text-align: center; margin-bottom: 30px; }
+.paper-title h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.paper-directions {
+  margin: 16px auto 0; max-width: 66ch; text-align: left;
+  font-size: 13.5px; font-weight: 300; color: var(--ink-2);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 13px 0;
+}
+
+.paper-group { margin-top: 34px; }
+.paper-passage-label {
+  font-size: 15px; font-weight: 700; color: var(--navy-600); margin-bottom: 10px;
+}
+.paper-passage { color: var(--ink); line-height: 1.7; margin-bottom: 22px; }
+.paper-passage.inline { margin-bottom: 14px; }
+.paper-passage .underlined {
+  text-decoration-color: var(--sky); text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+
+.paper-q { margin-bottom: 26px; break-inside: avoid; }
+.paper-q-body { display: flex; gap: 12px; align-items: baseline; }
+.paper-n { font-weight: 700; min-width: 26px; flex-shrink: 0; }
+.paper-q-main { flex: 1; min-width: 0; }
+.paper-stem { margin: 0 0 12px; }
+
+.paper-choices { list-style: none; margin: 0; padding: 0 0 0 6px; }
+.paper-choices li {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 4px 8px; margin: 0 0 2px -8px; border-radius: var(--r-sm);
+}
+.paper-choices .lab { font-weight: 600; min-width: 22px; flex-shrink: 0; }
+.paper-choices li.is-key { background: var(--easy-bg); color: var(--easy-fg); font-weight: 500; }
+
+.paper-key {
+  margin: 12px 0 0 6px; padding: 11px 13px; border-left: 3px solid var(--sky);
+  background: var(--sky-wash); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 13px; color: var(--ink-2); line-height: 1.55;
+}
+.paper-key-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.paper-key-head .ans { font-weight: 700; color: var(--navy-600); font-size: 13px; }
+.paper-key p { margin: 8px 0 0; }
+
+/* Printing gives the teachers the paper on paper — chrome off, sheet flat. */
+@media print {
+  .side, .page-head, .tabs { display: none !important; }
+  .shell, .main, body, .page { background: #fff; padding: 0; display: block; }
+  .paper { border: 0; border-radius: 0; max-width: none; padding: 0; }
+  .paper-key { background: none; }
+}
+
+/* --------------------------------------------------------- exam extras --- */
+.exam-when { color: var(--ink-2); font-size: 14px; font-weight: 500; margin: -4px 0 4px; }
+.exam-lock { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--muted); font-weight: 300; }
+
+.exam-done { padding: 34px clamp(20px, 5vw, 48px) 48px; max-width: 780px; margin: 0 auto; width: 100%; }
+.exam-done-head { text-align: center; margin-bottom: 26px; }
+.exam-done-head h2 { font-size: 22px; }
+.exam-done-head p { color: var(--muted); font-weight: 300; margin-top: 6px; }
+.done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.done-list li {
+  display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 14px;
+}
+.done-list .no { font-weight: 700; color: var(--muted); min-width: 22px; }
+.done-list .stem { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.done-list .pick { color: var(--muted); font-size: 13px; font-weight: 300; flex-shrink: 0; }
+.done-list .mark { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; flex-shrink: 0; }
+.done-list .mark.correct { color: var(--easy-fg); }
+.done-list .mark.incorrect { color: var(--danger); }
+.done-list li.correct { border-color: var(--easy-fg); }
+.done-list li.incorrect { border-color: var(--danger); }
+
+.queue-note { color: var(--muted); font-size: 13px; font-weight: 300; line-height: 1.55; margin-top: 10px; }
+.queue-note a { font-weight: 500; }
+
+/* --------------------------------------------------------- the builder --- */
+/* Bank on the left, the paper being built on the right. The right column
+   sticks: dragging question 24 into position 3 is impossible if the list
+   scrolls away from the questions you are picking. */
+.builder { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
+@media (min-width: 1080px) { .builder { grid-template-columns: minmax(0, 1fr) 360px; } }
+
+.builder-filters {
+  display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 16px;
+  position: sticky; top: 0; z-index: 2; background: var(--page); padding: 4px 0 10px;
+}
+.builder-filters .select { width: auto; min-width: 140px; }
+.builder-filters .input { flex: 1; min-width: 160px; }
+
+.bank-group { margin-bottom: 22px; }
+.bank-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.bank-group-head h3 { font-size: 14px; font-weight: 700; color: var(--navy-600); }
+.bank-group-head .muted { font-size: 12.5px; color: var(--muted); font-weight: 300; }
+
+.bank-passage { margin-bottom: 10px; }
+.bank-passage summary {
+  cursor: pointer; font-size: 13px; color: var(--sky-dark); font-weight: 500;
+  padding: 6px 0; list-style: none;
+}
+.bank-passage summary::-webkit-details-marker { display: none; }
+.bank-passage summary::before { content: '▸ '; }
+.bank-passage[open] summary::before { content: '▾ '; }
+
+.bank-q {
+  display: flex; gap: 12px; padding: 14px 16px; margin-bottom: 8px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r);
+}
+.bank-q.picked { border-color: var(--sky); background: var(--sky-wash); box-shadow: inset 3px 0 0 var(--sky); }
+.bank-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; cursor: pointer; }
+.bank-pick input { width: 17px; height: 17px; accent-color: var(--sky-dark); cursor: pointer; }
+.bank-pick .n { font-size: 12px; font-weight: 700; color: var(--muted); }
+.bank-q-main { flex: 1; min-width: 0; }
+.bank-q-main .q-passage { background: var(--page); font-size: 13.5px; margin-bottom: 12px; }
+.bank-q.picked .q-passage { background: #fff; }
+.bank-stem { font-size: 14.5px; font-weight: 500; line-height: 1.5; margin: 0 0 10px; }
+.bank-q .paper-choices { font-size: 13.5px; color: var(--ink-2); }
+.bank-tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+.bank-tags .muted { font-size: 12px; color: var(--muted); font-weight: 300; }
+
+.builder-picked {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r); padding: 14px;
+  position: sticky; top: 12px; max-height: calc(100vh - 40px); overflow-y: auto;
+}
+.picked-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.picked-head .muted { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 300; }
+.picked-empty { color: var(--muted); font-size: 13px; font-weight: 300; line-height: 1.55; }
+.picked-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.picked-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 9px;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff; font-size: 13px;
+}
+.picked-row[draggable='true'] { cursor: grab; }
+.picked-row.over { border-color: var(--sky); box-shadow: 0 -2px 0 var(--sky); }
+.picked-row .grip { color: var(--faint); display: inline-flex; flex-shrink: 0; }
+.picked-row .no { font-weight: 700; color: var(--muted); min-width: 18px; font-variant-numeric: tabular-nums; }
+.picked-row .stem {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.picked-row .ctrl { display: flex; gap: 1px; flex-shrink: 0; }
+.picked-row .ctrl .btn { padding: 3px 6px; min-width: 0; }

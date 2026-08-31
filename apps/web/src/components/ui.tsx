@@ -7,7 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
-import { splitPassage } from '../lib/passage'
+import { parsePassage } from '../lib/paper'
 import type { Difficulty } from '../lib/types'
 
 /**
@@ -85,6 +85,15 @@ export function Notice({
  * (the bank card, the student's stage); the underline handling is the same
  * everywhere, because it is part of the question rather than of the styling.
  */
+/**
+ * A stimulus, set the way its paper sets it.
+ *
+ * The bank stores a passage as one text field, but a paper does not print one:
+ * it prints paragraphs, the "Text 1"/"Text 2" headings of a paired-text item,
+ * and — for the chart and table items — an actual table. Rendering the field
+ * as a single pre-wrapped paragraph is what turned the sleep table into a run
+ * of loose numbers, so every view goes through this instead.
+ */
 export function Passage({
   body,
   underline,
@@ -96,15 +105,54 @@ export function Passage({
 }) {
   return (
     <div className={className}>
-      {splitPassage(body, underline).map((seg, i) =>
-        seg.underlined ? (
-          <u key={i} className="underlined">
-            {seg.text}
-          </u>
-        ) : (
-          <span key={i}>{seg.text}</span>
-        ),
-      )}
+      {parsePassage(body, underline).map((block, i) => {
+        if (block.kind === 'heading') {
+          return (
+            <p key={i} className="passage-heading">
+              {block.text}
+            </p>
+          )
+        }
+        if (block.kind === 'table') {
+          return (
+            <div key={i} className="passage-table-wrap">
+              <table className="passage-table">
+                <thead>
+                  <tr>
+                    {block.head.map((h, c) => (
+                      <th key={c} scope="col">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, r) => (
+                    <tr key={r}>
+                      {row.map((cell, c) => (
+                        <td key={c}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+        return (
+          <p key={i} className="passage-text">
+            {block.segments.map((seg, j) =>
+              seg.underlined ? (
+                <u key={j} className="underlined">
+                  {seg.text}
+                </u>
+              ) : (
+                <span key={j}>{seg.text}</span>
+              ),
+            )}
+          </p>
+        )
+      })}
     </div>
   )
 }

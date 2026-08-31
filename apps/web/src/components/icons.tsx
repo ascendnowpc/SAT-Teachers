@@ -39,6 +39,13 @@ export const IconTrash = ({ size = 14 }: P) => (
   <svg {...base(size)}><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M6 6v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6" /></svg>
 )
 
+export const IconGrip = ({ size = 15 }: P) => (
+  <svg {...base(size)} strokeWidth={2.2}><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" /></svg>
+)
+export const IconClock = ({ size = 15 }: P) => (
+  <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M12 7v5.5l3.5 2" /></svg>
+)
+
 export function IconClipboard() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"

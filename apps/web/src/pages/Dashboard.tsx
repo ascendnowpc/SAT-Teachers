@@ -91,7 +91,7 @@ export function Dashboard() {
             <h3>No sessions scheduled</h3>
             <p>
               {isTeacher
-                ? 'Create a session with a student, add the meeting link, and queue the questions you plan to use.'
+                ? 'Create a session with a student, pick the questions they should sit, and set the time it opens.'
                 : `Nothing booked yet. Give your teacher your ID — ${profile.display_id} — so they can schedule one.`}
             </p>
             {isTeacher && (

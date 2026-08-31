@@ -7,8 +7,10 @@ import { QuestionNew } from './pages/QuestionNew'
 import { QuestionSetEdit } from './pages/QuestionSetEdit'
 import { ReportEdit } from './pages/ReportEdit'
 import { QuestionSets } from './pages/QuestionSets'
+import { Paper } from './pages/Paper'
 import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
+import { SessionPaper } from './pages/SessionPaper'
 import { SessionReport } from './pages/SessionReport'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
@@ -42,8 +44,10 @@ export function App() {
         {isTeacher && (
           <>
             <Route path="/sessions/new" element={<SessionNew />} />
+            <Route path="/sessions/:id/paper" element={<SessionPaper />} />
             <Route path="/questions" element={<Questions />} />
             <Route path="/questions/new" element={<QuestionNew />} />
+            <Route path="/questions/papers/:id" element={<Paper />} />
             <Route path="/pretests" element={<QuestionSets />} />
             <Route path="/pretests/new" element={<QuestionSetEdit />} />
             <Route path="/pretests/:id/edit" element={<QuestionSetEdit />} />

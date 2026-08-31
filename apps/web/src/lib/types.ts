@@ -70,6 +70,8 @@ export interface Session {
   duration_mins: number
   meeting_url: string | null
   status: SessionStatus
+  /** How many questions the paper holds. Maintained by trigger; the student reads it. */
+  question_count: number
   started_at: string | null
   ended_at: string | null
   teacher_notes: string | null
@@ -115,6 +117,10 @@ export interface QuestionSet {
   title: string
   subject: Subject
   description: string | null
+  /** The directions block the source paper prints above its first question. */
+  instructions: string | null
+  /** Which source paper this set is, e.g. ENG-DIAG-INCLASS. Null when a teacher built it. */
+  source_ref: string | null
   is_active: boolean
   created_at: string
   /** Present when the list query counts the set's items. */
