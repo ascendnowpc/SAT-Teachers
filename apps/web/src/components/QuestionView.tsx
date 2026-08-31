@@ -9,9 +9,14 @@ import type { Question } from '../lib/types'
  *
  * The teachers read these screens against the test their students sit, so a
  * question should not look like one thing in the bank and another in the exam.
- * This is that one shape — the bank card, the paper builder and the ordering
- * view all mount it, and the only thing they vary is what sits in the header
- * bar (a tick box, a drag handle, a position) and what follows the choices.
+ * This is that one shape — the bank card, the paper builder, the ordering view
+ * and the printed paper all mount it, and the only thing they vary is what
+ * sits in the header bar (a tick box, a drag handle, a position) and what
+ * follows the choices.
+ *
+ * Its labels — level, section, skill — go under the stimulus rather than over
+ * the question, because a stimulus rarely fills its half and the choices ought
+ * to follow the question they belong to without a row of chips in between.
  *
  * Below 900px it stacks, which is the same breakpoint the exam screen uses.
  *
@@ -24,6 +29,7 @@ export function QuestionView({
   question,
   number,
   header,
+  tags,
   footer,
   showKey = true,
   layout = 'split',
@@ -31,8 +37,10 @@ export function QuestionView({
   question: Question
   /** The number badge, if this question has a position worth showing. */
   number?: string
-  /** Controls for the header bar — a checkbox, reorder buttons, tags. */
+  /** Controls for the header bar — a checkbox, a drag handle, reorder buttons. */
   header?: ReactNode
+  /** Level, section, skill. Set under the stimulus, where there is room. */
+  tags?: ReactNode
   /** Anything that belongs under the choices: an explanation, a rationale. */
   footer?: ReactNode
   /** Marks the key. Off when a teacher is sharing the screen with a student. */
@@ -58,14 +66,16 @@ export function QuestionView({
           ) : (
             <p className="stim-empty">This question stands on its own — read it on the right.</p>
           )}
+          {tags && <div className="qsplit-tags">{tags}</div>}
         </div>
       )}
 
       <div className="qsplit-main">
-        {(number || header) && (
+        {(number || header || (tags && layout === 'stacked')) && (
           <div className="qsplit-head">
             {number && <span className="qn">{number.padStart(2, '0')}</span>}
             {header}
+            {layout === 'stacked' && tags}
           </div>
         )}
 
