@@ -940,11 +940,44 @@ table.board-table tr.live-row { background: var(--sky-wash); }
      the furniture: the sidebar, the back link and the buttons. */
   .report .page-head { display: flex !important; }
   .report .back-link, .report .btn { display: none !important; }
-  .report .card {
-    box-shadow: none; border: 1px solid #D7DCEC;
-    break-inside: avoid; page-break-inside: avoid;
+  .report .card { box-shadow: none; border: 1px solid var(--border); }
+  /* Keep the ticks and the score colours; a grey evaluation grid says less. */
+  .report * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* The layout breakpoints are written against a browser window, and a page is
+     narrower than one — so on paper both of these collapsed to a single column
+     and left half the sheet empty. They are given their wide layout outright. */
+  .report .stat-row { grid-template-columns: repeat(4, 1fr) !important; }
+  .report .report-cols { grid-template-columns: 1fr 1fr !important; }
+
+  /* The evaluation grid is six columns and holds a 940px floor so it stays
+     readable on screen, where it can scroll sideways. Paper cannot scroll, so
+     the floor comes off and the columns are given proportions instead —
+     otherwise Gaps observed and Next steps run off the edge of the sheet,
+     which is exactly the half a parent is reading it for. */
+  .report .table-wrap { overflow: visible; }
+  .report .grid-table { min-width: 0; table-layout: fixed; font-size: 9.5px; }
+  .report .grid-table th, .report .grid-table td {
+    padding: 6px 7px; vertical-align: top; overflow-wrap: break-word;
   }
-  .report tr { break-inside: avoid; }
+  /* On screen the heading row does not wrap because the table can scroll under
+     it. Fixed columns on paper, so it has to — "Student Performance" was
+     running straight over "Strengths observed". */
+  .report .grid-table thead th { white-space: normal; font-size: 9.5px; }
+  .report .grid-table thead th:nth-child(1) { width: 12% }
+  .report .grid-table thead th:nth-child(2) { width: 15% }
+  .report .grid-table thead th:nth-child(3) { width: 13% }
+  .report .grid-table thead th:nth-child(4) { width: 22% }
+  .report .grid-table thead th:nth-child(5) { width: 22% }
+  .report .grid-table thead th:nth-child(6) { width: 16% }
+  .report .grid-table .dom { width: auto; font-size: 10px; }
+  .report .grid-table ul.tight { padding-left: 12px; }
+
+  /* A row is kept whole; a card is not. The grid alone is taller than a sheet,
+     and refusing to break it pushed the whole thing to page two and left page
+     one three-quarters empty. */
+  .report tr, .report .stat, .report .miss { break-inside: avoid; }
+  .report .grid-table thead { display: table-header-group; }
 }
 
 @page { size: A4; margin: 12mm; }
