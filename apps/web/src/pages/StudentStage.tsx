@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { IconBack, IconCheck, IconClock, IconCross, IconVideo } from '../components/icons'
-import { Notice, Passage, Textarea } from '../components/ui'
+import { Notice, Passage } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { clock, openState } from '../lib/countdown'
 import { formatUtcLong } from '../lib/time'
@@ -26,11 +26,48 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
     withAssessments: false,
   })
 
+  const navigate = useNavigate()
+  const [leaving, setLeaving] = useState(false)
+  const [ending, setEnding] = useState(false)
+
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
   const done = useMemo(
     () => items.filter((i) => i.status === 'answered' || i.status === 'revealed'),
     [items],
   )
+
+  // A paper in progress is not a page you can wander off. The browser's own
+  // back button and a refresh are both caught: back is turned into the same
+  // question the screen already asks, and a refresh gets the browser's warning.
+  const inProgress = open !== null
+  useEffect(() => {
+    if (!inProgress) return
+
+    window.history.pushState(null, '', window.location.href)
+    const onPop = () => {
+      window.history.pushState(null, '', window.location.href)
+      setLeaving(true)
+    }
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+
+    window.addEventListener('popstate', onPop)
+    window.addEventListener('beforeunload', onUnload)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener('beforeunload', onUnload)
+    }
+  }, [inProgress])
+
+  async function leave() {
+    setEnding(true)
+    await supabase.rpc('finish_session_as_student', { p_session: sessionId })
+    setEnding(false)
+    setLeaving(false)
+    navigate('/sessions')
+  }
 
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
@@ -49,9 +86,20 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
     <div className="exam">
       <header className="exam-head">
         <div className="exam-title">
-          <Link className="exam-back" to="/sessions" aria-label="Back to sessions">
-            <IconBack />
-          </Link>
+          {open ? (
+            <button
+              type="button"
+              className="exam-back"
+              onClick={() => setLeaving(true)}
+              aria-label="Leave the test"
+            >
+              <IconBack />
+            </button>
+          ) : (
+            <Link className="exam-back" to="/sessions" aria-label="Back to sessions">
+              <IconBack />
+            </Link>
+          )}
           <span>
             {session.title || `${subjectLabel(session.subject)} session`}:{' '}
             <strong>{subjectLabel(session.subject)}</strong>
@@ -81,6 +129,37 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
       {error && (
         <div className="exam-notice">
           <Notice kind="error">{error}</Notice>
+        </div>
+      )}
+
+      {leaving && (
+        <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+          <div className="leave-box">
+            <h2 id="leave-title">Leave the test?</h2>
+            <p>
+              Your test will be submitted as it stands. The {total - done.length} question
+              {total - done.length === 1 ? '' : 's'} you have not answered will be marked as not
+              attempted, and you cannot come back to them.
+            </p>
+            <div className="leave-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setLeaving(false)}
+                autoFocus
+              >
+                Keep going
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={ending}
+                onClick={() => void leave()}
+              >
+                {ending ? 'Submitting…' : 'Submit and leave'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -225,7 +304,6 @@ function ItemPane({
   const [struck, setStruck] = useState<OptionLabel[]>(item.eliminated_options ?? [])
   const [crossoutOn, setCrossoutOn] = useState(false)
   const [confidence, setConfidence] = useState<number | null>(item.student_confidence)
-  const [reasoning, setReasoning] = useState(item.student_reasoning ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -260,13 +338,15 @@ function ItemPane({
       p_option: selected,
       p_eliminated: struck,
       p_confidence: confidence,
-      p_reasoning: reasoning,
+      // Asked for in the lesson, where the teacher can hear the answer — not
+      // typed into a box while a clock runs.
+      p_reasoning: null,
     })
     if (error) setErr(error.message)
     // Answering publishes the next question, so the reload brings it with it.
     await onChanged()
     setBusy(false)
-  }, [selected, struck, confidence, reasoning, item.id, onChanged])
+  }, [selected, struck, confidence, item.id, onChanged])
 
   return (
     <div className="exam-body">
@@ -352,17 +432,6 @@ function ItemPane({
               </button>
             ))}
           </div>
-
-          <div className="section-title" style={{ marginTop: 16 }}>
-            Why did you pick it?
-          </div>
-          <Textarea
-            rows={2}
-            value={reasoning}
-            onChange={(e) => setReasoning(e.target.value)}
-            placeholder="Optional — one line on how you got there."
-            aria-label="Why did you pick it?"
-          />
 
           <button
             type="button"

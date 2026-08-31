@@ -14,6 +14,8 @@
 --      which is what makes the per-question timing mean anything
 --    * answering publishes the next one, in the paper's order
 --    * once the paper is with the student it cannot be renumbered underneath
+--    * leaving a test ends it: unanswered questions are voided, answered ones
+--      are kept, and nothing is left open to come back to
 --
 --  Every row must read PASS. Cleans up after itself, and is safe against a
 --  real database: it is one statement, so a failure rolls back the accounts it
@@ -189,6 +191,27 @@ begin
   end;
   return query select '5 fixed'::text,'the paper cannot be rewritten under the student'::text,
     'refused'::text,txt,(case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
+
+  -- ============ leaving a test in progress ends it ============
+  perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  n := finish_session_as_student(sess);
+  return query select '6 leave'::text,'the questions never reached are voided'::text,'2'::text,n::text,
+    (case when n=2 then 'PASS' else 'FAIL' end)::text;
+
+  select count(*) into n from session_items where status = 'published';
+  return query select '6 leave'::text,'nothing is left open to come back to'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+  select count(*) into n from session_items where status = 'answered';
+  return query select '6 leave'::text,'what they did answer is kept'::text,'1'::text,n::text,
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+  select status::text into txt from sessions where id = sess;
+  return query select '6 leave'::text,'and the session is completed'::text,'completed'::text,txt,
+    (case when txt='completed' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- Cleanup. The three test accounts consume three serial numbers on their way
