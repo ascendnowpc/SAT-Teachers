@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { DifficultyBadge, Notice, Passage } from '../components/ui'
+import { DifficultyBadge, Notice } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
 import { IconBack } from '../components/icons'
 import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
@@ -9,14 +9,16 @@ import { row, rows, supabase } from '../lib/supabase'
 import type { Question, QuestionSet } from '../lib/types'
 
 /**
- * One paper, printed.
+ * One paper, read.
  *
- * The Questions tab lists the papers; this is what opening one shows — the
- * source document itself, in its own order and its own numbering, with the
- * directions at the top and each passage set once above the questions that
- * hang off it. A teacher reading it here should be reading the same page the
- * student is sitting, which is why the choices are the plain A)–D) run of the
- * paper rather than the bank's cards.
+ * Two things open here and they are the same object: a source paper from the
+ * bank, and a test a teacher assembled. The only difference is where Back
+ * goes, and that a test can be edited — which is why opening a test lands
+ * here rather than in the builder. You read it first; you edit it if you meant
+ * to.
+ *
+ * Each question is drawn the way the student meets it, stimulus and all, so a
+ * teacher reading a paper is reading the screen their student will sit.
  *
  * The answers are marked on it — the correct choice ticked where it stands,
  * the way a worked paper is marked — because that is what a teacher reads a
@@ -65,6 +67,8 @@ export function Paper() {
   }, [load])
 
   const groups = useMemo(() => buildPaper(questions), [questions])
+  // A test is a set a teacher built; a paper came in with the bank.
+  const isTest = set !== null && set.source_ref === null
 
   if (loading) return <div className="page">Loading…</div>
   if (error) {
@@ -79,7 +83,7 @@ export function Paper() {
       <div className="page">
         <div className="card">
           <div className="empty">
-            <h3>Paper not found</h3>
+            <h3>Not found</h3>
             <Link className="btn btn-primary" to="/questions">
               Back to the question bank
             </Link>
@@ -92,7 +96,11 @@ export function Paper() {
   return (
     <div className="page">
       <div className="page-head paper-head">
-        <Link className="paper-back" to="/questions" aria-label="Back to the question bank">
+        <Link
+          className="paper-back"
+          to={isTest ? '/tests' : '/questions'}
+          aria-label={isTest ? 'Back to tests' : 'Back to the question bank'}
+        >
           <IconBack />
         </Link>
         <div>
@@ -106,7 +114,7 @@ export function Paper() {
         <div className="spring" />
         <button
           type="button"
-          className={showKey ? 'btn btn-primary' : 'btn'}
+          className="btn"
           onClick={() => setShowKey((v) => !v)}
           aria-pressed={showKey}
         >
@@ -115,6 +123,11 @@ export function Paper() {
         <button type="button" className="btn" onClick={() => window.print()}>
           Print
         </button>
+        {isTest && (
+          <Link className="btn btn-primary" to={`/tests/${id}/edit`}>
+            Edit
+          </Link>
+        )}
       </div>
 
       <article className="paper">
@@ -126,7 +139,7 @@ export function Paper() {
         {groups.length === 0 ? (
           <div className="empty">
             <h3>Nothing in this paper yet</h3>
-            <p>Add questions to it from the pre-test editor.</p>
+            <p>{isTest ? 'Edit it to add questions.' : 'This paper loaded empty.'}</p>
           </div>
         ) : (
           groups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)
@@ -139,29 +152,22 @@ export function Paper() {
 /**
  * A passage and its questions, each in the shape the student meets it.
  *
- * A stimulus carrying several questions is set once under its heading and the
- * questions below it are stacked — repeating the passage beside each of five
- * would be noise. A stimulus belonging to one question travels with it, in the
- * split the exam screen uses.
+ * The passage repeats down the left of every question that shares it rather
+ * than being set once above them. That is a page of repetition on a paper
+ * where five questions share a stimulus — and it is what the teachers asked
+ * for, because it is what they will be looking at question by question when
+ * they go through it.
  */
 function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
-  const shared = group.label !== null
-
   return (
     <section className="paper-group">
-      {shared && group.passage && (
-        <>
-          <h3 className="paper-passage-label">{group.label}</h3>
-          <Passage body={group.passage} underline={group.underline} className="paper-passage" />
-        </>
-      )}
+      {group.label && <h3 className="paper-passage-label">{group.label}</h3>}
 
       {group.questions.map(({ question, number }) => (
         <article className="paper-q" key={question.id}>
           <QuestionView
             question={question}
             number={number}
-            layout={shared ? 'stacked' : 'split'}
             showKey={showKey}
             tags={
               <>

@@ -7,13 +7,17 @@ import { rows, supabase } from '../lib/supabase'
 import type { QuestionSet } from '../lib/types'
 
 /**
- * Pre-tests: a paper built once and run with every student after that.
+ * A test: questions taken from the bank, in an order, saved to be used again.
  *
- * The set is the unit of work here, not the session. A teacher assembles the
- * questions, and every session that uses it gets the same paper in the same
+ * The test is the unit of work here, not the session. A teacher assembles it
+ * once and every session that uses it gets the same questions in the same
  * order — which is what makes two students' reports comparable.
+ *
+ * Only tests a teacher built are listed. The bank's own source papers are
+ * filed under Questions, where they came from; they are not something anybody
+ * here assembled.
  */
-export function QuestionSets() {
+export function Tests() {
   const [params, setParams] = useSearchParams()
   const notice = params.get('saved')
 
@@ -25,6 +29,7 @@ export function QuestionSets() {
     const { data, error: err } = await supabase
       .from('question_sets')
       .select('*, question_set_items(count)')
+      .is('source_ref', null)
       .order('created_at', { ascending: false })
     if (err) setError(err.message)
     else setSets(rows<QuestionSet>(data))
@@ -39,20 +44,20 @@ export function QuestionSets() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Pre-tests</h1>
+          <h1>Tests</h1>
           <p className="sub">
-            {sets.length} set{sets.length === 1 ? '' : 's'}
+            {sets.length} test{sets.length === 1 ? '' : 's'}
           </p>
         </div>
         <div className="spring" />
-        <Link className="btn btn-primary" to="/pretests/new">
-          Add pre-test
+        <Link className="btn btn-primary" to="/tests/new">
+          New test
         </Link>
       </div>
 
       {notice && (
         <Notice kind="ok">
-          Pre-test saved.{' '}
+          Test saved.{' '}
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -70,17 +75,17 @@ export function QuestionSets() {
       ) : sets.length === 0 ? (
         <div className="card">
           <div className="empty">
-            <h3>No pre-tests yet</h3>
-            <p>Build a paper once and run it with every student.</p>
-            <Link className="btn btn-primary" to="/pretests/new">
-              Add pre-test
+            <h3>No tests yet</h3>
+            <p>Build one once and use it with every student.</p>
+            <Link className="btn btn-primary" to="/tests/new">
+              New test
             </Link>
           </div>
         </div>
       ) : (
         <div className="set-list">
           {sets.map((s) => (
-            <Link key={s.id} className="set-card" to={`/pretests/${s.id}/edit`}>
+            <Link key={s.id} className="set-card" to={`/tests/${s.id}`}>
               <span className="ico">
                 <IconStack />
               </span>

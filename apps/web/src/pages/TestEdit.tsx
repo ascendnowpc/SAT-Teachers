@@ -8,18 +8,14 @@ import { row, supabase } from '../lib/supabase'
 import type { QuestionSet, Subject } from '../lib/types'
 
 /**
- * Build a pre-test: name it, take questions from the source papers, order them.
+ * Build a test: name it, take questions from the bank, put them in order.
  *
- * Same builder as a session's paper — open one of the three diagnostics, read
- * the questions whole, tick what this paper should carry, then arrange the lot.
- * The difference is only that this one is reusable: built once and run with
- * every student after that, which is what makes two students' reports
- * comparable.
- *
- * Order is explicit rather than implied by when a question was ticked, because
- * "question 7" has to mean the same thing for everybody who sits it.
+ * Same builder as a session's paper, because it is the same job. The
+ * difference is that this one is saved and reused: "question 7" has to mean
+ * the same thing for everybody who sits it, which is why the order is explicit
+ * rather than implied by the order things were ticked.
  */
-export function QuestionSetEdit() {
+export function TestEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = !id
@@ -69,7 +65,7 @@ export function QuestionSetEdit() {
   async function save(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!title.trim()) return setError('Give the pre-test a name.')
+    if (!title.trim()) return setError('Give the test a name.')
     if (picked.length === 0) return setError('Pick at least one question.')
 
     setBusy(true)
@@ -108,9 +104,9 @@ export function QuestionSetEdit() {
       )
       if (insErr) throw new Error(insErr.message)
 
-      navigate('/pretests?saved=1')
+      navigate('/tests?saved=1')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save the pre-test.')
+      setError(err instanceof Error ? err.message : 'Could not save the test.')
     } finally {
       setBusy(false)
     }
@@ -120,21 +116,17 @@ export function QuestionSetEdit() {
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to="/pretests">
-        <IconBack /> Pre-tests
+      <Link className="back-link" to={id ? `/tests/${id}` : '/tests'}>
+        <IconBack /> {id ? 'Test' : 'Tests'}
       </Link>
 
       <form onSubmit={(e) => void save(e)}>
         <div className="page-head">
           <div>
-            <h1>{isNew ? 'New pre-test' : 'Edit pre-test'}</h1>
-            <p className="sub">
-              Take questions from any of the papers, in any combination, then put them in the order
-              the students will sit them.
-            </p>
+            <h1>{isNew ? 'New test' : 'Edit test'}</h1>
           </div>
           <div className="spring" />
-          <Link className="btn" to="/pretests">
+          <Link className="btn" to={id ? `/tests/${id}` : '/tests'}>
             Cancel
           </Link>
           <button type="submit" className="btn btn-primary" disabled={busy}>
@@ -150,7 +142,7 @@ export function QuestionSetEdit() {
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="English Diagnostic — Module 2"
+                placeholder="Diagnostic — first session"
                 required
               />
             </Field>
@@ -177,7 +169,7 @@ export function QuestionSetEdit() {
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What this paper is for."
+              placeholder="What this test is for."
             />
           </Field>
         </div>

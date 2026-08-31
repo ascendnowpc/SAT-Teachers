@@ -40,6 +40,20 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   // back button and a refresh are both caught: back is turned into the same
   // question the screen already asks, and a refresh gets the browser's warning.
   const inProgress = open !== null
+  const [outOfFullscreen, setOutOfFullscreen] = useState(false)
+
+  // Full screen is asked for when the paper opens and watched while it is
+  // open. It cannot be forced — every browser lets Escape out, and should —
+  // so leaving it is treated as what it is: the student is somewhere else, and
+  // is asked to come back or to finish.
+  useEffect(() => {
+    if (!inProgress) return
+    const onChange = () => setOutOfFullscreen(document.fullscreenElement === null)
+    onChange()
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [inProgress])
+
   useEffect(() => {
     if (!inProgress) return
 
@@ -64,6 +78,7 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   async function leave() {
     setEnding(true)
     await supabase.rpc('finish_session_as_student', { p_session: sessionId })
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
     setEnding(false)
     setLeaving(false)
     navigate('/sessions')
@@ -129,6 +144,31 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
       {error && (
         <div className="exam-notice">
           <Notice kind="error">{error}</Notice>
+        </div>
+      )}
+
+      {inProgress && outOfFullscreen && !leaving && (
+        <div className="leave-veil">
+          <div className="leave-box">
+            <h2>Back to full screen</h2>
+            <p>
+              This is a test, so it runs full screen. Your clock is still running on question{' '}
+              {open?.sequence_no}.
+            </p>
+            <div className="leave-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => void document.documentElement.requestFullscreen().catch(() => {})}
+              >
+                Go full screen
+              </button>
+              <button type="button" className="btn" onClick={() => setLeaving(true)}>
+                Finish the test
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -210,6 +250,9 @@ function Lobby({
   async function start() {
     setBusy(true)
     setErr(null)
+    // Asked for inside the click, which is the only moment a browser will
+    // grant it. A refusal is not fatal — the screen handles being out of it.
+    await document.documentElement.requestFullscreen?.().catch(() => {})
     const { error } = await supabase.rpc('start_session_as_student', { p_session: session.id })
     if (error) setErr(error.message)
     await onStarted()
@@ -329,6 +372,18 @@ function ItemPane({
     if (selected === label) setSelected(null)
   }
 
+  // The clock measures working the question out, which ends when there is an
+  // answer and a confidence down — not when the button is found. The server is
+  // told the moment it happens, so the number in the report is the number the
+  // student watched stop.
+  const decided = selected !== null && confidence !== null
+  const stamped = useRef(false)
+  useEffect(() => {
+    if (!decided || stamped.current) return
+    stamped.current = true
+    void supabase.rpc('mark_item_decided', { p_item: item.id })
+  }, [decided, item.id])
+
   const submit = useCallback(async () => {
     if (!selected) return
     setBusy(true)
@@ -367,7 +422,7 @@ function ItemPane({
           <span className="qn">{String(item.sequence_no).padStart(2, '0')}</span>
           <span className="qof">of {total}</span>
           <span className="spring" />
-          <QuestionClock itemId={item.id} running={!busy} />
+          <QuestionClock itemId={item.id} running={!decided && !busy} />
           <button
             type="button"
             className={`abc ${crossoutOn ? 'on' : ''}`}
