@@ -888,36 +888,24 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   text-decoration-color: var(--sky); text-decoration-thickness: 2px; text-underline-offset: 3px;
 }
 
-.paper-q { margin-bottom: 26px; break-inside: avoid; }
-.paper-q-body { display: flex; gap: 12px; align-items: baseline; }
-.paper-n { font-weight: 700; min-width: 26px; flex-shrink: 0; }
-.paper-q-main { flex: 1; min-width: 0; }
-.paper-stem { margin: 0 0 12px; }
-
-.paper-choices { list-style: none; margin: 0; padding: 0 0 0 6px; }
-.paper-choices li {
-  display: flex; gap: 10px; align-items: baseline;
-  padding: 4px 8px; margin: 0 0 2px -8px; border-radius: var(--r-sm);
+/* Each question is a card in the same shape the student meets it in. */
+.paper-q {
+  margin-bottom: 18px; break-inside: avoid;
+  border: 1px solid var(--border); border-radius: var(--r); overflow: hidden;
+  background: #fff;
 }
-.paper-choices .lab { font-weight: 600; min-width: 22px; flex-shrink: 0; }
-.paper-choices li.is-key { background: var(--easy-bg); color: var(--easy-fg); font-weight: 500; }
-.paper-choices .key-mark { margin-left: auto; padding-left: 10px; font-weight: 700; flex-shrink: 0; }
-
-.paper-key {
-  margin: 12px 0 0 6px; padding: 11px 13px; border-left: 3px solid var(--sky);
-  background: var(--sky-wash); border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  font-size: 13px; color: var(--ink-2); line-height: 1.55;
-}
-.paper-key-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.paper-key-head .ans { font-weight: 700; color: var(--navy-600); font-size: 13px; }
-.paper-key p { margin: 8px 0 0; }
+.paper-q .qsplit-head { margin-bottom: 14px; }
 
 /* Printing gives the teachers the paper on paper — chrome off, sheet flat. */
 @media print {
   .side, .page-head, .tabs { display: none !important; }
   .shell, .main, body, .page { background: #fff; padding: 0; display: block; }
   .paper { border: 0; border-radius: 0; max-width: none; padding: 0; }
-  .paper-key { background: none; }
+  /* On paper the split is one column: there is no second screen to put the
+     stimulus on, and a half-width column of prose reads badly in print. */
+  .qsplit { grid-template-columns: 1fr !important; }
+  .qsplit-stim { border-right: 0 !important; padding-left: 0; padding-right: 0; }
+  .qsplit-main { padding-left: 0; padding-right: 0; }
 }
 
 /* --------------------------------------------------------- exam extras --- */
@@ -1004,7 +992,6 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
 .bank-q-main .q-passage { background: var(--page); font-size: 13.5px; margin-bottom: 12px; }
 .bank-q.picked .q-passage { background: #fff; }
 .bank-stem { font-size: 14.5px; font-weight: 500; line-height: 1.5; margin: 0 0 10px; }
-.bank-q .paper-choices, .order-card .paper-choices { font-size: 13.5px; color: var(--ink-2); }
 .bank-tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
 .bank-tags .muted { font-size: 12px; color: var(--muted); font-weight: 300; }
 
@@ -1039,6 +1026,7 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
    the bank and another in the exam. Same 900px breakpoint as the exam screen. */
 .qsplit { display: grid; grid-template-columns: 1fr; }
 @media (min-width: 900px) { .qsplit { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 900px) { .qsplit.stacked { grid-template-columns: 1fr; } }
 
 .qsplit-stim { padding: 18px 20px; }
 @media (min-width: 900px) {

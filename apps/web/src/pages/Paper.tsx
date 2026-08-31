@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { DifficultyBadge, Notice, Passage } from '../components/ui'
+import { QuestionView } from '../components/QuestionView'
 import { IconBack } from '../components/icons'
-import { OPTION_LABELS, sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
 import { buildPaper, type PaperGroup } from '../lib/paper'
 import { row, rows, supabase } from '../lib/supabase'
 import type { Question, QuestionSet } from '../lib/types'
@@ -136,9 +137,12 @@ export function Paper() {
 }
 
 /**
- * A passage and its questions. A stimulus carrying several questions is set
- * once under its heading; a stimulus belonging to one question sits inside
- * that question, above the stem, exactly as the paper sets it.
+ * A passage and its questions, each in the shape the student meets it.
+ *
+ * A stimulus carrying several questions is set once under its heading and the
+ * questions below it are stacked — repeating the passage beside each of five
+ * would be noise. A stimulus belonging to one question travels with it, in the
+ * split the exam screen uses.
  */
 function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
   const shared = group.label !== null
@@ -153,65 +157,44 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
       )}
 
       {group.questions.map(({ question, number }) => (
-        <div className="paper-q" key={question.id}>
-          <div className="paper-q-body">
-            <span className="paper-n">{number}.</span>
-            <div className="paper-q-main">
-              {!shared && group.passage && (
-                <Passage
-                  body={group.passage}
-                  underline={group.underline}
-                  className="paper-passage inline"
-                />
-              )}
-              <p className="paper-stem">{question.stem}</p>
-              <Choices question={question} showKey={showKey} />
-              {showKey && <Key question={question} />}
-            </div>
-          </div>
-        </div>
+        <article className="paper-q" key={question.id}>
+          <QuestionView
+            question={question}
+            number={number}
+            layout={shared ? 'stacked' : 'split'}
+            showKey={showKey}
+            header={
+              <>
+                <DifficultyBadge level={question.difficulty} />
+                {question.section && (
+                  <span className="badge badge-neutral">{sectionLabel(question.section)}</span>
+                )}
+                {question.skill && (
+                  <span className="badge badge-sky">{skillLabel(question.skill)}</span>
+                )}
+              </>
+            }
+            footer={
+              showKey && (
+                <>
+                  {question.question_keys?.explanation && (
+                    <div className="q-note">
+                      <div className="section-title">Explanation</div>
+                      {question.question_keys.explanation}
+                    </div>
+                  )}
+                  {question.difficulty_rationale && (
+                    <div className="q-note">
+                      <div className="section-title">Why {question.difficulty}</div>
+                      {question.difficulty_rationale}
+                    </div>
+                  )}
+                </>
+              )
+            }
+          />
+        </article>
       ))}
     </section>
-  )
-}
-
-function Choices({ question, showKey }: { question: Question; showKey: boolean }) {
-  const correct = question.question_keys?.correct_option
-  const options = [...question.question_options].sort(
-    (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
-  )
-
-  return (
-    <ol className="paper-choices">
-      {options.map((o) => {
-        const isKey = showKey && o.label === correct
-        return (
-          <li key={o.id} className={isKey ? 'is-key' : undefined}>
-            <span className="lab">{o.label})</span>
-            <span className="body">{o.body}</span>
-            {isKey && (
-              <span className="key-mark" aria-label="Correct answer">
-                ✓
-              </span>
-            )}
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
-/** Everything the paper itself does not carry: the key, the level, the filing. */
-function Key({ question: q }: { question: Question }) {
-  return (
-    <div className="paper-key">
-      <div className="paper-key-head">
-        <span className="ans">Answer {q.question_keys?.correct_option ?? '—'}</span>
-        <DifficultyBadge level={q.difficulty} />
-        {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
-        {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
-      </div>
-      {q.question_keys?.explanation && <p>{q.question_keys.explanation}</p>}
-    </div>
   )
 }

@@ -14,6 +14,11 @@ import type { Question } from '../lib/types'
  * bar (a tick box, a drag handle, a position) and what follows the choices.
  *
  * Below 900px it stacks, which is the same breakpoint the exam screen uses.
+ *
+ * `layout="stacked"` drops the stimulus pane for the case where the passage is
+ * already printed above — a paper sets a shared passage once and hangs five
+ * questions off it, and repeating it five times down the left would be worse,
+ * not better.
  */
 export function QuestionView({
   question,
@@ -21,6 +26,7 @@ export function QuestionView({
   header,
   footer,
   showKey = true,
+  layout = 'split',
 }: {
   question: Question
   /** The number badge, if this question has a position worth showing. */
@@ -31,6 +37,8 @@ export function QuestionView({
   footer?: ReactNode
   /** Marks the key. Off when a teacher is sharing the screen with a student. */
   showKey?: boolean
+  /** 'stacked' when the passage is already set above this question. */
+  layout?: 'split' | 'stacked'
 }) {
   const correct = question.question_keys?.correct_option
   const options = [...question.question_options].sort(
@@ -38,18 +46,20 @@ export function QuestionView({
   )
 
   return (
-    <div className="qsplit">
-      <div className="qsplit-stim">
-        {question.passage ? (
-          <Passage
-            body={question.passage}
-            underline={question.passage_underline}
-            className="stim"
-          />
-        ) : (
-          <p className="stim-empty">This question stands on its own — read it on the right.</p>
-        )}
-      </div>
+    <div className={`qsplit ${layout === 'stacked' ? 'stacked' : ''}`}>
+      {layout === 'split' && (
+        <div className="qsplit-stim">
+          {question.passage ? (
+            <Passage
+              body={question.passage}
+              underline={question.passage_underline}
+              className="stim"
+            />
+          ) : (
+            <p className="stim-empty">This question stands on its own — read it on the right.</p>
+          )}
+        </div>
+      )}
 
       <div className="qsplit-main">
         {(number || header) && (
