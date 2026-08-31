@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { DifficultyBadge, Input, Notice, Passage, Select } from '../components/ui'
+import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
+import { QuestionView } from '../components/QuestionView'
 import { IconChevron, IconStack } from '../components/icons'
 import {
   DIFFICULTIES,
-  OPTION_LABELS,
   SECTIONS,
   SUBJECTS,
   sectionLabel,
@@ -275,11 +275,6 @@ export function Questions() {
 }
 
 function QuestionCard({ question: q, defaultOpen }: { question: Question; defaultOpen: boolean }) {
-  const correct = q.question_keys?.correct_option
-  const options = [...q.question_options].sort(
-    (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
-  )
-
   return (
     <details className="q-card" open={defaultOpen}>
       <summary>
@@ -297,33 +292,25 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
         </div>
       </summary>
 
-      <div className="q-body">
-        {q.passage && <Passage body={q.passage} underline={q.passage_underline} />}
-
-        <div className="q-options">
-          {options.map((o) => (
-            <div key={o.id} className={o.label === correct ? 'q-option correct' : 'q-option'}>
-              <span className="lab">{o.label}</span>
-              <span>{o.body}</span>
-              {o.label === correct && <span className="tick">Correct</span>}
-            </div>
-          ))}
-        </div>
-
-        {q.question_keys?.explanation && (
-          <div className="q-note">
-            <div className="section-title">Explanation</div>
-            {q.question_keys.explanation}
-          </div>
-        )}
-
-        {q.difficulty_rationale && (
-          <div className="q-note">
-            <div className="section-title">Why {q.difficulty}</div>
-            {q.difficulty_rationale}
-          </div>
-        )}
-      </div>
+      <QuestionView
+        question={q}
+        footer={
+          <>
+            {q.question_keys?.explanation && (
+              <div className="q-note">
+                <div className="section-title">Explanation</div>
+                {q.question_keys.explanation}
+              </div>
+            )}
+            {q.difficulty_rationale && (
+              <div className="q-note">
+                <div className="section-title">Why {q.difficulty}</div>
+                {q.difficulty_rationale}
+              </div>
+            )}
+          </>
+        }
+      />
     </details>
   )
 }

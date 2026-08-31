@@ -17,9 +17,10 @@ import type { Question, QuestionSet } from '../lib/types'
  * student is sitting, which is why the choices are the plain A)–D) run of the
  * paper rather than the bank's cards.
  *
- * The one thing the paper does not print is the answer, so that is a toggle
- * and it starts off. A key on screen while a teacher is talking a student
- * through a question is a key read out by accident.
+ * The answers are marked on it — the correct choice ticked where it stands,
+ * the way a worked paper is marked — because that is what a teacher reads a
+ * paper for. Hiding them is one click, for going through a question with a
+ * student watching.
  */
 export function Paper() {
   const { id } = useParams<{ id: string }>()
@@ -28,7 +29,10 @@ export function Paper() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showKey, setShowKey] = useState(false)
+  // Marked by default: a teacher opening a paper is reading it against the
+  // key, not sitting it. The toggle is there for the times they want it blank
+  // — going through a question with a student on a shared screen.
+  const [showKey, setShowKey] = useState(true)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -179,12 +183,20 @@ function Choices({ question, showKey }: { question: Question; showKey: boolean }
 
   return (
     <ol className="paper-choices">
-      {options.map((o) => (
-        <li key={o.id} className={showKey && o.label === correct ? 'is-key' : undefined}>
-          <span className="lab">{o.label})</span>
-          <span className="body">{o.body}</span>
-        </li>
-      ))}
+      {options.map((o) => {
+        const isKey = showKey && o.label === correct
+        return (
+          <li key={o.id} className={isKey ? 'is-key' : undefined}>
+            <span className="lab">{o.label})</span>
+            <span className="body">{o.body}</span>
+            {isKey && (
+              <span className="key-mark" aria-label="Correct answer">
+                ✓
+              </span>
+            )}
+          </li>
+        )
+      })}
     </ol>
   )
 }
