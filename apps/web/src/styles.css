@@ -783,3 +783,79 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
 .two-col { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
 @media (min-width: 700px) { .two-col { grid-template-columns: 1fr 1fr; } }
+
+/* ------------------------------------------------- teacher evaluation grid -- */
+.grid-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 940px; }
+.grid-table th, .grid-table td {
+  border: 1px solid var(--border-strong); padding: 10px 12px; vertical-align: top; text-align: left;
+}
+.grid-table thead th {
+  background: var(--navy-50); font-size: 12px; font-weight: 600;
+  color: var(--ink); white-space: nowrap;
+}
+.grid-table th.c, .grid-table td.c { text-align: center; }
+.grid-table .dom { width: 15%; color: var(--navy-600); font-weight: 600; font-size: 13.5px; }
+.grid-table ul.tight { margin: 0; padding-left: 15px; }
+.grid-table ul.tight li { margin-bottom: 3px; }
+.grid-table .targets { color: var(--ink-2); font-style: italic; }
+.grid-table .unobserved { color: var(--faint); }
+
+.perf { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+.perf .sym { font-size: 17px; font-weight: 700; line-height: 1.1; }
+.perf .frac { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.perf.tick .sym { color: var(--easy-fg); }
+.perf.cross .sym { color: var(--danger); }
+.perf.mixed .sym { color: var(--medium-fg); font-size: 14px; }
+.perf.none { color: var(--faint); }
+.skill-detail { list-style: none; margin: 7px 0 0; padding: 0; font-size: 11.5px; color: var(--muted); }
+.skill-detail li.ok { color: var(--easy-fg); }
+.skill-detail li.bad { color: var(--danger); }
+
+/* -------------------------------------------- overall diagnostic summary --- */
+.summary { display: grid; grid-template-columns: 1fr; gap: 10px 20px; margin: 0; }
+@media (min-width: 780px) { .summary { grid-template-columns: 210px 1fr; } }
+.summary dt { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+.summary dd { margin: 0; font-size: 13.5px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.summary dd b { font-size: 15px; }
+.summary dd .said { color: var(--muted); font-weight: 300; }
+.summary .priority { gap: 7px; }
+.summary .priority .opt {
+  border: 1px solid var(--border); border-radius: var(--pill); padding: 3px 12px;
+  font-size: 12.5px; color: var(--faint);
+}
+.summary .priority .opt.on {
+  border-color: var(--navy-600); color: var(--navy-600); font-weight: 600;
+  box-shadow: 0 0 0 2px rgba(36,50,107,.09);
+}
+.summary-note { margin-top: 16px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+
+/* -------------------------------------------------------- report write-up -- */
+.upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.upload-row .muted { font-size: 13px; color: var(--muted); }
+.offset-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.offset-row label { font-size: 13px; font-weight: 500; }
+.offset-row .muted { font-size: 12.5px; color: var(--muted); font-weight: 300; flex: 1; min-width: 240px; }
+
+.qtalk { display: flex; flex-direction: column; gap: 6px; }
+.qtalk-row { border: 1px solid var(--border); border-radius: var(--r-sm); }
+.qtalk-row summary {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  cursor: pointer; list-style: none; font-size: 13px;
+}
+.qtalk-row summary::-webkit-details-marker { display: none; }
+.qtalk-row summary:hover { background: var(--page); }
+.qtalk-row .sk { font-weight: 500; }
+.qtalk-row .muted { color: var(--muted); font-size: 12.5px; }
+.qtalk-body { padding: 4px 14px 12px; border-top: 1px solid var(--border); }
+.qtalk-line { font-size: 13px; line-height: 1.6; color: var(--ink-2); margin: 7px 0; }
+.qtalk-line .who {
+  display: inline-block; min-width: 96px; font-size: 11.5px; font-weight: 600;
+  color: var(--sky-dark); text-transform: uppercase; letter-spacing: .03em;
+}
+
+.note-grid { display: flex; flex-direction: column; gap: 20px; }
+.note-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+.note-head b { font-size: 14px; color: var(--navy-600); }
+.note-head .muted { font-size: 12.5px; color: var(--muted); }
+.note-cols { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
+@media (min-width: 780px) { .note-cols { grid-template-columns: 1fr 1fr; } }

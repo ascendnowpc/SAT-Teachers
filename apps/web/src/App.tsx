@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
 import { QuestionNew } from './pages/QuestionNew'
 import { QuestionSetEdit } from './pages/QuestionSetEdit'
+import { ReportEdit } from './pages/ReportEdit'
 import { QuestionSets } from './pages/QuestionSets'
 import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
@@ -46,6 +47,7 @@ export function App() {
             <Route path="/pretests" element={<QuestionSets />} />
             <Route path="/pretests/new" element={<QuestionSetEdit />} />
             <Route path="/pretests/:id/edit" element={<QuestionSetEdit />} />
+            <Route path="/sessions/:id/report/edit" element={<ReportEdit />} />
           </>
         )}
         <Route path="*" element={<Navigate to="/" replace />} />
