@@ -1,10 +1,21 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { EvaluationGrid } from '../components/EvaluationGrid'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { Notice } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { diagnosisLabel, sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import {
+  DOMAIN_ORDER,
+  buildGrid,
+  confidenceAverage,
+  recommendedPriority,
+  timeManagement,
+} from '../lib/grid'
 import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from '../lib/report'
+import { rows, supabase } from '../lib/supabase'
+import type { DomainNote, SessionReportRow } from '../lib/types'
 
 /**
  * The session report.
@@ -15,8 +26,30 @@ import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from 
  */
 export function SessionReport() {
   const { id = '' } = useParams()
+  const { isTeacher } = useAuth()
   const { session, items, loading, error } = useLiveSession(id, { withAssessments: true })
   const report = useMemo(() => buildReport(items), [items])
+
+  const [notes, setNotes] = useState<DomainNote[]>([])
+  const [meta, setMeta] = useState<SessionReportRow | null>(null)
+
+  const loadWritten = useCallback(async () => {
+    const [n, m] = await Promise.all([
+      supabase.from('session_domain_notes').select('*').eq('session_id', id),
+      supabase.from('session_reports').select('*').eq('session_id', id).maybeSingle(),
+    ])
+    setNotes(rows<DomainNote>(n.data))
+    setMeta((m.data as SessionReportRow | null) ?? null)
+  }, [id])
+
+  useEffect(() => {
+    void loadWritten()
+  }, [loadWritten])
+
+  const grid = useMemo(() => buildGrid(report, notes), [report, notes])
+  const pace = useMemo(() => timeManagement(report), [report])
+  const confidence = useMemo(() => confidenceAverage(items), [items])
+  const priority = meta?.practice_priority ?? recommendedPriority(report)
 
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
@@ -40,6 +73,17 @@ export function SessionReport() {
             {subjectLabel(session.subject)} · {when} · with {session.teacher?.full_name}
           </p>
         </div>
+        <div className="spring" />
+        {meta?.status === 'published' ? (
+          <span className="badge badge-ok">Published</span>
+        ) : (
+          <span className="badge badge-neutral">Draft</span>
+        )}
+        {isTeacher && (
+          <Link className="btn btn-primary btn-sm" to={`/sessions/${id}/report/edit`}>
+            Write up
+          </Link>
+        )}
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
@@ -74,6 +118,54 @@ export function SessionReport() {
               label="To work on"
               note={report.rushed.length > 0 ? `${report.rushed.length} rushed` : null}
             />
+          </div>
+
+          <div className="card card-pad">
+            <div className="section-title">Teacher evaluation grid</div>
+            <EvaluationGrid rows={grid} />
+          </div>
+
+          <div className="card card-pad summary-card">
+            <div className="section-title">Overall diagnostic summary</div>
+            <dl className="summary">
+              <dt>Time management</dt>
+              <dd>
+                <b>
+                  {pace.verdict === 'unknown'
+                    ? '—'
+                    : pace.verdict === 'on'
+                      ? 'On pace'
+                      : pace.verdict === 'fast'
+                        ? `${formatDuration(Math.abs(pace.deltaSeconds ?? 0))} under target`
+                        : `${formatDuration(pace.deltaSeconds ?? 0)} over target`}
+                </b>
+                {meta?.time_management && <span className="said">{meta.time_management}</span>}
+              </dd>
+
+              <dt>Accuracy rate</dt>
+              <dd>
+                <b>{report.accuracy === null ? '—' : `${Math.round(report.accuracy * 100)}%`}</b>
+                <span className="said">
+                  {report.correct} of {report.total} correct
+                </span>
+              </dd>
+
+              <dt>Engagement / confidence</dt>
+              <dd>
+                <b>{confidence === null ? '—' : `${confidence.toFixed(1)} of 3`}</b>
+                {meta?.engagement && <span className="said">{meta.engagement}</span>}
+              </dd>
+
+              <dt>Recommended practice priority</dt>
+              <dd className="priority">
+                {DOMAIN_ORDER.map((key) => (
+                  <span key={key} className={key === priority ? 'opt on' : 'opt'}>
+                    {sectionLabel(key)}
+                  </span>
+                ))}
+              </dd>
+            </dl>
+            {meta?.summary && <p className="summary-note">{meta.summary}</p>}
           </div>
 
           {session.teacher_notes && (

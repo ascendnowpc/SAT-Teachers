@@ -120,3 +120,31 @@ export interface QuestionSet {
   /** Present when the list query counts the set's items. */
   question_set_items?: { count: number }[]
 }
+
+export interface SessionTranscript {
+  id: string
+  session_id: string
+  source: 'fathom' | 'zoom' | 'manual'
+  filename: string | null
+  body: string
+  created_at: string
+}
+
+export interface DomainNote {
+  session_id: string
+  domain: string
+  strengths: string | null
+  gaps: string | null
+}
+
+export interface SessionReportRow {
+  session_id: string
+  status: 'draft' | 'published'
+  /** The teacher's words about the pace; the numbers themselves are computed. */
+  time_management: string | null
+  engagement: string | null
+  /** Overrides the computed weakest domain when set. */
+  practice_priority: string | null
+  summary: string | null
+  published_at: string | null
+}
