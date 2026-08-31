@@ -126,6 +126,12 @@ own zone meant they did not. `apps/web/src/lib/time.ts` is the only place that f
 the **Start** button turns on — no one has to let them in. They then work through the paper one
 question at a time, each with its own clock, and submitting moves them on. They cannot go back.
 
+Nor can they wander off: while a question is open, the browser's back button and a refresh are
+both caught, and leaving is a decision the screen asks about first. Saying yes submits the paper
+as it stands — `finish_session_as_student` completes the session and voids every question they
+never answered, including the one on screen. A test you can leave and come back to is not a test,
+and the per-question clock would mean nothing.
+
 **Afterwards** the teacher reveals and diagnoses in the console as before, which is what the
 report is built out of. The console shows the paper as a single box — saved, or how far through
 the student is — rather than a card per question: there is nothing to do to any one of them from
@@ -196,6 +202,14 @@ psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
 ```
+
+> Every `revoke execute … from anon` in `supabase/migrations` before `0018` is decorative:
+> Postgres grants EXECUTE to PUBLIC, `anon` is a member of PUBLIC, and revoking from the role
+> leaves the PUBLIC grant standing. Nothing leaks through it — the RPCs are all SECURITY DEFINER
+> *and* check `auth.uid()`, and the loaders are not SECURITY DEFINER so RLS refuses their writes —
+> but `0018` shuts it properly for the three functions no client should ever reach. The rest are
+> still granted to PUBLIC; tightening those touches `is_teacher()`, which RLS policies call as the
+> querying role, so it wants its own test pass.
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
