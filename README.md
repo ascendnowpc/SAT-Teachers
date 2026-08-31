@@ -19,7 +19,7 @@ npm run dev                                    # http://localhost:5173
 | --- | --- |
 | **Signup** | Direct, for teachers and students. Each person gets a readable ID (see below) |
 | **Login** | Email + password |
-| **Question bank** | Teachers author text MCQs: passage, question, up to 4 options, correct answer, explanation |
+| **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Papers** | The bank opens on the source papers, not 66 loose items — click one and read it as printed |
 | **Difficulty** | Easy / medium / hard, plus an optional note on *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
@@ -82,6 +82,25 @@ Two items are built on a chart and a table; both are transcribed into the passag
 since the bank is text-only. House content like this has no author — `questions.created_by` is
 null — and any teacher may correct it.
 
+## Writing and correcting a question
+
+`/questions/new` writes one; `/questions/:id/edit` corrects one — the same form, and
+`update_question` mirrors `create_question`: one call, one transaction. Options are replaced
+wholesale rather than diffed, because the key points at a *label* and a diff could leave it
+pointing at an option that had moved underneath it. RLS decides whose questions may be rewritten:
+a teacher's own, and house content, which any teacher may correct.
+
+A question can carry a **figure** — a diagram or a chart, for the maths items that are a picture
+rather than a paragraph. It is uploaded to the `question-images` bucket and the row keeps its
+URL. That bucket is public, which is a real decision: a student has to load the image the moment
+the question is published to them, and signing every URL would mean a round trip per render on a
+screen that must not stall mid-test. Paths are random UUIDs, so an image is *unlisted* rather
+than secret — the standing of an unlisted document. No answer key is in the picture. Writing to
+the bucket is teacher-only.
+
+A new question can be filed into a test on the way past, including one that does not exist yet —
+"write a question" and "put it somewhere" are one thought.
+
 ## Identity codes
 
 `BATO26-1` — three letters of the given name, one of the surname, the two-digit year of
@@ -127,6 +146,11 @@ a student sitting a paper should see the paper and nothing else.
 session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
 and a student in Dubai have to mean the same moment by "half four", and rendering each browser's
 own zone meant they did not. `apps/web/src/lib/time.ts` is the only place that formats one.
+
+When the results are published the student gets the whole paper back, not a list of letters:
+every question as they met it, their answer and the right one marked on the choices, and the
+explanation underneath. The key is not in a student's reach — `question_keys` is teacher-only —
+so it comes from what the reveal copied onto their own item row.
 
 **The student** sees the session on their list with a countdown. Once the scheduled time passes
 the **Start** button turns on — no one has to let them in. They then work through the paper one
@@ -220,6 +244,7 @@ only when the teacher reveals — which is the only route by which any of them r
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
+psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 ```
 
 > Every `revoke execute … from anon` in `supabase/migrations` before `0018` is decorative:

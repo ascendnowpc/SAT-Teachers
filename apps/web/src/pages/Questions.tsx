@@ -296,6 +296,14 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
 
       <QuestionView
         question={q}
+        header={
+          <>
+            <Link className="btn btn-ghost btn-sm" to={`/questions/${q.id}/edit`}>
+              Edit
+            </Link>
+            {q.created_by === null && <span className="muted">house question</span>}
+          </>
+        }
         footer={
           <>
             {q.question_keys?.explanation && (

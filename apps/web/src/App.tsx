@@ -52,6 +52,7 @@ export function App() {
             <Route path="/sessions/:id/paper" element={<SessionPaper />} />
             <Route path="/questions" element={<Questions />} />
             <Route path="/questions/new" element={<QuestionNew />} />
+            <Route path="/questions/:id/edit" element={<QuestionNew />} />
             <Route path="/questions/papers/:id" element={<Paper />} />
             <Route path="/tests" element={<Tests />} />
             <Route path="/tests/new" element={<TestEdit />} />

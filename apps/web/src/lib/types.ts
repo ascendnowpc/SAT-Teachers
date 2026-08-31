@@ -47,6 +47,8 @@ export interface Question {
   passage: string | null
   /** Exact substring of `passage` the stem calls "the underlined sentence". */
   passage_underline: string | null
+  /** A figure — a diagram or chart — shown with the stimulus. */
+  image_url: string | null
   /** Where the item came from, e.g. ENG-DIAG-INCLASS-Q03. Null for authored questions. */
   source_ref: string | null
   stem: string
