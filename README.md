@@ -24,6 +24,10 @@ npm run dev                                    # http://localhost:5173
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student, a time and a meeting link; queue questions; run it live |
 | **Live loop** | Publish one question at a time, watch the answer land, reveal, diagnose in one tap |
+| **Pre-tests** | Build a paper once, run it with every student: queue the set, publish it all at once |
+| **Exam screen** | The student sits it in the shape of the real test — stimulus left, question right, mark for review, cross-out, question grid |
+| **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
+| **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
 | **Loaded bank** | Both English diagnostics — 65 items with passages, keys, sections and difficulty |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
@@ -79,6 +83,30 @@ The number does not reset each year, so it stays unique for the life of the acco
 can still compute the same prefix (a teacher *Test* and a student *test* joining the same year
 both give `TEST26`); when that happens the code takes the next number for its role rather than
 failing the signup.
+
+## Two shapes of session
+
+The teacher hands over **one question at a time** — publish, watch, reveal, diagnose — or
+publishes a **pre-test**: a whole paper the student works through at their own pace, then goes
+through with the teacher afterwards. Both land on the same student screen; with one open question
+it is a single card, with twenty-seven it is a paper with a question grid and a Next button.
+
+A pre-test is a reusable set (`/pretests`), not a pile of queued questions. Build the paper once,
+run it with every student after that — which is what makes two students' reports comparable.
+
+## Speed
+
+Every answer is timed server-side: `session_items.first_viewed_at` (set when the question is
+actually on the student's screen, not when the teacher published it) to `answered_at`, stored as
+`session_item_assessments.elapsed_seconds`. Each question carries a `target_seconds` benchmark, so
+the report can separate *wrong* from *wrong in nineteen seconds* — those need different fixes.
+
+## The report
+
+`/sessions/:id/report`. Score, per-skill and per-section breakdown weakest first, pace against
+target, the teacher's diagnoses, and every miss with the student's own reasoning and the teacher's
+note beside it. Everything is computed from the session's rows — nothing is stored and nothing is
+written by hand, so the report cannot say something the session did not.
 
 ## The session workflow
 
