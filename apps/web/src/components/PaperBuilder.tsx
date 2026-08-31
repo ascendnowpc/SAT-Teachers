@@ -83,12 +83,15 @@ export function PaperBuilder({
   picked,
   onChange,
   locked = false,
+  excludePaper,
 }: {
   data: BankData
   subject: Subject
   picked: string[]
   onChange: (next: string[]) => void
   locked?: boolean
+  /** The paper being edited, so it does not offer itself as a source. */
+  excludePaper?: string
 }) {
   const [tab, setTab] = useState<'choose' | 'order'>('choose')
 
@@ -122,6 +125,7 @@ export function PaperBuilder({
           picked={picked}
           onChange={onChange}
           locked={locked}
+          excludePaper={excludePaper}
           onDone={() => setTab('order')}
         />
       ) : (
@@ -139,6 +143,7 @@ function Choose({
   picked,
   onChange,
   locked,
+  excludePaper,
   onDone,
 }: {
   data: BankData
@@ -146,6 +151,7 @@ function Choose({
   picked: string[]
   onChange: (next: string[]) => void
   locked: boolean
+  excludePaper?: string
   onDone: () => void
 }) {
   const [source, setSource] = useState<string | null>(null)
@@ -206,53 +212,85 @@ function Choose({
       (q) => !data.membership.some((m) => m.question_id === q.id),
     ).length
 
-    return (
-      <div>
-        <p className="builder-lede">
-          Pick the paper to take questions from. You can take from more than one — what you tick
-          builds up across all of them.
-        </p>
+    // Two kinds of paper sit here. The source papers are the diagnostics the
+    // bank was loaded from; a pre-test is a paper a teacher assembled and
+    // saved to run with every student. Taking a whole pre-test is the point of
+    // having built one, so that is one button rather than a page of ticking.
+    const shelved = data.papers.filter((p) => p.id !== excludePaper)
+    const sources = shelved.filter((p) => p.source_ref)
+    const mine = shelved.filter((p) => !p.source_ref)
 
-        <div className="set-list">
-          {data.papers.map((p) => {
-            const c = counts.get(p.id) ?? { total: 0, picked: 0 }
-            return (
-              <button
-                key={p.id}
-                type="button"
-                className="set-card"
-                onClick={() => setSource(p.id)}
-              >
-                <span className="ico">
-                  <PaperMark />
-                </span>
-                <span className="main">
-                  <span className="t">{p.title}</span>
-                  {p.description && <span className="d">{p.description}</span>}
-                </span>
-                <span className="tags">
-                  {c.picked > 0 && (
-                    <span className="badge badge-ok">{c.picked} picked</span>
-                  )}
-                  <span className="badge badge-sky">{c.total} questions</span>
-                </span>
-              </button>
-            )
-          })}
+    const shelf = (papers: QuestionSet[]) =>
+      papers.map((p) => {
+        const c = counts.get(p.id) ?? { total: 0, picked: 0 }
+        const ids = data.membership
+          .filter((m) => m.set_id === p.id)
+          .sort((x, y) => x.position - y.position)
+          .map((m) => m.question_id)
+          .filter((qid) => byId.has(qid))
 
-          {unfiled > 0 && (
-            <button type="button" className="set-card" onClick={() => setSource('bank')}>
+        return (
+          <div className="shelf-item" key={p.id}>
+            <button type="button" className="set-card" onClick={() => setSource(p.id)}>
               <span className="ico">
                 <PaperMark />
               </span>
               <span className="main">
-                <span className="t">Everything else</span>
-                <span className="d">Questions written here rather than taken from a paper.</span>
+                <span className="t">{p.title}</span>
+                {p.description && <span className="d">{p.description}</span>}
               </span>
               <span className="tags">
-                <span className="badge badge-sky">{unfiled} questions</span>
+                {c.picked > 0 && <span className="badge badge-ok">{c.picked} picked</span>}
+                <span className="badge badge-sky">{c.total} questions</span>
               </span>
             </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={locked || ids.length === 0 || c.picked === c.total}
+              onClick={() => onChange(addAll(picked, ids))}
+            >
+              {c.picked === c.total && c.total > 0 ? 'All in' : `Take all ${c.total}`}
+            </button>
+          </div>
+        )
+      })
+
+    return (
+      <div>
+        <p className="builder-lede">
+          Take a whole paper in one go, or open one and pick from it. You can take from more than
+          one — what you tick builds up across all of them.
+        </p>
+
+        {mine.length > 0 && (
+          <>
+            <div className="section-title">Your pre-tests</div>
+            <div className="set-list" style={{ marginBottom: 24 }}>
+              {shelf(mine)}
+            </div>
+          </>
+        )}
+
+        <div className="section-title">The source papers</div>
+        <div className="set-list">
+          {shelf(sources)}
+
+          {unfiled > 0 && (
+            <div className="shelf-item">
+              <button type="button" className="set-card" onClick={() => setSource('bank')}>
+                <span className="ico">
+                  <PaperMark />
+                </span>
+                <span className="main">
+                  <span className="t">Everything else</span>
+                  <span className="d">Questions written here rather than taken from a paper.</span>
+                </span>
+                <span className="tags">
+                  <span className="badge badge-sky">{unfiled} questions</span>
+                </span>
+              </button>
+            </div>
           )}
         </div>
 

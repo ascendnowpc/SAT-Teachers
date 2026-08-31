@@ -972,6 +972,11 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 /* The shelf of source papers reuses the pre-test card, where a button now sits
    in place of a link. */
 button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+/* A paper on the shelf can be opened, or taken whole — so the card carries an
+   action beside it rather than nesting a button inside a button. */
+.shelf-item { display: flex; align-items: center; gap: 10px; }
+.shelf-item .set-card { flex: 1; min-width: 0; }
+.shelf-item > .btn { flex-shrink: 0; }
 
 .bank-group { margin-bottom: 26px; }
 .bank-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }

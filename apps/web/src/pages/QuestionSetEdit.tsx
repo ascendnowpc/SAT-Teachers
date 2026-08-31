@@ -185,7 +185,13 @@ export function QuestionSetEdit() {
         {bankLoading ? (
           <div className="empty">Loading the bank…</div>
         ) : (
-          <PaperBuilder data={data} subject={subject} picked={picked} onChange={setPicked} />
+          <PaperBuilder
+            data={data}
+            subject={subject}
+            picked={picked}
+            onChange={setPicked}
+            excludePaper={id}
+          />
         )}
       </form>
     </div>
