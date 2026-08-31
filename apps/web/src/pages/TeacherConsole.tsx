@@ -13,8 +13,16 @@ import {
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
-import { supabase } from '../lib/supabase'
-import type { Diagnosis, Difficulty, Question, Session, SessionItem } from '../lib/types'
+import { rows, supabase } from '../lib/supabase'
+import type {
+  Diagnosis,
+  Difficulty,
+  Question,
+  QuestionSet,
+  Session,
+  SessionItem,
+  Subject,
+} from '../lib/types'
 import { StatusBadge } from './Sessions'
 
 export function TeacherConsole({ sessionId }: { sessionId: string }) {
@@ -62,6 +70,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         <div className="spring" />
         <StatusBadge status={session.status} />
         <div className="actions">
+          <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/report`}>
+            Report
+          </Link>
           {session.meeting_url && (
             <a
               className="btn btn-ghost btn-sm"
@@ -107,6 +118,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           staged={staged}
           busy={busy}
           onPublish={(id) => void call('publish_item', { p_item: id })}
+          onPublishAll={() => void call('publish_staged_items', { p_session: sessionId })}
           onRemove={(id) => void call('unstage_item', { p_item: id })}
           onStaged={reload}
         />
@@ -124,6 +136,7 @@ function Queue({
   staged,
   busy,
   onPublish,
+  onPublishAll,
   onRemove,
   onStaged,
 }: {
@@ -132,6 +145,7 @@ function Queue({
   staged: SessionItem[]
   busy: boolean
   onPublish: (id: string) => void
+  onPublishAll: () => void
   onRemove: (id: string) => void
   onStaged: () => Promise<void>
 }) {
@@ -152,6 +166,21 @@ function Queue({
             <IconPlus /> {picking ? 'Done' : 'Add'}
           </button>
         </div>
+
+        <PretestLoader sessionId={sessionId} subject={session.subject} onStaged={onStaged} />
+
+        {staged.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm btn-block"
+            style={{ marginTop: 8 }}
+            disabled={busy || session.status !== 'live'}
+            title={session.status !== 'live' ? 'Start the session first' : undefined}
+            onClick={() => onPublishAll()}
+          >
+            Publish all {staged.length}
+          </button>
+        )}
       </div>
 
       {picking && (
@@ -205,6 +234,72 @@ function Queue({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Drop a whole pre-test into the queue. This is the reusable half of the
+ * workflow: the paper is built once under /pretests and run with every student
+ * after that, so two students' reports are answering the same questions.
+ */
+function PretestLoader({
+  sessionId,
+  subject,
+  onStaged,
+}: {
+  sessionId: string
+  subject: Subject
+  onStaged: () => Promise<void>
+}) {
+  const [sets, setSets] = useState<QuestionSet[]>([])
+  const [choice, setChoice] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void supabase
+      .from('question_sets')
+      .select('*, question_set_items(count)')
+      .eq('subject', subject)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setSets(rows<QuestionSet>(data)))
+  }, [subject])
+
+  if (sets.length === 0) return null
+
+  async function load() {
+    if (!choice) return
+    setBusy(true)
+    await supabase.rpc('stage_question_set', { p_session: sessionId, p_set: choice })
+    await onStaged()
+    setChoice('')
+    setBusy(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+      <Select
+        value={choice}
+        onChange={(e) => setChoice(e.target.value)}
+        aria-label="Pre-test"
+        style={{ flex: 1 }}
+      >
+        <option value="">Load a pre-test…</option>
+        {sets.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.title} ({s.question_set_items?.[0]?.count ?? 0})
+          </option>
+        ))}
+      </Select>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        disabled={!choice || busy}
+        onClick={() => void load()}
+      >
+        Queue
+      </button>
     </div>
   )
 }

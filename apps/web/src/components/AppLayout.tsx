@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconCalendar, IconHome, IconLogout, IconStack } from './icons'
+import { IconCalendar, IconClipboard, IconHome, IconLogout, IconStack } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -29,9 +29,14 @@ export function AppLayout() {
               <IconCalendar /> Sessions
             </NavLink>
             {isTeacher && (
-              <NavLink to="/questions" className={cls}>
-                <IconStack /> Questions
-              </NavLink>
+              <>
+                <NavLink to="/questions" className={cls}>
+                  <IconStack /> Questions
+                </NavLink>
+                <NavLink to="/pretests" className={cls}>
+                  <IconClipboard /> Pre-tests
+                </NavLink>
+              </>
             )}
           </nav>
 

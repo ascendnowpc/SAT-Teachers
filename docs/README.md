@@ -19,6 +19,8 @@ Supporting material:
 
 - [Source Material Audit](reference/source-material-audit.md) — what is actually in the supplied
   screenshot diagnostic PDFs, and the two gaps they expose
+- [The Recorded Session](reference/recorded-session.md) — the real diagnostic seeded as data, what
+  the report makes of it, and the one key the teaching corrected
 - [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — where every
   loaded key came from: the seven printed answers that were wrong, and the 40 written from
   scratch
@@ -46,9 +48,11 @@ database supplies facts; the teacher signs off.
 
 ## Status
 
-Signup, the question bank, and the live session loop are built (migrations `0001`–`0010`), and
+Signup, the question bank, and the live session loop are built (migrations `0001`–`0012`), and
 applied to the live Supabase project. Both English diagnostics are loaded — 65 items with
-passages, options, keys, sections, skills and difficulty — so the bank is no longer empty and the
-screenshot deck is no longer stuck behind its missing key. Q1 and Q2 are answered for English;
+passages, options, keys, sections, skills, difficulty and pace targets — so the bank is no longer
+empty and the screenshot deck is no longer stuck behind its missing key. Pre-tests, the exam-shaped
+student screen and the session report are built, and a real recorded diagnostic is seeded as a
+session you can open (see [the recorded session](reference/recorded-session.md)). Q1 and Q2 are answered for English;
 [Q3](07-open-questions.md) (provenance and licensing) is still open and still blocking for
 anything sourced from official practice tests.

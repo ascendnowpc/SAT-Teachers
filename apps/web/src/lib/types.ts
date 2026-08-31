@@ -52,6 +52,8 @@ export interface Question {
   stem: string
   difficulty: Difficulty
   difficulty_rationale: string | null
+  /** What a confident student should need, in seconds. Pace is measured against it. */
+  target_seconds: number | null
   status: 'draft' | 'published' | 'retired'
   created_at: string
   question_options: QuestionOption[]
@@ -97,6 +99,7 @@ export interface SessionItem {
   revealed_at: string | null
   selected_option: OptionLabel | null
   eliminated_options: OptionLabel[]
+  marked_for_review: boolean
   student_confidence: number | null
   student_reasoning: string | null
   revealed_result: GradeResult | null
@@ -104,4 +107,16 @@ export interface SessionItem {
   revealed_explanation: string | null
   questions?: Question | null
   session_item_assessments?: Assessment | null
+}
+
+export interface QuestionSet {
+  id: string
+  created_by: string | null
+  title: string
+  subject: Subject
+  description: string | null
+  is_active: boolean
+  created_at: string
+  /** Present when the list query counts the set's items. */
+  question_set_items?: { count: number }[]
 }
