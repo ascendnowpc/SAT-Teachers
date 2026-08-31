@@ -901,6 +901,7 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 }
 .paper-choices .lab { font-weight: 600; min-width: 22px; flex-shrink: 0; }
 .paper-choices li.is-key { background: var(--easy-bg); color: var(--easy-fg); font-weight: 500; }
+.paper-choices .key-mark { margin-left: auto; padding-left: 10px; font-weight: 700; flex-shrink: 0; }
 
 .paper-key {
   margin: 12px 0 0 6px; padding: 11px 13px; border-left: 3px solid var(--sky);
@@ -945,20 +946,39 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .queue-note a { font-weight: 500; }
 
 /* --------------------------------------------------------- the builder --- */
-/* Bank on the left, the paper being built on the right. The right column
-   sticks: dragging question 24 into position 3 is impossible if the list
-   scrolls away from the questions you are picking. */
-.builder { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
-@media (min-width: 1080px) { .builder { grid-template-columns: minmax(0, 1fr) 360px; } }
+/* Picking questions and putting them in order, shared by a session's paper and
+   the pre-test editor. Questions are shown whole wherever they are shown — a
+   stem on its own does not tell a teacher whether the question belongs here. */
+.builder-lede {
+  color: var(--ink-2); font-size: 14px; font-weight: 300; line-height: 1.6;
+  max-width: 70ch; margin-bottom: 16px;
+}
+.builder-source { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
 
 .builder-filters {
-  display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 16px;
-  position: sticky; top: 0; z-index: 2; background: var(--page); padding: 4px 0 10px;
+  display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+  position: sticky; top: 0; z-index: 3; background: var(--page); padding: 8px 0 10px;
 }
 .builder-filters .select { width: auto; min-width: 140px; }
-.builder-filters .input { flex: 1; min-width: 160px; }
+.builder-filters .input { flex: 1; min-width: 150px; max-width: 320px; }
 
-.bank-group { margin-bottom: 22px; }
+/* Stays in view while you tick your way down a long paper. */
+.builder-cta {
+  position: sticky; bottom: 14px; display: flex; justify-content: center;
+  margin-top: 26px; z-index: 3;
+}
+.builder-cta .btn { box-shadow: var(--shadow-lift); }
+
+/* The shelf of source papers reuses the pre-test card, where a button now sits
+   in place of a link. */
+button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+/* A paper on the shelf can be opened, or taken whole — so the card carries an
+   action beside it rather than nesting a button inside a button. */
+.shelf-item { display: flex; align-items: center; gap: 10px; }
+.shelf-item .set-card { flex: 1; min-width: 0; }
+.shelf-item > .btn { flex-shrink: 0; }
+
+.bank-group { margin-bottom: 26px; }
 .bank-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
 .bank-group-head h3 { font-size: 14px; font-weight: 700; color: var(--navy-600); }
 .bank-group-head .muted { font-size: 12.5px; color: var(--muted); font-weight: 300; }
@@ -984,28 +1004,89 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .bank-q-main .q-passage { background: var(--page); font-size: 13.5px; margin-bottom: 12px; }
 .bank-q.picked .q-passage { background: #fff; }
 .bank-stem { font-size: 14.5px; font-weight: 500; line-height: 1.5; margin: 0 0 10px; }
-.bank-q .paper-choices { font-size: 13.5px; color: var(--ink-2); }
+.bank-q .paper-choices, .order-card .paper-choices { font-size: 13.5px; color: var(--ink-2); }
 .bank-tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
 .bank-tags .muted { font-size: 12px; color: var(--muted); font-weight: 300; }
 
-.builder-picked {
-  background: #fff; border: 1px solid var(--border); border-radius: var(--r); padding: 14px;
-  position: sticky; top: 12px; max-height: calc(100vh - 40px); overflow-y: auto;
+/* ------------------------------------------------------------- ordering --- */
+/* Whole questions, wrapped rather than truncated: by this point the teacher is
+   reading the paper they have just made. */
+.order-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.order-card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden;
 }
-.picked-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
-.picked-head .muted { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 300; }
-.picked-empty { color: var(--muted); font-size: 13px; font-weight: 300; line-height: 1.55; }
-.picked-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.picked-row {
-  display: flex; align-items: center; gap: 8px; padding: 8px 9px;
-  border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff; font-size: 13px;
+.order-card[draggable='true'] { cursor: grab; }
+.order-card[draggable='true']:active { cursor: grabbing; }
+.order-card.over { border-color: var(--sky); box-shadow: 0 -3px 0 var(--sky); }
+.order-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px; background: var(--navy-50); border-bottom: 1px solid var(--border);
 }
-.picked-row[draggable='true'] { cursor: grab; }
-.picked-row.over { border-color: var(--sky); box-shadow: 0 -2px 0 var(--sky); }
-.picked-row .grip { color: var(--faint); display: inline-flex; flex-shrink: 0; }
-.picked-row .no { font-weight: 700; color: var(--muted); min-width: 18px; font-variant-numeric: tabular-nums; }
-.picked-row .stem {
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.order-head .grip { color: var(--faint); display: inline-flex; }
+.order-head .no {
+  font-weight: 700; font-size: 13px; color: #fff; background: var(--navy-600);
+  min-width: 24px; height: 24px; border-radius: var(--pill);
+  display: inline-grid; place-items: center; padding: 0 6px;
+  font-variant-numeric: tabular-nums;
 }
-.picked-row .ctrl { display: flex; gap: 1px; flex-shrink: 0; }
-.picked-row .ctrl .btn { padding: 3px 6px; min-width: 0; }
+.order-head .btn { padding: 3px 8px; min-width: 0; }
+.order-body { padding: 14px 16px 16px; }
+.order-body .q-passage { background: var(--page); font-size: 13.5px; }
+
+/* ------------------------------------------------------- one question --- */
+/* The shape the student meets a question in — stimulus left, question right —
+   reused on the teacher's side so a question does not look like one thing in
+   the bank and another in the exam. Same 900px breakpoint as the exam screen. */
+.qsplit { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .qsplit { grid-template-columns: 1fr 1fr; } }
+
+.qsplit-stim { padding: 18px 20px; }
+@media (min-width: 900px) {
+  .qsplit-stim { border-right: 1px solid var(--border); }
+}
+.qsplit-stim .stim { font-size: 14.5px; line-height: 1.65; color: var(--ink); }
+.qsplit-stim .stim .underlined {
+  text-decoration-color: var(--sky); text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+
+.qsplit-main { padding: 18px 20px; min-width: 0; }
+.qsplit-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 15px; }
+.qsplit-head .qn {
+  display: inline-grid; place-items: center; min-width: 32px; height: 32px; padding: 0 8px;
+  border-radius: var(--r-sm); background: var(--navy-600); color: #fff;
+  font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.qsplit-head .grip { color: var(--faint); display: inline-flex; cursor: grab; }
+.qsplit-head .btn { padding: 3px 8px; min-width: 0; }
+
+.qsplit-stem { font-size: 15px; font-weight: 600; line-height: 1.5; margin: 0 0 14px; }
+
+.qsplit-choices { display: flex; flex-direction: column; gap: 8px; }
+.qch {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 14px; border: 1px solid var(--border-strong); border-radius: var(--r);
+  background: #fff; font-size: 14.5px; line-height: 1.5;
+}
+.qch .lab {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; border: 1px solid var(--border-strong);
+  color: var(--ink-2); font-size: 12px; font-weight: 600;
+}
+.qch .body { flex: 1; min-width: 0; }
+.qch.is-key { border-color: var(--easy-fg); background: var(--easy-bg); }
+.qch.is-key .lab { background: var(--easy-fg); border-color: var(--easy-fg); color: #fff; }
+.qch .tick { margin-left: auto; padding-left: 10px; color: var(--easy-fg); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+
+/* The bank card and the ordering card are frames around one of these. */
+.bank-q, .order-card { padding: 0; }
+.q-card .qsplit { border-top: 1px solid var(--border); }
+.bank-q { display: block; }
+.bank-q .bank-pick {
+  flex-direction: row; gap: 8px; align-items: center;
+  font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+.bank-q.picked .qsplit-stim { border-right-color: var(--sky); }
+.order-card .qsplit-head {
+  margin: -18px -20px 15px; padding: 9px 12px;
+  background: var(--navy-50); border-bottom: 1px solid var(--border);
+}

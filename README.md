@@ -130,8 +130,12 @@ current one is answered. So the clock on question 3 cannot be spent reading ques
 4 is not in reach yet. That is also why the length lives on `sessions.question_count`: the
 student is shown "question 3 of 25" and has no way to count the paper for themselves.
 
-A pre-test (`/pretests`) is still a reusable set — build a paper once, then pick it wholesale in
-the builder for every student after that, which is what makes two students' reports comparable.
+**Why pre-tests still exist.** A session's paper belongs to one student on one day. A pre-test is
+a paper you intend to run again — build it once at `/pretests`, and it appears on the builder's
+shelf beside the three source papers with a **Take all** button, so the next student's session is
+one click rather than twenty-five ticks. Two students who sat the same pre-test have comparable
+reports; two students whose papers were assembled by hand do not. Both are `question_sets`, and
+the builder is the same screen, which is the point — a pre-test is just a paper you saved.
 
 ## Speed
 
