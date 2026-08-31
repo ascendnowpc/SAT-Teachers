@@ -123,6 +123,8 @@ export interface QuestionSet {
   instructions: string | null
   /** Which source paper this set is, e.g. ENG-DIAG-INCLASS. Null when a teacher built it. */
   source_ref: string | null
+  /** 'paper': questions are written into it, filed under Questions. 'test': assembled to be sat. */
+  kind: 'paper' | 'test'
   is_active: boolean
   created_at: string
   /** Present when the list query counts the set's items. */
