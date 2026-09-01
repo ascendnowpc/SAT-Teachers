@@ -106,6 +106,55 @@ timer instead of one at a time — the student works through 5 items under time 
 board fills in as they go. Same data model (`session_items` with sequential `sequence_no`),
 different publish action. Pace ratios are the primary output.
 
+## Who paces it
+
+A session carries a `pacing`, and it is one of two things. The whole difference is who decides
+what the student sees next.
+
+**`student` — the paper does.** The default, and what a diagnostic wants. Starting publishes
+question 1; each answer publishes the next. The teacher does not touch anything while it runs.
+
+**`teacher` — you do.** Nothing is published until the teacher hands it over. The student
+starts, and waits. The teacher picks a question out of the paper — the console cuts it by
+difficulty, with counts, because difficulty is the axis the decision is actually made on — and
+it appears on the student's screen. They answer it, and wait again.
+
+```
+  ┌─ Ask a question ────────────────────────────────────────────────┐
+  │ 3 left in the paper.              Difficulty ▾ Easy (4)         │
+  ├─────────────────────────────────────────────────────────────────┤
+  │ Q07  easy · Words in Context · 55s                   [Ask this] │
+  │      The ______ nature of the tracks makes motocross exciting.  │
+  │ Q11  easy · Transitions · 55s                        [Ask this] │
+  │      Which choice completes the text with the most logical…     │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+This is what the suggestion engine above was always for. "Drop one level — rebuild fluency
+before speed" is advice nobody could take while the running order was fixed before the lesson
+started: a student who could not do the easy one was handed the medium one anyway, and then the
+hard one, and the teacher watched three failures where they meant to stay put and re-teach.
+
+Three things do not change, and they are the ones that matter:
+
+* **The server still holds the line.** Exactly one item is `published` at a time and everything
+  else is `staged`, which is invisible under RLS. A teacher-paced session is not a client
+  showing fewer questions — it is a server having published fewer. So the per-question clock
+  means what it meant before, and there is still no reading ahead.
+* **The hold is part of the test.** Between questions the student's screen stays full and
+  leaving it still ends the paper. A wait you can walk out of and back into is not a held test.
+* **Nothing about the reveal moves.** The student learns the result when the teacher publishes
+  the results, exactly as before.
+
+Since the teacher may ask question 11 before question 4 and may never ask question 4 at all,
+`sequence_no` stops being the order anything happened in. It stays what it was — the question's
+place in the paper — and `asked_no` records the order questions were actually put in front of
+the student. The board, the student's own numbering and the report all read that one.
+
+The pacing can be switched mid-session, which is the case it earns its keep in: a teacher three
+questions into a paper who can see it is not going to work takes hold of it without abandoning
+the session and building another.
+
 ## After the session
 
 Teacher ends the session → `status = completed`, `ended_at` set. The session summary is already

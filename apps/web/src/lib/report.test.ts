@@ -12,9 +12,11 @@ function item(over: {
   seconds?: number | null
   target?: number | null
   diagnosis?: string | null
+  asked?: number | null
 }): SessionItem {
   const {
     seq,
+    asked = null,
     status = 'revealed',
     section = 'craft_and_structure',
     skill = 'words_in_context',
@@ -26,6 +28,7 @@ function item(over: {
   return {
     id: `i${seq}`,
     sequence_no: seq,
+    asked_no: asked,
     status,
     selected_option: 'A',
     revealed_correct_option: correct ? 'A' : 'B',
@@ -40,6 +43,21 @@ function item(over: {
 }
 
 describe('buildReport', () => {
+  it('numbers a teacher-paced session by when questions were asked, not where they sit', () => {
+    // The teacher took the paper's third question first and its first second.
+    const r = buildReport([
+      item({ seq: 1, asked: 2 }),
+      item({ seq: 3, asked: 1 }),
+    ])
+    expect(r.attempts.map((a) => a.sequence)).toEqual([1, 2])
+    expect(r.attempts.map((a) => a.stem)).toEqual(['Q3', 'Q1'])
+  })
+
+  it('falls back to the paper order when the paper paced itself', () => {
+    const r = buildReport([item({ seq: 2 }), item({ seq: 1 })])
+    expect(r.attempts.map((a) => a.sequence)).toEqual([1, 2])
+  })
+
   it('counts only questions the student actually answered', () => {
     const r = buildReport([
       item({ seq: 1 }),

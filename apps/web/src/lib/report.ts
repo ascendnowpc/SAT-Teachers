@@ -86,10 +86,22 @@ function byWeakness(a: Band, b: Band): number {
   return b.total - a.total
 }
 
+/**
+ * The order the lesson actually ran in.
+ *
+ * Under teacher pacing the questions are not asked in the order the paper
+ * holds them — that is the point of it — so the report follows asked_no where
+ * there is one. A session the paper paced itself has the two numbers equal, so
+ * this is the old ordering there.
+ */
+export function askOrder(i: SessionItem): number {
+  return i.asked_no ?? i.sequence_no
+}
+
 export function buildReport(items: SessionItem[]): Report {
   const attempts: Attempt[] = items
     .filter((i) => i.status === 'answered' || i.status === 'revealed')
-    .sort((a, b) => a.sequence_no - b.sequence_no)
+    .sort((a, b) => askOrder(a) - askOrder(b))
     .map((i) => {
       const a = i.session_item_assessments ?? null
       const seconds = a?.elapsed_seconds ?? null
@@ -98,7 +110,7 @@ export function buildReport(items: SessionItem[]): Report {
       const ratio = seconds !== null && target ? seconds / target : null
       return {
         itemId: i.id,
-        sequence: i.sequence_no,
+        sequence: askOrder(i),
         stem: i.questions?.stem ?? '',
         section: i.questions?.section ?? null,
         skill: i.questions?.skill ?? null,

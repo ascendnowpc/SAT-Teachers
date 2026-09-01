@@ -3,6 +3,12 @@ export type Difficulty = 'easy' | 'medium' | 'hard'
 export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
 export type SessionStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
+/**
+ * Who decides what the student sees next. 'student': the paper runs itself and
+ * every answer brings up the next question. 'teacher': nothing is published
+ * until the teacher picks it out of the paper.
+ */
+export type SessionPacing = 'student' | 'teacher'
 export type ItemStatus = 'staged' | 'published' | 'answered' | 'revealed' | 'voided'
 export type GradeResult = 'correct' | 'incorrect'
 export type Diagnosis =
@@ -72,6 +78,7 @@ export interface Session {
   duration_mins: number
   meeting_url: string | null
   status: SessionStatus
+  pacing: SessionPacing
   /** How many questions the paper holds. Maintained by trigger; the student reads it. */
   question_count: number
   started_at: string | null
@@ -96,6 +103,8 @@ export interface SessionItem {
   question_id: string
   student_id: string
   sequence_no: number
+  /** Where this question was actually put in front of the student. Null while staged. */
+  asked_no: number | null
   status: ItemStatus
   published_at: string | null
   first_viewed_at: string | null

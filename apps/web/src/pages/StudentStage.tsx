@@ -13,14 +13,17 @@ import type { OptionLabel, Session, SessionItem } from '../lib/types'
 /**
  * The student's screen: a lobby, then the paper, one question at a time.
  *
- * The teacher built this paper days ago and is not driving anything now. At
- * the scheduled time the student opens the session themselves, and from then
- * on exactly one question is in front of them — the next arrives when the
- * current one is answered, and it arrives because the server publishes it,
- * not because this screen decides to show it.
+ * At the scheduled time the student opens the session themselves, and from
+ * then on exactly one question is in front of them — and it is there because
+ * the server published it, not because this screen decided to show it. Which
+ * is what makes the clock on each question honest: there is no way to read
+ * ahead while it runs.
  *
- * Which is also what makes the clock on each question honest: there is no way
- * to read ahead while it runs.
+ * What arrives next depends on how the session is paced. Left to the paper,
+ * the next question comes the moment this one is answered. Paced by the
+ * teacher, it comes when the teacher sends it — so between questions there is
+ * a hold, and the hold is part of the test rather than a break from it: the
+ * screen stays full and leaving it still ends the paper.
  */
 export function StudentStage({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
@@ -32,15 +35,31 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   const [ending, setEnding] = useState(false)
 
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
+  // In the order they were asked, which under teacher pacing is not the order
+  // the paper holds them in.
   const done = useMemo(
-    () => items.filter((i) => i.status === 'answered' || i.status === 'revealed'),
+    () =>
+      items
+        .filter((i) => i.status === 'answered' || i.status === 'revealed')
+        .sort((a, b) => (a.asked_no ?? a.sequence_no) - (b.asked_no ?? b.sequence_no)),
     [items],
   )
+
+  const over = session?.status === 'completed' || session?.status === 'cancelled'
+  // Under teacher pacing the paper is a pool the teacher draws from, not a
+  // queue the student walks.
+  const teacherLed = session?.pacing === 'teacher'
+  // Live, teacher-paced, and nothing on screen: the teacher is choosing what to
+  // ask next. That is a state of the test, not the end of it — which is why it
+  // counts as being in the paper below.
+  const holding = teacherLed && !over && open === null && session?.status === 'live'
 
   // A paper in progress is not a page you can wander off. The browser's own
   // back button and a refresh are both caught: back is turned into the same
   // question the screen already asks, and a refresh gets the browser's warning.
-  const inProgress = open !== null
+  // The wait between questions is in progress too: a hold the student could
+  // walk out of and walk back into is not a held test.
+  const inProgress = open !== null || holding
   const [outOfFullscreen, setOutOfFullscreen] = useState(false)
 
   // Full screen is asked for when the paper opens and watched while it is
@@ -88,21 +107,26 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  const total = Math.max(session.question_count, items.length)
-  const number = open ? open.sequence_no : done.length
-  const finished = !open && done.length > 0
-  const over = session.status === 'completed' || session.status === 'cancelled'
+  // They are not told the paper's length under teacher pacing, because how much
+  // of it they will be asked is not decided yet.
+  const total = teacherLed ? null : Math.max(session.question_count, items.length)
+  // The order questions actually arrived in. Under teacher pacing that is not
+  // their place in the paper — question 11 may come before question 4, and
+  // question 4 may never come at all.
+  const number = open ? (open.asked_no ?? open.sequence_no) : done.length
+
+  const finished = !open && !holding && done.length > 0
   // Nothing open and nothing answered means the paper is still waiting to be
   // started — whether or not the teacher has already flipped the session live.
   // Keying this off the status alone stranded a student on a live session with
   // a full queue and no way to open it.
-  const waiting = !open && !finished && !over
+  const waiting = !open && !holding && !finished && !over
 
   return (
     <div className="exam">
       <header className="exam-head">
         <div className="exam-title">
-          {open ? (
+          {inProgress ? (
             <button
               type="button"
               className="exam-back"
@@ -122,9 +146,10 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           </span>
         </div>
 
-        {open && total > 0 && (
+        {open && (total === null ? number > 0 : total > 0) && (
           <div className="exam-progress-plain">
-            Question {number} of {total}
+            Question {number}
+            {total !== null && ` of ${total}`}
           </div>
         )}
 
@@ -153,8 +178,9 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           <div className="leave-box">
             <h2>Back to full screen</h2>
             <p>
-              This is a test, so it runs full screen. Your clock is still running on question{' '}
-              {open?.sequence_no}.
+              {open
+                ? `This is a test, so it runs full screen. Your clock is still running on question ${number}.`
+                : 'This is a test, so it runs full screen. Your teacher is choosing your next question — go back in and it will appear.'}
             </p>
             <div className="leave-actions">
               <button
@@ -178,9 +204,19 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           <div className="leave-box">
             <h2 id="leave-title">Leave the test?</h2>
             <p>
-              Your test will be submitted as it stands. The {total - done.length} question
-              {total - done.length === 1 ? '' : 's'} you have not answered will be marked as not
-              attempted, and you cannot come back to them.
+              {total === null ? (
+                <>
+                  Your test will be submitted as it stands, with the {done.length} question
+                  {done.length === 1 ? '' : 's'} you have answered. Your teacher cannot send you any
+                  more once you leave, and you cannot come back.
+                </>
+              ) : (
+                <>
+                  Your test will be submitted as it stands. The {total - done.length} question
+                  {total - done.length === 1 ? '' : 's'} you have not answered will be marked as not
+                  attempted, and you cannot come back to them.
+                </>
+              )}
             </p>
             <div className="leave-actions">
               <button
@@ -205,7 +241,9 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
       )}
 
       {open ? (
-        <ItemPane key={open.id} item={open} total={total} onChanged={reload} />
+        <ItemPane key={open.id} item={open} number={number} total={total} onChanged={reload} />
+      ) : holding ? (
+        <Holding session={session} answered={done.length} />
       ) : waiting ? (
         <Lobby session={session} onStarted={reload} />
       ) : finished ? (
@@ -216,6 +254,39 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           <h2>Session finished</h2>
           <p>This session has ended. Your teacher will go through it with you.</p>
         </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------- holding --- */
+
+/**
+ * Between questions, when the teacher is choosing the next one.
+ *
+ * It says nothing about what is coming, because the student is not supposed to
+ * know and the screen genuinely does not: nothing is published, so under RLS
+ * there is nothing here to leak. What it does say is that the wait is normal
+ * and that the next question arrives on its own — a student who thinks the
+ * page has hung starts reloading it, and a reload during a paper is the one
+ * thing this screen spends its effort preventing.
+ */
+function Holding({ session, answered }: { session: Session; answered: number }) {
+  const teacher = session.teacher?.full_name?.split(' ')[0] ?? 'Your teacher'
+
+  return (
+    <div className="exam-wait">
+      <div className="ring" aria-hidden="true" />
+      <h2>{answered === 0 ? 'Your teacher is starting you off' : 'Hold on a moment'}</h2>
+      <p>
+        {answered === 0
+          ? `${teacher} chooses each question in this session. The first one appears here as soon as they send it.`
+          : `That one is in. ${teacher} is choosing what to ask next — it appears here on its own, so stay on this screen.`}
+      </p>
+      {answered > 0 && (
+        <p className="exam-when">
+          {answered} question{answered === 1 ? '' : 's'} answered
+        </p>
       )}
     </div>
   )
@@ -261,6 +332,7 @@ function Lobby({
   }
 
   const empty = session.question_count === 0
+  const teacherLed = session.pacing === 'teacher'
 
   return (
     <div className="exam-wait">
@@ -269,6 +341,12 @@ function Lobby({
       <p>
         {empty ? (
           'Your teacher has not put any questions in this session yet. This page will update on its own once they do.'
+        ) : teacherLed ? (
+          <>
+            Your teacher chooses each question and sends it to you one at a time. Each one is timed
+            from the moment it appears, and between them you wait on this screen. Once you submit an
+            answer you cannot go back to it.
+          </>
         ) : (
           <>
             {session.question_count} question{session.question_count === 1 ? '' : 's'}. You answer
@@ -330,7 +408,7 @@ function Finished({ items }: { items: SessionItem[] }) {
           <article className="done-card" key={it.id}>
             <QuestionView
               question={it.questions}
-              number={String(it.sequence_no)}
+              number={String(it.asked_no ?? it.sequence_no)}
               showKey={it.status === 'revealed'}
               correct={it.revealed_correct_option}
               chosen={it.selected_option}
@@ -363,11 +441,15 @@ function Finished({ items }: { items: SessionItem[] }) {
 
 function ItemPane({
   item,
+  number,
   total,
   onChanged,
 }: {
   item: SessionItem
-  total: number
+  /** Where this question came in the session, which is not always its place in the paper. */
+  number: number
+  /** How long the paper is, or null when the teacher is choosing and it is not the student's to know. */
+  total: number | null
   onChanged: () => Promise<void>
 }) {
   const [selected, setSelected] = useState<OptionLabel | null>(item.selected_option)
@@ -446,8 +528,8 @@ function ItemPane({
 
       <section className="exam-question">
         <div className="exam-qhead">
-          <span className="qn">{String(item.sequence_no).padStart(2, '0')}</span>
-          <span className="qof">of {total}</span>
+          <span className="qn">{String(number).padStart(2, '0')}</span>
+          {total !== null && <span className="qof">of {total}</span>}
           <span className="spring" />
           <QuestionClock itemId={item.id} running={!decided && !busy} />
           <button
