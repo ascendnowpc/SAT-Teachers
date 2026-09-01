@@ -123,12 +123,33 @@ it appears on the student's screen. They answer it, and wait again.
   ┌─ Ask a question ────────────────────────────────────────────────┐
   │ 3 left in the paper.              Difficulty ▾ Easy (4)         │
   ├─────────────────────────────────────────────────────────────────┤
-  │ Q07  easy · Words in Context · 55s                   [Ask this] │
-  │      The ______ nature of the tracks makes motocross exciting.  │
-  │ Q11  easy · Transitions · 55s                        [Ask this] │
-  │      Which choice completes the text with the most logical…     │
+  │ ▸ Q07  easy · Words in Context · 55s                 [Ask this] │
+  │        The ______ nature of the tracks makes motocross exciting.│
+  │ ▾ Q11  easy · Transitions · has a passage · 55s      [Ask this] │
+  │        Which choice completes the text with the most logical…   │
+  │   ┌───────────────────────────┬───────────────────────────────┐ │
+  │   │ As early as 1975, Ben     │ Which choice completes the    │ │
+  │   │ Yamamoto studied the      │ text with the most logical    │ │
+  │   │ reduction in cavities…    │ transition?                   │ │
+  │   │                           │  A  However,                  │ │
+  │   │ easy · Transitions · 55s  │  B  For example,              │ │
+  │   │                           │  C  Therefore,                │ │
+  │   │                           │  D  Similarly,                │ │
+  │   │                           │ [Show the answer]             │ │
+  │   └───────────────────────────┴───────────────────────────────┘ │
   └─────────────────────────────────────────────────────────────────┘
 ```
+
+A row opens because two lines of stem is not a question. Half the bank hangs
+off a passage the stem does not repeat, and *"Which choice completes the text?"*
+says nothing at all on its own — a teacher cannot judge whether it is the right
+next question without reading the thing itself. Opened, it is the same
+`QuestionView` the student's screen and the printed paper use, so what the
+teacher reads while deciding is what the student will meet.
+
+The key sits behind a second click rather than being on by default. A teacher
+who wants it is one press away, and a teacher sharing their screen on the call
+has not just put the answer on it.
 
 This is what the suggestion engine above was always for. "Drop one level — rebuild fluency
 before speed" is advice nobody could take while the running order was fixed before the lesson

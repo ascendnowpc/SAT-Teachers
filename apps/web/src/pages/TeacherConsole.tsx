@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconBack, IconVideo } from '../components/icons'
+import { IconBack, IconChevron, IconVideo } from '../components/icons'
+import { QuestionView } from '../components/QuestionView'
 import { DifficultyBadge, Notice, Select } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import {
@@ -489,37 +490,121 @@ function Ask({
       ) : (
         <ul className="ask-list">
           {shown.map((it) => (
-            <li key={it.id}>
-              <div className="ask-q">
-                <div className="ask-tags">
-                  <span className="num">Q{it.sequence_no}</span>
-                  {it.questions && <DifficultyBadge level={it.questions.difficulty} />}
-                  {it.questions?.skill && (
-                    <span className="ask-skill">{skillLabel(it.questions.skill)}</span>
-                  )}
-                  {!it.questions?.skill && it.questions?.section && (
-                    <span className="ask-skill">{sectionLabel(it.questions.section)}</span>
-                  )}
-                  {it.questions?.target_seconds && (
-                    <span className="ask-skill">{it.questions.target_seconds}s target</span>
-                  )}
-                </div>
-                <div className="ask-stem">{it.questions?.stem}</div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={busy || open !== null}
-                title={open ? 'The student is still on a question' : undefined}
-                onClick={() => void onCall('publish_item', { p_item: it.id })}
-              >
-                Ask this
-              </button>
-            </li>
+            <AskItem
+              key={it.id}
+              item={it}
+              blocked={open !== null}
+              busy={busy}
+              onCall={onCall}
+            />
           ))}
         </ul>
       )}
     </div>
+  )
+}
+
+/**
+ * One question in the pool, shut and open.
+ *
+ * Shut it is two lines of stem, which is enough to recognise a question the
+ * teacher has met before and nothing like enough to choose one they have not.
+ * Half the bank hangs off a passage the stem does not repeat, and "Which
+ * choice completes the text?" says nothing at all on its own. So it opens into
+ * the question as the student will actually meet it — same component, same
+ * layout as the exam screen, stimulus and all.
+ *
+ * The key is behind a second click rather than on by default. A teacher who
+ * wants it is one press away, and a teacher sharing their screen on the call
+ * has not just put the answer on it.
+ */
+function AskItem({
+  item,
+  blocked,
+  busy,
+  onCall,
+}: {
+  item: SessionItem
+  /** The student is still on a question, so nothing can be handed over yet. */
+  blocked: boolean
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+  const q = item.questions
+
+  return (
+    <li className={open ? 'open' : ''}>
+      <div className="ask-row">
+        <button
+          type="button"
+          className="ask-open"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          title={open ? 'Collapse this question' : 'See the whole question'}
+        >
+          <IconChevron />
+          <span className="ask-q">
+            <span className="ask-tags">
+              <span className="num">Q{item.sequence_no}</span>
+              {q && <DifficultyBadge level={q.difficulty} />}
+              {q?.skill && <span className="ask-skill">{skillLabel(q.skill)}</span>}
+              {!q?.skill && q?.section && (
+                <span className="ask-skill">{sectionLabel(q.section)}</span>
+              )}
+              {q?.passage && <span className="ask-skill">has a passage</span>}
+              {q?.target_seconds && <span className="ask-skill">{q.target_seconds}s target</span>}
+            </span>
+            <span className="ask-stem">{q?.stem}</span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={busy || blocked}
+          title={blocked ? 'The student is still on a question' : undefined}
+          onClick={() => void onCall('publish_item', { p_item: item.id })}
+        >
+          Ask this
+        </button>
+      </div>
+
+      {open && q && (
+        <div className="ask-full">
+          <QuestionView
+            question={q}
+            showKey={showKey}
+            tags={
+              <>
+                <DifficultyBadge level={q.difficulty} />
+                {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
+                {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
+                {q.target_seconds && <span className="muted">{q.target_seconds}s target</span>}
+              </>
+            }
+            footer={
+              <div className="ask-key">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowKey((v) => !v)}
+                >
+                  {showKey ? 'Hide the answer' : 'Show the answer'}
+                </button>
+                {showKey && q.question_keys?.explanation && (
+                  <div className="q-note">
+                    <div className="section-title">Why</div>
+                    {q.question_keys.explanation}
+                  </div>
+                )}
+              </div>
+            }
+          />
+        </div>
+      )}
+    </li>
   )
 }
 
