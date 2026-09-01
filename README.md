@@ -295,6 +295,7 @@ only when the teacher reveals — which is the only route by which any of them r
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
+psql "$DATABASE_URL" -f supabase/tests/teacher_paced_session.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 ```
 
@@ -313,10 +314,15 @@ the student cannot learn whether they were right; and the teacher's diagnosis is
 to the student. `prepared_session.sql` adds the new flow: a student cannot open a session early
 or open somebody else's, exactly one question is within their reach at a time, answering brings
 up the next in the paper's order, and a paper already with a student cannot be renumbered under
-them. Every row must read PASS.
+them. `teacher_paced_session.sql` covers the other pacing: starting a teacher-paced session
+opens nothing, the teacher can hand over the paper's third question first and its first never,
+a second question is refused while the student is on one, answering brings up nothing, a student
+cannot hand themselves a question, and handing the pacing back resumes the queue. Every row must
+read PASS.
 
 The first two are written for a scratch database — they reset the display-id counters on their
-way out. `prepared_session.sql` leaves them alone and is safe to run against a real one.
+way out. `prepared_session.sql` and `teacher_paced_session.sql` leave them alone and are safe to
+run against a real one.
 
 ## Layout
 

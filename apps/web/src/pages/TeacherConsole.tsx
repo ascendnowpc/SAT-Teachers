@@ -1,28 +1,38 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IconBack, IconVideo } from '../components/icons'
-import { DifficultyBadge, Notice } from '../components/ui'
+import { DifficultyBadge, Notice, Select } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import {
   DIAGNOSES,
+  DIFFICULTIES,
   OPTION_LABELS,
   diagnosisLabel,
+  sectionLabel,
+  skillLabel,
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
+import { askOrder } from '../lib/report'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
-import type { Diagnosis, Session, SessionItem } from '../lib/types'
+import type { Diagnosis, Difficulty, Session, SessionItem } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
 /**
- * The teacher's side of a session — which is now mostly a place to watch.
+ * The teacher's side of a session — a place to watch, and when the teacher
+ * wants it, a place to drive.
  *
- * The paper is chosen beforehand in the builder, and the student opens the
- * session themselves at the scheduled time. What is left here is the part
- * that needs a teacher: seeing each answer land with its time and confidence,
- * revealing, and saying why the student missed it. That last one is what the
- * report is built out of.
+ * A session paced by the paper needs nothing from this screen while it runs:
+ * the student opens it themselves and each answer brings up the next question.
+ * A session the teacher paces needs one thing from it, and needs it every
+ * couple of minutes — the next question. That is the Ask panel: the paper this
+ * student was given, cut by difficulty, one click to put a question in front
+ * of them.
+ *
+ * The rest is unchanged and is the part that makes the report: seeing each
+ * answer land with its time and confidence, revealing, and saying why the
+ * student missed it.
  */
 export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
@@ -45,8 +55,10 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
 
   const staged = items.filter((i) => i.status === 'staged')
   const live = items.filter((i) => i.status !== 'staged')
+  const open = items.find((i) => i.status === 'published') ?? null
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
+  const teacherLed = session.pacing === 'teacher'
 
   /**
    * The whole result, in one go. The student learns how they did when their
@@ -130,8 +142,16 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
       <div className="room">
-        <Paper sessionId={sessionId} session={session} staged={staged} done={live.length} />
-        <Board items={live} busy={busy} onCall={call} />
+        <div className="room-side">
+          <Paper sessionId={sessionId} session={session} staged={staged} done={live.length} />
+          <Pacing session={session} busy={busy} onCall={call} />
+        </div>
+        <div>
+          {teacherLed && session.status === 'live' && (
+            <Ask session={session} staged={staged} open={open} busy={busy} onCall={call} />
+          )}
+          <Board items={live} busy={busy} onCall={call} />
+        </div>
       </div>
     </div>
   )
@@ -160,6 +180,7 @@ function Paper({
 }) {
   const total = staged.length + done
   const first = session.student?.full_name?.split(' ')[0] ?? 'The student'
+  const teacherLed = session.pacing === 'teacher'
 
   if (total === 0) {
     return (
@@ -191,7 +212,7 @@ function Paper({
           <span className="badge badge-ok">Saved</span>
         ) : (
           <span className="badge badge-sky">
-            {done} of {total} done
+            {done} of {total} {teacherLed ? 'asked' : 'done'}
           </span>
         )}
       </div>
@@ -204,10 +225,16 @@ function Paper({
 
       <p className="paper-box-note">
         {session.status === 'scheduled'
-          ? `Ready. ${first} opens this themselves at the scheduled time and works through it one question at a time.`
+          ? teacherLed
+            ? `Ready. ${first} opens this themselves at the scheduled time and then waits — nothing is in front of them until you choose it.`
+            : `Ready. ${first} opens this themselves at the scheduled time and works through it one question at a time.`
           : staged.length === 0
-            ? 'Every question has been answered.'
-            : `${first} is working through it. The next question is published the moment the current one is answered.`}
+            ? teacherLed
+              ? 'Every question in the paper has been asked.'
+              : 'Every question has been answered.'
+            : teacherLed
+              ? `${first} sees only what you hand over. The rest of the paper is a pool to choose from, not a queue.`
+              : `${first} is working through it. The next question is published the moment the current one is answered.`}
       </p>
 
       <div className="paper-box-actions">
@@ -221,10 +248,205 @@ function Paper({
   )
 }
 
+/* ------------------------------------------------------------- pacing --- */
+
+/**
+ * Who decides what comes next.
+ *
+ * Two ways of running the same paper, and the difference between them is the
+ * difference between a test and a lesson. Left alone the paper runs itself,
+ * which is what a diagnostic wants. Switched over, nothing reaches the student
+ * until the teacher hands it to them — so a student who cannot do the easy one
+ * is not marched into the medium one for the sake of the running order.
+ *
+ * It can be switched mid-session, which is the case it earns its keep in: the
+ * teacher three questions into a paper who can see it is not going to work
+ * should be able to take hold of it without abandoning the session.
+ */
+function Pacing({
+  session,
+  busy,
+  onCall,
+}: {
+  session: Session
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  if (session.status === 'completed' || session.status === 'cancelled') return null
+
+  const first = session.student?.full_name?.split(' ')[0] ?? 'The student'
+  const teacherLed = session.pacing === 'teacher'
+
+  const set = (pacing: 'student' | 'teacher') =>
+    void onCall('set_session_pacing', { p_session: session.id, p_pacing: pacing })
+
+  return (
+    <div className="paper-box">
+      <div className="section-title" style={{ marginBottom: 10 }}>
+        Who chooses the next question
+      </div>
+
+      <div className="pacing-switch" role="group" aria-label="Who chooses the next question">
+        <button
+          type="button"
+          className={`pacing-opt ${teacherLed ? '' : 'on'}`}
+          aria-pressed={!teacherLed}
+          disabled={busy || !teacherLed}
+          onClick={() => set('student')}
+        >
+          <b>The paper does</b>
+          <span>Every answer brings up the next one, in order.</span>
+        </button>
+        <button
+          type="button"
+          className={`pacing-opt ${teacherLed ? 'on' : ''}`}
+          aria-pressed={teacherLed}
+          disabled={busy || teacherLed}
+          onClick={() => set('teacher')}
+        >
+          <b>You do</b>
+          <span>Pick each question by difficulty as the lesson goes.</span>
+        </button>
+      </div>
+
+      <p className="paper-box-note" style={{ marginTop: 12 }}>
+        {teacherLed
+          ? `${first} sees one question at a time and only when you send it. Between questions they wait on a held screen.`
+          : `${first} works straight through the paper on their own.`}
+      </p>
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------- ask --- */
+
+/**
+ * The paper, as something to choose from.
+ *
+ * The teacher is deciding one thing here — how hard the next question should
+ * be — so difficulty is the filter, and the counts are on the dropdown so the
+ * decision can be made before the list is read: there is no point reaching for
+ * "one level down" when there are no easy ones left.
+ *
+ * Only one question can be out at a time, and the server holds that line
+ * too — the buttons go quiet while the student is on one, because the answer
+ * is the thing being waited for, not the click.
+ */
+function Ask({
+  session,
+  staged,
+  open,
+  busy,
+  onCall,
+}: {
+  session: Session
+  staged: SessionItem[]
+  open: SessionItem | null
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  const [level, setLevel] = useState<Difficulty | 'all'>('all')
+
+  const counts = useMemo(() => {
+    const c: Record<Difficulty, number> = { easy: 0, medium: 0, hard: 0 }
+    for (const i of staged) if (i.questions) c[i.questions.difficulty] += 1
+    return c
+  }, [staged])
+
+  const shown = useMemo(
+    () => staged.filter((i) => level === 'all' || i.questions?.difficulty === level),
+    [staged, level],
+  )
+
+  const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
+
+  if (staged.length === 0) {
+    return (
+      <div className="ask card-pad" style={{ marginBottom: 16 }}>
+        <div className="ask-head">
+          <div className="section-title">Ask a question</div>
+        </div>
+        <p className="paper-box-note">
+          Every question in this paper has been asked. End the session when you are done, or edit
+          the paper for the next one.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ask" style={{ marginBottom: 16 }}>
+      <div className="ask-head">
+        <div>
+          <div className="section-title" style={{ marginBottom: 2 }}>
+            Ask a question
+          </div>
+          <div className="ask-sub">
+            {open
+              ? `${first} is on question ${askOrder(open)}. The next one opens when they answer.`
+              : `${staged.length} left in the paper. Choose one and it appears on their screen.`}
+          </div>
+        </div>
+        <div className="spring" />
+        <Select
+          value={level}
+          onChange={(e) => setLevel(e.target.value as Difficulty | 'all')}
+          aria-label="Difficulty"
+        >
+          <option value="all">All levels ({staged.length})</option>
+          {DIFFICULTIES.map((d) => (
+            <option key={d.value} value={d.value} disabled={counts[d.value] === 0}>
+              {d.label} ({counts[d.value]})
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="paper-box-note" style={{ padding: '0 16px 16px' }}>
+          No {level} questions are left in this paper. Try another level.
+        </p>
+      ) : (
+        <ul className="ask-list">
+          {shown.map((it) => (
+            <li key={it.id}>
+              <div className="ask-q">
+                <div className="ask-tags">
+                  <span className="num">Q{it.sequence_no}</span>
+                  {it.questions && <DifficultyBadge level={it.questions.difficulty} />}
+                  {it.questions?.skill && (
+                    <span className="ask-skill">{skillLabel(it.questions.skill)}</span>
+                  )}
+                  {!it.questions?.skill && it.questions?.section && (
+                    <span className="ask-skill">{sectionLabel(it.questions.section)}</span>
+                  )}
+                  {it.questions?.target_seconds && (
+                    <span className="ask-skill">{it.questions.target_seconds}s target</span>
+                  )}
+                </div>
+                <div className="ask-stem">{it.questions?.stem}</div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy || open !== null}
+                title={open ? 'The student is still on a question' : undefined}
+                onClick={() => void onCall('publish_item', { p_item: it.id })}
+              >
+                Ask this
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 /* --------------------------------------------------------------- board --- */
 
 function Board({
-  items,
+  items: unsorted,
   busy,
   onCall,
 }: {
@@ -232,6 +454,10 @@ function Board({
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
+  // In the order they were put in front of the student, which under teacher
+  // pacing is not the order the paper holds them in.
+  const items = [...unsorted].sort((a, b) => askOrder(a) - askOrder(b))
+
   if (items.length === 0) {
     return (
       <div className="board">
@@ -269,7 +495,7 @@ function Board({
                 const isLiveRow = it.status === 'published' || it.status === 'answered'
                 return (
                   <tr key={it.id} className={isLiveRow ? 'live-row' : undefined}>
-                    <td className="num">{it.sequence_no}</td>
+                    <td className="num">{askOrder(it)}</td>
                     <td style={{ maxWidth: 300 }}>{it.questions?.stem}</td>
                     <td>
                       {it.questions && <DifficultyBadge level={it.questions.difficulty} />}
@@ -305,6 +531,7 @@ function Board({
                     <td>
                       {it.status === 'published' && <span className="badge badge-sky">Working</span>}
                       {it.status === 'answered' && <span className="badge badge-neutral">Answered</span>}
+                      {it.status === 'voided' && <span className="badge badge-neutral">Not attempted</span>}
                       {it.status === 'revealed' &&
                         (it.revealed_result === 'correct' ? (
                           <span className="badge badge-ok">Correct</span>
@@ -353,7 +580,7 @@ function ItemDetail({
   return (
     <div className="card card-pad" style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span className="pill-opt">{item.sequence_no}</span>
+        <span className="pill-opt">{askOrder(item)}</span>
         <strong style={{ fontSize: 14.5, flex: 1 }}>{item.questions?.stem}</strong>
       </div>
 

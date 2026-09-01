@@ -5,7 +5,7 @@ import { Field, Input, Notice, Select } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, Subject } from '../lib/types'
+import type { Profile, SessionPacing, Subject } from '../lib/types'
 
 export function SessionNew() {
   const navigate = useNavigate()
@@ -19,6 +19,7 @@ export function SessionNew() {
   const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
   const [duration, setDuration] = useState(60)
   const [meetingUrl, setMeetingUrl] = useState('')
+  const [pacing, setPacing] = useState<SessionPacing>('student')
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -72,6 +73,7 @@ export function SessionNew() {
           scheduled_at: utcInputToIso(scheduledAt),
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
+          pacing,
         })
         .select('id')
         .single()
@@ -185,6 +187,20 @@ export function SessionNew() {
               onChange={(e) => setMeetingUrl(e.target.value)}
               placeholder="https://zoom.us/j/…"
             />
+          </Field>
+
+          <Field
+            label="Who chooses the next question"
+            hint="Changeable later, including mid-session."
+          >
+            <Select value={pacing} onChange={(e) => setPacing(e.target.value as SessionPacing)}>
+              <option value="student">
+                The paper — they work straight through it on their own
+              </option>
+              <option value="teacher">
+                You — pick each question by difficulty as the lesson goes
+              </option>
+            </Select>
           </Field>
         </div>
 

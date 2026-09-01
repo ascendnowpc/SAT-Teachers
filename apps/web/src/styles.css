@@ -642,6 +642,11 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; padding: 60px 24px; text-align: center;
 }
+.exam-wait .ring {
+  width: 54px; height: 54px; margin-bottom: 10px; border-radius: 50%;
+  border: 3px solid var(--border-strong); border-top-color: var(--sky);
+  animation: spin 1.05s linear infinite;
+}
 .exam-wait h2 { font-size: 20px; }
 .exam-wait p { color: var(--muted); font-weight: 300; max-width: 42ch; }
 
@@ -1042,6 +1047,56 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
 .paper-box-actions { display: flex; gap: 8px; margin-top: 14px; }
 .paper-box-actions:empty { display: none; }
 .empty-paper p { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; margin-bottom: 14px; }
+
+/* The left column of the room: the paper, then who is pacing it. */
+.room-side { display: flex; flex-direction: column; gap: 18px; }
+
+.pacing-switch { display: flex; flex-direction: column; gap: 8px; }
+.pacing-opt {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
+  padding: 11px 13px; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: #fff; transition: border-color .13s, background .13s, box-shadow .13s;
+}
+.pacing-opt:hover:not(:disabled) { border-color: var(--sky); background: var(--sky-wash); }
+.pacing-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pacing-opt b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.pacing-opt span { font-size: 12.5px; font-weight: 300; color: var(--muted); line-height: 1.45; }
+.pacing-opt.on {
+  border-color: var(--sky); background: var(--sky-wash);
+  box-shadow: 0 0 0 3px rgba(64,176,229,.14);
+  cursor: default; opacity: 1;
+}
+.pacing-opt:disabled:not(.on) { opacity: .55; cursor: default; }
+
+/* -------------------------------------------- choosing the next question --- */
+/* The paper as a pool to draw from: cut by difficulty, one click to hand a
+   question over. It sits above the board because during a teacher-paced lesson
+   it is the thing being used, and the board is the thing being read. */
+.ask { background: #fff; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.ask-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border); background: #fbfcfe;
+}
+.ask-head .spring { flex: 1; }
+.ask-head .select { width: auto; min-width: 160px; }
+.ask-sub { font-size: 13px; color: var(--muted); font-weight: 300; }
+
+.ask-list { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
+.ask-list li {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.ask-list li:last-child { border-bottom: 0; }
+.ask-list li:hover { background: var(--page); }
+.ask-q { flex: 1; min-width: 0; }
+.ask-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+.ask-tags .num { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.ask-skill { font-size: 11.5px; color: var(--muted); font-weight: 300; }
+.ask-stem {
+  font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ask-list li .btn { flex-shrink: 0; }
 
 /* --------------------------------------------------------- the builder --- */
 /* Picking questions and putting them in order, shared by a session's paper and
