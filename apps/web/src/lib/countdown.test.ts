@@ -30,6 +30,21 @@ describe('openState', () => {
   it('never offers the start button on an unreadable time', () => {
     expect(openState('not a date', NOW).open).toBe(false)
   })
+
+  it('opens on a teacher waiver however far off the scheduled time is', () => {
+    const early = '2026-09-03T09:40:00Z'
+    expect(openState('2026-09-03T16:00:00Z', NOW, early)).toEqual({
+      open: true,
+      label: 'opened by your teacher',
+    })
+    expect(openState('2026-09-09T10:00:00Z', NOW, early).open).toBe(true)
+    // Even a time nobody could read: the teacher has said they may start.
+    expect(openState('not a date', NOW, early).open).toBe(true)
+  })
+
+  it('counts down again when the waiver is taken back', () => {
+    expect(openState('2026-09-03T10:04:00Z', NOW, null).label).toBe('opens in 4 minutes')
+  })
 })
 
 describe('clock', () => {
