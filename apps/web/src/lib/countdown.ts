@@ -21,7 +21,16 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
-export function openState(scheduledAt: string | Date, now: number = Date.now()): OpenState {
+export function openState(
+  scheduledAt: string | Date,
+  now: number = Date.now(),
+  /** Set when a teacher waived the clock. The scheduled time still stands as the arrangement. */
+  openedEarlyAt: string | null = null,
+): OpenState {
+  // A waiver beats the clock, and beats an unreadable time too — the teacher
+  // has said the student may start, and that is not a countdown any more.
+  if (openedEarlyAt) return { open: true, label: 'opened by your teacher' }
+
   const at = scheduledAt instanceof Date ? scheduledAt.getTime() : new Date(scheduledAt).getTime()
   if (Number.isNaN(at)) return { open: false, label: 'opens at a time still to be set' }
 

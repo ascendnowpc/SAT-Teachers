@@ -317,7 +317,7 @@ function Lobby({
     return () => clearInterval(t)
   }, [])
 
-  const state = openState(session.scheduled_at, now)
+  const state = openState(session.scheduled_at, now, session.opened_early_at)
 
   async function start() {
     setBusy(true)

@@ -109,9 +109,12 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
             </a>
           )}
           {session.status === 'scheduled' && (
-            <Link className="btn btn-primary btn-sm" to={`/sessions/${sessionId}/paper`}>
-              {staged.length === 0 ? 'Pick the questions' : 'Edit the paper'}
-            </Link>
+            <>
+              <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/paper`}>
+                {staged.length === 0 ? 'Pick the questions' : 'Edit the paper'}
+              </Link>
+              <OpenEarly session={session} paperLength={staged.length} busy={busy} onCall={call} />
+            </>
           )}
           {answered > 0 && (
             <button
@@ -154,6 +157,75 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/* --------------------------------------------------------- open early --- */
+
+/**
+ * Letting the student in before the scheduled time.
+ *
+ * There was a button like this once and it was taken out the same day, because
+ * it flipped the session to 'live' — which published nothing and hid the
+ * student's own Start button at the same time, leaving them on a session that
+ * was neither open nor openable. So this one does not touch the status. It
+ * waives the clock, which is the thing that was actually in the way, and the
+ * student still starts their own session exactly as they would have at ten
+ * past.
+ *
+ * It does not rewrite the scheduled time either. Half past four is when this
+ * was arranged, and it stays true on the card and in the report after the
+ * teacher has let them in at ten past four.
+ */
+function OpenEarly({
+  session,
+  paperLength,
+  busy,
+  onCall,
+}: {
+  session: Session
+  paperLength: number
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  const opened = session.opened_early_at !== null
+  // Past its time already: there is nothing to waive, and a button offering to
+  // do it would only be asking whether the teacher can read a clock.
+  const alreadyDue = new Date(session.scheduled_at).getTime() <= Date.now()
+  if (alreadyDue && !opened) return null
+
+  const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
+
+  if (opened) {
+    return (
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        disabled={busy}
+        title={`${first} can start now. Click to put the scheduled time back.`}
+        onClick={() =>
+          void onCall('set_session_open_early', { p_session: session.id, p_open: false })
+        }
+      >
+        Open now — undo
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className="btn btn-primary btn-sm"
+      disabled={busy || paperLength === 0}
+      title={
+        paperLength === 0
+          ? 'There are no questions in this session yet.'
+          : `Let ${first} start now instead of waiting for the scheduled time.`
+      }
+      onClick={() => void onCall('set_session_open_early', { p_session: session.id, p_open: true })}
+    >
+      Open early
+    </button>
   )
 }
 
@@ -209,7 +281,11 @@ function Paper({
           </div>
         </div>
         {session.status === 'scheduled' ? (
-          <span className="badge badge-ok">Saved</span>
+          session.opened_early_at ? (
+            <span className="badge badge-sky">Open now</span>
+          ) : (
+            <span className="badge badge-ok">Saved</span>
+          )
         ) : (
           <span className="badge badge-sky">
             {done} of {total} {teacherLed ? 'asked' : 'done'}
@@ -225,9 +301,13 @@ function Paper({
 
       <p className="paper-box-note">
         {session.status === 'scheduled'
-          ? teacherLed
-            ? `Ready. ${first} opens this themselves at the scheduled time and then waits — nothing is in front of them until you choose it.`
-            : `Ready. ${first} opens this themselves at the scheduled time and works through it one question at a time.`
+          ? session.opened_early_at
+            ? teacherLed
+              ? `Open now. ${first} can start whenever they are ready, and then waits — nothing is in front of them until you choose it.`
+              : `Open now. ${first} can start whenever they are ready and works through it one question at a time.`
+            : teacherLed
+              ? `Ready. ${first} opens this themselves at the scheduled time and then waits — nothing is in front of them until you choose it.`
+              : `Ready. ${first} opens this themselves at the scheduled time and works through it one question at a time.`
           : staged.length === 0
             ? teacherLed
               ? 'Every question in the paper has been asked.'

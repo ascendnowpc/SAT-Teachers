@@ -296,6 +296,7 @@ psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
 psql "$DATABASE_URL" -f supabase/tests/teacher_paced_session.sql
+psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 ```
 
@@ -317,8 +318,10 @@ up the next in the paper's order, and a paper already with a student cannot be r
 them. `teacher_paced_session.sql` covers the other pacing: starting a teacher-paced session
 opens nothing, the teacher can hand over the paper's third question first and its first never,
 a second question is refused while the student is on one, answering brings up nothing, a student
-cannot hand themselves a question, and handing the pacing back resumes the queue. Every row must
-read PASS.
+cannot hand themselves a question, and handing the pacing back resumes the queue.
+`opening_early.sql` covers the waiver: the scheduled time is a real gate, only the session's own
+teacher can lift it, lifting it rewrites neither `scheduled_at` nor the status, and it cannot be
+taken back once the student is in. Every row must read PASS.
 
 The first two are written for a scratch database — they reset the display-id counters on their
 way out. `prepared_session.sql` and `teacher_paced_session.sql` leave them alone and are safe to

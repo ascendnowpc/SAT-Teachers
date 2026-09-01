@@ -79,6 +79,8 @@ export interface Session {
   meeting_url: string | null
   status: SessionStatus
   pacing: SessionPacing
+  /** When a teacher waived the scheduled time. scheduled_at still says when it was arranged. */
+  opened_early_at: string | null
   /** How many questions the paper holds. Maintained by trigger; the student reads it. */
   question_count: number
   started_at: string | null
