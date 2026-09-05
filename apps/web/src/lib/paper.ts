@@ -99,7 +99,7 @@ export function hasTable(body: string | null | undefined): boolean {
 
 export interface PaperQuestion {
   question: Question
-  /** The paper's printed number. Test 4's numbering is not contiguous. */
+  /** The test's own number: where this question stands in it, from 1. */
   number: string
 }
 
@@ -113,13 +113,21 @@ export interface PaperGroup {
 }
 
 /**
- * The printed number of an item, taken from its source_ref: the papers number
- * their own questions and Test 4 skips numbers, so position is not the number.
- * A teacher-authored item has no source paper, and falls back to its position.
+ * The printed number of an item: its place in this test, counted from 1.
+ *
+ * It used to be read out of the source_ref, on the reasoning that a paper
+ * numbers its own questions. That was true of the papers and false of the
+ * tests. The three English tests each take twenty items out of a longer
+ * document and leave the rest behind, so the source numbers arrive with holes
+ * in them — the easy test ran 1..14, 17, 19, 21, 22, 23, 25, and the medium
+ * test skipped four numbers before it reached its tenth question. The student
+ * meanwhile is told "question 3 of 20", counted off the test. A teacher
+ * reading the test before they put a student on it has to be reading the same
+ * numbers the student will hear, so the test numbers its own questions and the
+ * source_ref stays what it is: where the item came from.
  */
-export function paperNumber(q: Question, index: number): string {
-  const m = q.source_ref?.match(/Q(\d+)\s*$/)
-  return m ? String(Number(m[1])) : String(index + 1)
+export function paperNumber(index: number): string {
+  return String(index + 1)
 }
 
 /**
@@ -135,7 +143,7 @@ export function buildPaper(questions: Question[]): PaperGroup[] {
   const groups: PaperGroup[] = []
 
   for (const [i, q] of questions.entries()) {
-    const entry: PaperQuestion = { question: q, number: paperNumber(q, i) }
+    const entry: PaperQuestion = { question: q, number: paperNumber(i) }
     const last = groups[groups.length - 1]
 
     if (last && q.passage && last.passage === q.passage) {

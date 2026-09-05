@@ -94,14 +94,10 @@ describe('parsePassage', () => {
 })
 
 describe('paperNumber', () => {
-  it('uses the paper’s own number, which is not the position', () => {
-    // Test 4 skips numbers: item 15 of module 1 is printed as Q19.
-    expect(paperNumber(q({ id: 'a', source_ref: 'ENG-DIAG-T4-M1-Q19' }), 14)).toBe('19')
-    expect(paperNumber(q({ id: 'b', source_ref: 'ENG-DIAG-INCLASS-Q01' }), 0)).toBe('1')
-  })
-
-  it('falls back to the position for an item with no source paper', () => {
-    expect(paperNumber(q({ id: 'c' }), 6)).toBe('7')
+  it('numbers a question by its place in the test, counted from 1', () => {
+    expect(paperNumber(0)).toBe('1')
+    expect(paperNumber(6)).toBe('7')
+    expect(paperNumber(19)).toBe('20')
   })
 })
 
@@ -117,6 +113,17 @@ describe('buildPaper', () => {
     expect(groups).toHaveLength(1)
     expect(groups[0].label).toBe('Passage 1')
     expect(groups[0].questions.map((x) => x.number)).toEqual(['1', '2', '3'])
+  })
+
+  it('numbers the test straight through, whatever the source papers numbered', () => {
+    // The three level tests take twenty items out of longer documents, so the
+    // source numbers have holes in them; the test does not.
+    const groups = buildPaper([
+      q({ id: 'a', source_ref: 'ENG-DIAG-T4-M1-Q14' }),
+      q({ id: 'b', source_ref: 'ENG-DIAG-T4-M1-Q17' }),
+      q({ id: 'c', source_ref: 'ENG-DIAG-T4-M1-Q19' }),
+    ])
+    expect(groups.flatMap((g) => g.questions).map((x) => x.number)).toEqual(['1', '2', '3'])
   })
 
   it('numbers the passages in the order they are printed, and says which holds a table', () => {
