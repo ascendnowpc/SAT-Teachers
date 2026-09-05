@@ -254,6 +254,19 @@ begin
           then 'absent' else 'present' end),
     (case when to_regprocedure('public.publish_item(uuid)') is null
           then 'PASS' else 'FAIL' end)::text;
+
+  -- load_session_level does no permission checking of its own — its callers do
+  -- it — so a PUBLIC grant on it is a way to reload somebody else's session
+  -- mid-test. 0027 revoked it from the roles, which does nothing while PUBLIC
+  -- holds the grant; 0028 revoked it from PUBLIC. This is that, asserted.
+  return query select '7 gone'::text,'the level loader is not reachable from a client'::text,
+    'no'::text,
+    (case when has_function_privilege('authenticated',
+            to_regprocedure('public.load_session_level(uuid, text)')::oid, 'execute')
+          then 'yes' else 'no' end),
+    (case when has_function_privilege('authenticated',
+            to_regprocedure('public.load_session_level(uuid, text)')::oid, 'execute')
+          then 'FAIL' else 'PASS' end)::text;
   execute 'reset role';
 
   -- ============ leaving a test in progress ends it ============
