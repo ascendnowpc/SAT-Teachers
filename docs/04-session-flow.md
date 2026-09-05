@@ -5,38 +5,35 @@ The core interaction. Everything else in the system exists to feed or consume it
 ## Before the session
 
 **Teacher creates the session:** picks a student, a subject, a date/time, pastes a Zoom link.
-Student gets a notification with the join link.
+Student gets a notification with the join link. That is the whole of it.
 
-**Teacher stages questions.** This is the step that replaces hunting through Google Drive
-mid-call. The bank is filtered by *subject → section → skill → difficulty*, and the teacher drags
-5–10 items into the session queue. Staged items are invisible to the student.
-
-The stage list is a **plan, not a script** — the teacher will publish some, skip others, and add
-items live based on what the student does. That is the point.
+There is no staging step. Building a paper in advance was three versions of the same mistake — a
+pre-test, a builder, a console for handing questions over — and all three asked the teacher to
+decide before the lesson a thing they can only judge during it. English is **three tests**, easy,
+medium and hard, and the decision is which one this student is on.
 
 ```
-  ┌─ Question Bank ──────────────────┐   ┌─ Session Queue ────────────────┐
-  │ Domain  ▾ Craft and Structure    │   │ 1. Words in Context     easy   │
-  │ Skill   ▾ Words in Context       │   │ 2. Words in Context     medium │
-  │ Diff    ▾ medium                 │   │ 3. Text Structure       medium │
-  │                                  │   │ 4. Text Structure       hard   │
-  │ ▸ Q01  motocross / "diverse"     │→  │                                │
-  │ ▸ Q02  Black Death / "cata..."   │   │ ask for summary  ☑ on 3, 4     │
-  │ ▸ Q03  Wuthering Heights/"catch" │   └────────────────────────────────┘
-  └──────────────────────────────────┘
+  ┌─ New session ────────────────────────────────────────┐
+  │ Student   ▾ BATU Ozcelik  (BATO26-1)                 │
+  │ Subject   ▾ English                                  │
+  │ When        31 Aug 2026, 14:30 UTC   ·  60 minutes   │
+  │ Zoom        https://zoom.us/j/…                      │
+  │                                                      │
+  │                          [ Create the session ]      │
+  └──────────────────────────────────────────────────────┘
 ```
 
 ## During the session
 
-### The publish → answer → reveal → diagnose cycle
+### The answer → next → move → diagnose cycle
 
 ```
 TEACHER                                   STUDENT
 ───────                                   ───────
-starts session  ─────────────────────────► sees "waiting for your teacher"
-                                           (presence: teacher sees student is here)
-
-clicks Publish on queue item 1 ──────────► question appears
+                                           sees a countdown, then Start
+                                           opens the session themselves
+                                           ── the EASY test loads ──
+                                           question 1 appears
                                            first_viewed_at recorded
                                            ⏱ timer starts
 
@@ -44,23 +41,27 @@ sees "student is reading…"       ◄──────── strikes out optio
      live elimination feed       ◄──────── strikes out option D
                                            eliminated_options = [A, D]
 
-                                           selects B, adds confidence + why
-                                           submits ──► Render grades it
-sees: B · wrong (key: C)         ◄──────── student sees only "answer received"
-      eliminated A, D            
+                                           selects B, adds confidence
+                                           presses Next ──► Postgres grades it
+sees: B · wrong (key: C)         ◄──────── student sees only the next question
+      eliminated A, D
       42s vs 55s target · fast
       confidence: high
-      "B matched the wording in line 3"
-
-── discusses on Zoom ──────────────────────────────────────────────────────
-
-clicks Reveal ───────────────────────────► sees correct answer + rationale
 
 taps a diagnosis chip:
-  [misread_question]
+  [misread_question]                       … answers 2, 3, 4, 5 …
 
-system suggests: hold level, same skill
-teacher publishes queue item 2 ──────────► next question appears
+── on the call: "these are too easy for you, go to the medium one" ────────
+
+presses [Medium]  ── or ──────────────────► student presses [Switch to medium]
+                                           the open question is voided
+                                           ── the MEDIUM test loads ──
+                                           its question 1 appears, 1 of 20
+
+── the lesson ends ───────────────────────────────────────────────────────
+
+clicks Publish results ──────────────────► every answer revealed at once,
+                                           with the right choice and why
 ```
 
 The student's screen never contains information the teacher has not released. Correctness is
@@ -95,86 +96,76 @@ run:
 | ✗ | `misread_question` | **Hold** — same difficulty, ask for a summary first |
 | ✗ | `ran_out_of_time` | **Drop one level** — rebuild fluency before speed |
 
-It highlights a suggested item in the queue. It does not auto-advance and it cannot be made to.
-The teacher's judgement is the product; automating it away would remove the thing clients pay
-for.
+It is a sentence under the board, not an action. Nothing moves a student but a person pressing
+one of the three buttons; the teacher's judgement is the product, and automating it away would
+remove the thing clients pay for.
 
-### Speed mode
+## Who moves the level
 
-Because speed is explicitly assessed, the teacher can publish a **set** of items with a shared
-timer instead of one at a time — the student works through 5 items under time pressure, and the
-board fills in as they go. Same data model (`session_items` with sequential `sequence_no`),
-different publish action. Pace ratios are the primary output.
+A session carries a `level` — `easy`, `medium` or `hard` — and it starts on `easy`. Loading a
+level stages that test's twenty questions and publishes the first; every answer publishes the
+next. Nobody hands anything over.
 
-## Who paces it
-
-A session carries a `pacing`, and it is one of two things. The whole difference is who decides
-what the student sees next.
-
-**`student` — the paper does.** The default, and what a diagnostic wants. Starting publishes
-question 1; each answer publishes the next. The teacher does not touch anything while it runs.
-
-**`teacher` — you do.** Nothing is published until the teacher hands it over. The student
-starts, and waits. The teacher picks a question out of the paper — the console cuts it by
-difficulty, with counts, because difficulty is the axis the decision is actually made on — and
-it appears on the student's screen. They answer it, and wait again.
+The only decision is when the level is wrong, and it is made the way it is actually made on a
+call: the teacher watches the student work, says "this is too easy, try the medium one", and
+whoever is nearer the keyboard presses it. So `set_session_level` accepts the call from **either
+seat** — the session's student or the session's teacher — and the same three buttons are on both
+screens.
 
 ```
-  ┌─ Ask a question ────────────────────────────────────────────────┐
-  │ 3 left in the paper.              Difficulty ▾ Easy (4)         │
-  ├─────────────────────────────────────────────────────────────────┤
-  │ ▸ Q07  easy · Words in Context · 55s                 [Ask this] │
-  │        The ______ nature of the tracks makes motocross exciting.│
-  │ ▾ Q11  easy · Transitions · has a passage · 55s      [Ask this] │
-  │        Which choice completes the text with the most logical…   │
-  │   ┌───────────────────────────┬───────────────────────────────┐ │
-  │   │ As early as 1975, Ben     │ Which choice completes the    │ │
-  │   │ Yamamoto studied the      │ text with the most logical    │ │
-  │   │ reduction in cavities…    │ transition?                   │ │
-  │   │                           │  A  However,                  │ │
-  │   │ easy · Transitions · 55s  │  B  For example,              │ │
-  │   │                           │  C  Therefore,                │ │
-  │   │                           │  D  Similarly,                │ │
-  │   │                           │ [Show the answer]             │ │
-  │   └───────────────────────────┴───────────────────────────────┘ │
-  └─────────────────────────────────────────────────────────────────┘
+  STUDENT'S SCREEN                        TEACHER'S CONSOLE
+  ────────────────                        ─────────────────
+  ┌──────────────────────────────┐        ┌──────────────────────────┐
+  │ 07  of 20        ⏱ 0:41  ABC │        │ The test                 │
+  │                              │        │ Easy         7 asked · 20│
+  │ Which choice completes the…  │        │ ████████░░░░░░░░░░░░░░░░ │
+  │  A  gentle                   │        │                          │
+  │  B  diverse                  │        │ BATU is working through  │
+  │  C  ordinary                 │        │ the easy test one        │
+  │  D  static                   │        │ question at a time.      │
+  │                              │        │                          │
+  │  [ Next ]                    │        │ ┌──────┬────────┬──────┐ │
+  │ ─────────────────────────────│        │ │ Easy │ Medium │ Hard │ │
+  │ You are on the easy test     │        │ └──────┴────────┴──────┘ │
+  │  [Switch to medium] [ …hard] │        └──────────────────────────┘
+  └──────────────────────────────┘
 ```
 
-A row opens because two lines of stem is not a question. Half the bank hangs
-off a passage the stem does not repeat, and *"Which choice completes the text?"*
-says nothing at all on its own — a teacher cannot judge whether it is the right
-next question without reading the thing itself. Opened, it is the same
-`QuestionView` the student's screen and the printed paper use, so what the
-teacher reads while deciding is what the student will meet.
+Moving does three things, in one transaction:
 
-The key sits behind a second click rather than being on by default. A teacher
-who wants it is one press away, and a teacher sharing their screen on the call
-has not just put the answer on it.
+* the question on screen is **voided** — they were being timed on it and did not answer it, and
+  `voided` is the state that already means exactly that;
+* the rest of the level they are leaving is **deleted** — those rows were never in front of the
+  student, they carry nothing, and a voided row nobody saw is noise on the board and in the
+  report;
+* the new level's questions are staged after the ones already there, **skipping any question this
+  session has already asked**, and its first is published.
 
-This is what the suggestion engine above was always for. "Drop one level — rebuild fluency
-before speed" is advice nobody could take while the running order was fixed before the lesson
-started: a student who could not do the easy one was handed the medium one anyway, and then the
-hard one, and the teacher watched three failures where they meant to stay put and re-teach.
+That last clause is what makes the downward move safe. "Drop one level — rebuild fluency before
+speed" is the oldest suggestion in the product and it never had anywhere to be acted on; now it
+does, and a student sent back to easy is not handed the two easy questions they already did.
 
 Three things do not change, and they are the ones that matter:
 
 * **The server still holds the line.** Exactly one item is `published` at a time and everything
-  else is `staged`, which is invisible under RLS. A teacher-paced session is not a client
-  showing fewer questions — it is a server having published fewer. So the per-question clock
-  means what it meant before, and there is still no reading ahead.
-* **The hold is part of the test.** Between questions the student's screen stays full and
-  leaving it still ends the paper. A wait you can walk out of and back into is not a held test.
+  else is `staged`, which is invisible under RLS. Loading twenty questions is not putting twenty
+  questions in front of the student — it is putting one in front of them and nineteen out of
+  reach. So the per-question clock means what it meant before, and there is still no reading
+  ahead.
+* **Leaving still ends the test.** The screen stays full while a question is open, and walking
+  out submits what they have. A test you can leave and come back to is not a test.
 * **Nothing about the reveal moves.** The student learns the result when the teacher publishes
   the results, exactly as before.
 
-Since the teacher may ask question 11 before question 4 and may never ask question 4 at all,
-`sequence_no` stops being the order anything happened in. It stays what it was — the question's
-place in the paper — and `asked_no` records the order questions were actually put in front of
-the student. The board, the student's own numbering and the report all read that one.
+Since a session that moves levels does not ask its questions in the order they sit in,
+`sequence_no` is not the order anything happened in. It stays what it was — where the question
+sits in this session's run of items — and `asked_no` records the order questions were actually
+put in front of the student. The board and the report both read that one.
 
-The pacing can be switched mid-session, which is the case it earns its keep in: a teacher three
-questions into a paper who can see it is not going to work takes hold of it without abandoning
-the session and building another.
+The student's own numbering reads neither: it counts **within the level**, so a student moved to
+medium after six easy questions is on "question 1 of 20", not "question 7". The length of the
+level they are on lives on `sessions.level_size`, because staged items are invisible to them and
+they have no way to count it for themselves.
 
 ## After the session
 
@@ -190,8 +181,8 @@ The transcript is uploaded later (usually same day) and the report pipeline take
 | Situation | Handling |
 | --- | --- |
 | Student's connection drops mid-question | State is server-side; on reconnect they resume at the same item with the timer adjusted for the gap (`disconnected_ms` tracked via presence) |
-| Teacher publishes the wrong item | Unpublish while `status = published` and unanswered; the row is voided, not deleted, and excluded from the report |
+| Level moved by mistake | Move it back. The question that was open is voided and excluded from the report; nothing already answered is touched, and no question is repeated |
 | Student answers by accident | Teacher can void a single item with a reason; voided items are visible on the board but never enter the report |
-| Session runs over the queue | Teacher searches the bank live; the same filters, one click to publish directly |
+| Student finishes a whole level | The end-of-test screen offers the move up, so the session continues on the next level rather than stopping |
 | Realtime drops | 10s poll fallback while the session is `live` |
 | Teacher forgets to diagnose | Board shows undiagnosed items amber; a prompt appears on End Session. Never blocking — an incomplete report beats a teacher fighting a modal in front of a student |

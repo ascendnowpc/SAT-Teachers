@@ -89,10 +89,10 @@ function byWeakness(a: Band, b: Band): number {
 /**
  * The order the lesson actually ran in.
  *
- * Under teacher pacing the questions are not asked in the order the paper
- * holds them — that is the point of it — so the report follows asked_no where
- * there is one. A session the paper paced itself has the two numbers equal, so
- * this is the old ordering there.
+ * A session that moves levels does not ask its questions in the order they sit
+ * in — the easy test's first six, then the medium test's twenty — so the report
+ * follows asked_no where there is one. Within a single level the two numbers
+ * are equal, so this is the plain ordering there.
  */
 export function askOrder(i: SessionItem): number {
   return i.asked_no ?? i.sequence_no

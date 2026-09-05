@@ -5,7 +5,7 @@ Reading & Writing module over Zoom, one question at a time, the student thinking
 transcript is the best description we have of what this product is for, so it is in the database as
 data rather than sitting in a folder as a document.
 
-`supabase/migrations/0012_recorded_session.sql` seeds it: the paper as a reusable pre-test, a
+`supabase/migrations/0012_recorded_session.sql` seeds it: the paper as a reusable set, a
 completed session, every answer with the time it took, the teacher's diagnosis on each, her note,
 the student's own reasoning, and her closing summary. Open the session and its report is that
 session's own numbers.

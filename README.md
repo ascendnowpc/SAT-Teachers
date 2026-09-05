@@ -20,47 +20,55 @@ npm run dev                                    # http://localhost:5173
 | **Signup** | Direct, for teachers and students. Each person gets a readable ID (see below) |
 | **Login** | Email + password |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
-| **Papers** | The bank opens on the source papers, not 66 loose items — click one and read it as printed |
-| **Difficulty** | Easy / medium / hard, plus an optional note on *why* it sits at that level |
+| **Three tests** | English is easy, medium and hard — twenty questions each, read as printed |
+| **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
-| **Sessions** | Schedule with a student and a time; build the paper up front; the student sits it themselves |
-| **Paper builder** | The bank shown whole — passage, stem, all four choices — ticked into a paper and dragged into order |
+| **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
+| **The level** | The session starts on easy; the student or the teacher moves it while it runs |
 | **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
 | **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
-| **Tests** | Build a paper once, use it with every student |
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
 | **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
 | **Transcript** | Drop in the Fathom recording; it lines up against the questions and is read back as findings |
-| **Loaded bank** | Both English diagnostics — 66 items with passages, keys, sections and difficulty |
+| **Loaded bank** | 86 items with passages, keys, sections and difficulty; 60 of them in the three tests |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
-## The English bank
+## English is three tests
 
-Both English diagnostics are in the bank already — 66 published items, each with its passage,
-four options, the correct option, an explanation, its SAT section, its skill from the teachers'
-evaluation grid, and a difficulty with the reasoning behind it.
+Easy, medium and hard. Sixty published items, twenty in each, every one with its passage, four
+options, the correct option, an explanation, its SAT section, its skill from the teachers'
+evaluation grid, and **a sentence saying why it sits at that level**.
 
-| Paper | Items | Source refs | Migration |
+| Test | Items | Source refs | Migration |
 | --- | --- | --- | --- |
-| In-class *Reading and Writing – 25Q* | 25 | `ENG-DIAG-INCLASS-Q01` … `Q25` | `0008` |
-| *English Diagnostic Test 4*, Module 1 | 20 | `ENG-DIAG-T4-M1-Q01` … `Q25` | `0009` |
-| *English Diagnostic Test 4*, Module 2 | 21 | `ENG-DIAG-T4-M2-Q01` … `Q26` | `0009`, `0012` |
+| **English — Easy** | 20 | `ENG-DIAG-T4-M1-Q01` … `Q25` | `0009`, filed by `0026` |
+| **English — Medium** | 20 | `ENG-DIAG-MEDIUM-Q01` … `Q27` | `0026` |
+| **English — Hard** | 20 | `ENG-DIAG-T4-M2-Q02` … `Q26` | `0009`, filed by `0026` |
 
-The in-class paper came with an answer key; **seven of its printed answers disagreed with their
-own passage** and the bank carries the answer the text supports instead. Test 4 is a deck of
-Bluebook screenshots with no text and no key at all, so every item was transcribed off the
-screenshots and keyed here. Both sets of decisions are listed item by item in
+The grouping is the teachers' own, taken from the level document they marked up. It replaced the
+per-item difficulty labels the items were transcribed with, which disagreed with the teachers'
+sorting on about half of them — so `questions.difficulty` is now the test an item is in, and
+`questions.difficulty_rationale` explains that placement item by item. It is not decoration: it is
+the sentence a teacher reads when deciding whether to move a student up.
+
+The item numbers are each test's own and are not contiguous — the medium test runs 1, 2, 3, 6, 7,
+… — because renumbering them would make a teacher's "look at 19" mean two different questions.
+
+The bank also still holds the in-class *Reading and Writing – 25Q* diagnostic (`0008`) and one
+Test 4 item the level document does not use. They are under **All questions**, they are not in any
+test, and no session can run them. The in-class paper came with an answer key and **seven of its
+printed answers disagreed with their own passage**; the bank carries the answer the text supports
+instead, listed item by item in
 [`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md).
 
 ### Reading one as a paper
 
-`/questions` opens on **Papers** — the three source documents rather than the items inside them.
-Opening one prints it: the directions block at the top, each passage set once above the questions
-that hang off it, the choices as the paper's own `A)`–`D)` run, and the paper's own numbering
-(Test 4 skips numbers, and renumbering them would make a teacher's "look at 17" mean two
-different questions). The answers are a toggle and start hidden — a key on screen while a teacher
-is talking a student through a question is a key read out by accident. **Print** gives them the
-paper on paper.
+`/tests` lists the three, and `/questions` opens on the same three. Opening one prints it: the
+directions block at the top, each passage set once above the questions that hang off it, the
+choices as the paper's own `A)`–`D)` run, and the test's own numbering. The answers are a toggle
+and start hidden — a key on screen while a teacher is talking a student through a question is a
+key read out by accident. Under each answer is why the item is at this level. **Print** gives them
+the paper on paper.
 
 The tabs and tables the papers print are stored as text in the bank, so both the paper view and
 the student's screen parse a stored passage back into what the paper set: paragraphs, the
@@ -68,9 +76,9 @@ the student's screen parse a stored passage back into what the paper set: paragr
 student sees the same passage, the same stem and the same four choices the paper prints —
 `apps/web/src/lib/paper.ts` is the one place that decides what that looks like.
 
-`question_sets` is the paper — the same object the pre-tests are built from, so a paper a teacher
-reads is a paper they can run. Migration `0015` registers the three source papers with their
-directions and their order.
+`question_sets` is the test — the same object a session loads a level from, so a test a teacher
+reads is the test their student sits. Migration `0026` registers the three with their level,
+their directions and their order.
 
 Every item is fully labelled: section, skill (all eleven of the grid's Skill Focus rows) and
 level. A skill belongs to exactly one section and the database checks the pair, so an item cannot
@@ -99,21 +107,20 @@ screen that must not stall mid-test. Paths are random UUIDs, so an image is *unl
 than secret — the standing of an unlisted document. No answer key is in the picture. Writing to
 the bucket is teacher-only.
 
-### Papers and tests
+### There are three tests, and that is the number
 
-`question_sets` holds both, told apart by `kind` rather than by inference:
+`question_sets.level` is what makes one of them a level: `easy`, `medium` or `hard`, unique per
+subject among the active sets, and the column a session looks a test up by. Matching on a title
+would have been a bug waiting for a rename.
 
-| | `kind = 'paper'` | `kind = 'test'` |
-| --- | --- | --- |
-| What it is | A paper in the bank — questions are **written into** it | A paper **assembled** from questions that already exist |
-| Where | Under **Questions** | Under **Tests** |
-| How it grows | *Add question* writes a new one onto the end | *Choose questions* picks from the bank |
-| Examples | The three diagnostics; "English Module 3" | "Diagnostic — first session" |
+Everything else that was ever a set is deactivated rather than deleted — the three source papers
+the bank was loaded from, and any test a teacher assembled by hand under the old flow. Their rows
+and their items are still there, so a report of a session that ran off one still resolves; what
+they are not is runnable, because a session runs a level.
 
-Both are an ordered list of questions, which is why they are one table. A teacher makes a paper
-with **New paper** on the Questions tab, opens it, and writes questions into it — the New Question
-form arrives at `/questions/new?paper=<id>` and files the question there on save. Every question
-on a paper carries an **Edit** link, so a typo is fixed where you found it.
+Adding a question to a level is the same form as writing any other: **Add question** on an open
+test arrives at `/questions/new?paper=<id>` and files it onto the end. Every question carries an
+**Edit** link, so a typo is fixed where you found it.
 
 ## Identity codes
 
@@ -142,68 +149,66 @@ failing the signup.
 
 ## How a session runs
 
-The work is done before the day, not on the call.
+There is nothing to prepare.
 
-**The teacher** creates a session with a student and a time, then builds the paper at
-`/sessions/:id/paper`: the bank on the left as the papers it came from, every question shown
-whole — its passage, its stem and all four choices — with a tick box on each and an **Add all**
-on each passage. Ticked questions land in the list on the right, which is the order the student
-will meet them in; drag a row to move it, or use the arrows. Save, and the teacher is done.
+**The teacher** creates a session with a student and a time, and that is the whole of their side
+of it. No paper to build, nothing to stage, nothing to hand over during the lesson.
 
-**Routes.** Every screen is a place: `/tests`, `/tests/new`, `/tests/:id` (read it),
-`/tests/:id/edit` (change it), `/questions/papers/:id`, `/sessions/:id/paper`. Opening a test
-shows the paper with an **Edit** button rather than dropping into the builder — you read it
-first, and edit it if you meant to. The exam is `/exam/:id`, deliberately outside the app shell:
-a student sitting a paper should see the paper and nothing else.
+**The student** opens the session themselves once its time has passed, and the **easy test**
+loads for them: twenty questions, one on screen at a time, each with its own clock. They answer,
+press **Next**, and the next one appears.
+
+**The level moves when it is wrong.** The teacher is the one who decides — they are watching the
+work and can see when it is too easy — and both screens carry the same three buttons, because on
+a call it is usually quicker for the student to click than for the teacher to switch windows.
+Moving loads that test and opens its first question. The question that was on screen is left
+unanswered and recorded as such, and a question already asked is never asked again, even coming
+back down. Easy → medium → hard is the path; the other direction works too, because "drop one
+level — rebuild fluency before speed" is a real instruction and had nowhere to be acted on.
+
+**Routes.** Every screen is a place: `/tests` (the three), `/tests/:id` (read one),
+`/questions` (the bank), `/sessions/:id` (the console). The exam is `/exam/:id`, deliberately
+outside the app shell: a student sitting a test should see the test and nothing else.
 
 **Times are UTC**, everywhere and always — written on the schedule form, printed on every
 session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
 and a student in Dubai have to mean the same moment by "half four", and rendering each browser's
 own zone meant they did not. `apps/web/src/lib/time.ts` is the only place that formats one.
 
-When the results are published the student gets the whole paper back, not a list of letters:
+When the results are published the student gets the whole test back, not a list of letters:
 every question as they met it, their answer and the right one marked on the choices, and the
 explanation underneath. The key is not in a student's reach — `question_keys` is teacher-only —
 so it comes from what the reveal copied onto their own item row.
 
-**The student** sees the session on their list with a countdown. Once the scheduled time passes
-the **Start** button turns on — no one has to let them in. They then work through the paper one
-question at a time, each with its own clock, and submitting moves them on. They cannot go back.
+The student sees the session on their list with a countdown. Once the scheduled time passes the
+**Start** button turns on — no one has to let them in.
 
-The paper runs full screen, asked for inside the click that starts it — the only moment a browser
+The test runs full screen, asked for inside the click that starts it — the only moment a browser
 grants it. Leaving full screen is not blocked (no browser allows that, and none should), so it is
 treated as what it is: the screen asks them to come back or to finish.
 
 Nor can they wander off: while a question is open, the browser's back button and a refresh are
-both caught, and leaving is a decision the screen asks about first. Saying yes submits the paper
+both caught, and leaving is a decision the screen asks about first. Saying yes submits the test
 as it stands — `finish_session_as_student` completes the session and voids every question they
 never answered, including the one on screen. A test you can leave and come back to is not a test,
 and the per-question clock would mean nothing.
 
 **Afterwards** the teacher presses **Publish results** once: every answered question is revealed
 to the student and the report is published in the same action. Whether the student learns how
-they did is one decision about the paper, not twenty-six decisions about twenty-six questions.
+they did is one decision about the session, not twenty decisions about twenty questions.
 Diagnoses are still per question — that is the teacher's judgement, and it is what the report is
-built out of — but they can be tapped as soon as an answer lands rather than only after a reveal. The console shows the paper as a single box — saved, or how far through
-the student is — rather than a card per question: there is nothing to do to any one of them from
-there, and twenty-six cards is a wall to scroll past.
+built out of — but they can be tapped as soon as an answer lands rather than only after a reveal.
+The console shows the level as a single box, with the three buttons that change it, rather than a
+card per question: there is nothing to do to any one of them from there, and twenty cards is a
+wall to scroll past.
 
 One question is in front of the student at a time and it is the *server* that holds that line:
-only the current item is published, and the next one is published by `submit_answer` once the
-current one is answered. So the clock on question 3 cannot be spent reading question 4 — question
-4 is not in reach yet. That is also why the length lives on `sessions.question_count`: the
-student is shown "question 3 of 25" and has no way to count the paper for themselves.
-
-**Why tests exist.** A session's paper belongs to one student on one day. A *test* is a paper you
-intend to use again — build it once at `/tests`, and it appears on the session builder's shelf
-above the source papers with a **Take all** button, so the next student's session is one click
-rather than twenty-five ticks. Two students who sat the same test have comparable reports; two
-students whose papers were assembled by hand do not.
-
-Both are rows in `question_sets` and the builder is the same screen — a test is just a paper you
-saved. What tells them apart is `source_ref`: a paper that came in with the bank has one and is
-filed under **Questions**; a test a teacher assembled has none and is filed under **Tests**.
-Neither list shows the other's rows.
+only the current item is `published` and everything else is `staged`, which is invisible under
+RLS. The next one is published by `submit_answer` once the current one is answered. So loading
+twenty questions on a level move is not putting twenty questions in front of the student — it is
+putting one in front of them and nineteen out of reach, and the clock on question 3 cannot be
+spent reading question 4. That is also why the length lives on `sessions.level_size`: the student
+is shown "question 3 of 20" and has no way to count the test for themselves.
 
 ## Speed
 
@@ -262,21 +267,28 @@ in full.
 ## The session workflow
 
 ```
-teacher creates a session with a student and a time
-  → builds the paper: ticks questions, drags them into order, saves
-                                          (invisible to the student)
+teacher creates a session with a student and a time      (nothing else to do)
   → the scheduled time passes
-  → student opens the session themselves; question 1 is published to them
-  → student crosses out options, answers, says how sure and why
-  → answering publishes the next question; repeat to the end of the paper
+  → student opens the session themselves
+  → the EASY test loads; question 1 is published to them
+  → student crosses out options, answers, says how sure
+  → Next → answering publishes the next question; repeat
   → teacher sees each answer, the eliminations, the time and the confidence
-  → teacher reveals                       (only now does the student learn the result)
-  → teacher taps one diagnosis chip; the system suggests the next move
+
+  → too easy?     either of them presses Medium
+                  the open question is voided, the rest of easy is dropped,
+                  medium's question 1 is published
+  → about right?  nothing to press. keep going.
+  → too easy again?  press Hard
+
+  → teacher publishes the results          (only now does the student learn them)
+  → teacher taps one diagnosis chip per question; the system suggests the next move
 ```
 
 The suggestion encodes what the teachers already do — escalate on solid reasoning, hold the
 level on a lucky guess or a concept gap, drop a level when they ran out of time. It suggests;
-it never auto-advances. The teacher's judgement is the product.
+it never moves anybody. The teacher's judgement is the product, and now the three buttons that
+act on it are on both screens.
 
 ## The one rule that shapes the schema
 
@@ -294,8 +306,7 @@ only when the teacher reveals — which is the only route by which any of them r
 ```bash
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
-psql "$DATABASE_URL" -f supabase/tests/prepared_session.sql
-psql "$DATABASE_URL" -f supabase/tests/teacher_paced_session.sql
+psql "$DATABASE_URL" -f supabase/tests/level_session.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 ```
@@ -312,20 +323,21 @@ Between them these assert: a signup asking for `admin` is coerced to `student`; 
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible
-to the student. `prepared_session.sql` adds the new flow: a student cannot open a session early
-or open somebody else's, exactly one question is within their reach at a time, answering brings
-up the next in the paper's order, and a paper already with a student cannot be renumbered under
-them. `teacher_paced_session.sql` covers the other pacing: starting a teacher-paced session
-opens nothing, the teacher can hand over the paper's third question first and its first never,
-a second question is refused while the student is on one, answering brings up nothing, a student
-cannot hand themselves a question, and handing the pacing back resumes the queue.
-`opening_early.sql` covers the waiver: the scheduled time is a real gate, only the session's own
-teacher can lift it, lifting it rewrites neither `scheduled_at` nor the status, and it cannot be
-taken back once the student is in. Every row must read PASS.
+to the student. `level_session.sql` is the whole of the session flow: a student cannot open a
+session early or open somebody else's, opening loads the easy test, exactly one question is
+within their reach at a time, answering brings up the next in the test's order, moving level
+voids the question on screen and opens the new test at its first, what was already answered
+survives the move, no question is asked twice even coming back down, either seat can move it and
+a stranger cannot, and `set_session_paper` and `publish_item` are gone. `opening_early.sql`
+covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
+lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
+student is in. Every row must read PASS.
 
-The first two are written for a scratch database — they reset the display-id counters on their
-way out. `prepared_session.sql` and `teacher_paced_session.sql` leave them alone and are safe to
-run against a real one.
+`rls_contract.sql` and `session_flow.sql` are written for a scratch database — they reset the
+display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
+count rows read FAIL against a database the content migrations have been run on.
+`level_session.sql` and `opening_early.sql` leave the counters alone and are safe against a real
+one; `level_session.sql` needs the three tests loaded (`0026`).
 
 ## Layout
 

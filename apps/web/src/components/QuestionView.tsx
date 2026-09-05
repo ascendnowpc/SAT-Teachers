@@ -9,10 +9,9 @@ import type { OptionLabel, Question } from '../lib/types'
  *
  * The teachers read these screens against the test their students sit, so a
  * question should not look like one thing in the bank and another in the exam.
- * This is that one shape — the bank card, the paper builder, the ordering view
- * and the printed paper all mount it, and the only thing they vary is what
- * sits in the header bar (a tick box, a drag handle, a position) and what
- * follows the choices.
+ * This is that one shape — the bank card, the printed test and the student's
+ * own screen all mount it, and the only thing they vary is what sits in the
+ * header bar and what follows the choices.
  *
  * Its labels — level, section, skill — go under the stimulus rather than over
  * the question, because a stimulus rarely fills its half and the choices ought

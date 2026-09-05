@@ -6,24 +6,24 @@ import { Notice, Passage } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { clock, openState } from '../lib/countdown'
 import { formatUtcLong } from '../lib/time'
-import { OPTION_LABELS, subjectLabel } from '../lib/constants'
+import { LEVELS, OPTION_LABELS, levelLabel, nextLevel, subjectLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
-import type { OptionLabel, Session, SessionItem } from '../lib/types'
+import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/types'
 
 /**
- * The student's screen: a lobby, then the paper, one question at a time.
+ * The student's screen: a lobby, then a test, one question at a time.
  *
- * At the scheduled time the student opens the session themselves, and from
- * then on exactly one question is in front of them — and it is there because
- * the server published it, not because this screen decided to show it. Which
- * is what makes the clock on each question honest: there is no way to read
- * ahead while it runs.
+ * The test is one of three — easy, medium, hard — and the session opens on the
+ * easy one. From then on exactly one question is in front of them, and it is
+ * there because the server published it, not because this screen decided to
+ * show it. Which is what makes the clock on each question honest: there is no
+ * way to read ahead while it runs.
  *
- * What arrives next depends on how the session is paced. Left to the paper,
- * the next question comes the moment this one is answered. Paced by the
- * teacher, it comes when the teacher sends it — so between questions there is
- * a hold, and the hold is part of the test rather than a break from it: the
- * screen stays full and leaving it still ends the paper.
+ * The only decision on this screen besides the answer is the level. The teacher
+ * is the one who makes it — they are watching the work and they can see when it
+ * is too easy — and this is where it gets pressed, because the student is the
+ * one at the keyboard. Moving up loads the next test and opens its first
+ * question; the one on screen is left unanswered, which the confirmation says.
  */
 export function StudentStage({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
@@ -35,8 +35,8 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   const [ending, setEnding] = useState(false)
 
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
-  // In the order they were asked, which under teacher pacing is not the order
-  // the paper holds them in.
+  // In the order they were asked, which after a level move is not the order the
+  // questions sit in.
   const done = useMemo(
     () =>
       items
@@ -46,26 +46,17 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   )
 
   const over = session?.status === 'completed' || session?.status === 'cancelled'
-  // Under teacher pacing the paper is a pool the teacher draws from, not a
-  // queue the student walks.
-  const teacherLed = session?.pacing === 'teacher'
-  // Live, teacher-paced, and nothing on screen: the teacher is choosing what to
-  // ask next. That is a state of the test, not the end of it — which is why it
-  // counts as being in the paper below.
-  const holding = teacherLed && !over && open === null && session?.status === 'live'
 
-  // A paper in progress is not a page you can wander off. The browser's own
-  // back button and a refresh are both caught: back is turned into the same
-  // question the screen already asks, and a refresh gets the browser's warning.
-  // The wait between questions is in progress too: a hold the student could
-  // walk out of and walk back into is not a held test.
-  const inProgress = open !== null || holding
+  // A test in progress is not a page you can wander off. The browser's own back
+  // button and a refresh are both caught: back is turned into the same question
+  // the screen already asks, and a refresh gets the browser's warning.
+  const inProgress = open !== null && !over
   const [outOfFullscreen, setOutOfFullscreen] = useState(false)
 
-  // Full screen is asked for when the paper opens and watched while it is
-  // open. It cannot be forced — every browser lets Escape out, and should —
-  // so leaving it is treated as what it is: the student is somewhere else, and
-  // is asked to come back or to finish.
+  // Full screen is asked for when the test opens and watched while it is open.
+  // It cannot be forced — every browser lets Escape out, and should — so
+  // leaving it is treated as what it is: the student is somewhere else, and is
+  // asked to come back or to finish.
   useEffect(() => {
     if (!inProgress) return
     const onChange = () => setOutOfFullscreen(document.fullscreenElement === null)
@@ -107,20 +98,18 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  // They are not told the paper's length under teacher pacing, because how much
-  // of it they will be asked is not decided yet.
-  const total = teacherLed ? null : Math.max(session.question_count, items.length)
-  // The order questions actually arrived in. Under teacher pacing that is not
-  // their place in the paper — question 11 may come before question 4, and
-  // question 4 may never come at all.
-  const number = open ? (open.asked_no ?? open.sequence_no) : done.length
+  const level = session.level
+  // Numbering runs within the test they are on. A student moved to medium after
+  // six easy questions is on question 1 of the medium test, not question 7 —
+  // the medium test is twenty questions and saying so is the honest thing.
+  const doneHere = done.filter((i) => i.questions?.difficulty === level).length
+  const total = session.level_size > 0 ? session.level_size : null
+  const number = open ? doneHere + 1 : doneHere
 
-  const finished = !open && !holding && done.length > 0
-  // Nothing open and nothing answered means the paper is still waiting to be
+  const finished = !open && done.length > 0
+  // Nothing open and nothing answered means the test is still waiting to be
   // started — whether or not the teacher has already flipped the session live.
-  // Keying this off the status alone stranded a student on a live session with
-  // a full queue and no way to open it.
-  const waiting = !open && !holding && !finished && !over
+  const waiting = !open && !finished && !over
 
   return (
     <div className="exam">
@@ -142,11 +131,11 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           )}
           <span>
             {session.title || `${subjectLabel(session.subject)} session`}:{' '}
-            <strong>{subjectLabel(session.subject)}</strong>
+            <strong>{levelLabel(level)}</strong>
           </span>
         </div>
 
-        {open && (total === null ? number > 0 : total > 0) && (
+        {open && (
           <div className="exam-progress-plain">
             Question {number}
             {total !== null && ` of ${total}`}
@@ -178,9 +167,8 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           <div className="leave-box">
             <h2>Back to full screen</h2>
             <p>
-              {open
-                ? `This is a test, so it runs full screen. Your clock is still running on question ${number}.`
-                : 'This is a test, so it runs full screen. Your teacher is choosing your next question — go back in and it will appear.'}
+              This is a test, so it runs full screen. Your clock is still running on question{' '}
+              {number}.
             </p>
             <div className="leave-actions">
               <button
@@ -204,19 +192,8 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           <div className="leave-box">
             <h2 id="leave-title">Leave the test?</h2>
             <p>
-              {total === null ? (
-                <>
-                  Your test will be submitted as it stands, with the {done.length} question
-                  {done.length === 1 ? '' : 's'} you have answered. Your teacher cannot send you any
-                  more once you leave, and you cannot come back.
-                </>
-              ) : (
-                <>
-                  Your test will be submitted as it stands. The {total - done.length} question
-                  {total - done.length === 1 ? '' : 's'} you have not answered will be marked as not
-                  attempted, and you cannot come back to them.
-                </>
-              )}
+              Your test will be submitted as it stands, with the {done.length} question
+              {done.length === 1 ? '' : 's'} you have answered. You cannot come back to it.
             </p>
             <div className="leave-actions">
               <button
@@ -227,12 +204,7 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
               >
                 Keep going
               </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={ending}
-                onClick={() => void leave()}
-              >
+              <button type="button" className="btn" disabled={ending} onClick={() => void leave()}>
                 {ending ? 'Submitting…' : 'Submit and leave'}
               </button>
             </div>
@@ -241,13 +213,18 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
       )}
 
       {open ? (
-        <ItemPane key={open.id} item={open} number={number} total={total} onChanged={reload} />
-      ) : holding ? (
-        <Holding session={session} answered={done.length} />
+        <ItemPane
+          key={open.id}
+          item={open}
+          number={number}
+          total={total}
+          session={session}
+          onChanged={reload}
+        />
       ) : waiting ? (
         <Lobby session={session} onStarted={reload} />
       ) : finished ? (
-        <Finished items={done} />
+        <Finished session={session} items={done} onChanged={reload} />
       ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
@@ -259,34 +236,99 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
   )
 }
 
-/* ------------------------------------------------------------- holding --- */
+/* --------------------------------------------------------------- levels --- */
 
 /**
- * Between questions, when the teacher is choosing the next one.
+ * Moving to another test.
  *
- * It says nothing about what is coming, because the student is not supposed to
- * know and the screen genuinely does not: nothing is published, so under RLS
- * there is nothing here to leak. What it does say is that the wait is normal
- * and that the next question arrives on its own — a student who thinks the
- * page has hung starts reloading it, and a reload during a paper is the one
- * thing this screen spends its effort preventing.
+ * Three buttons rather than one "next level", because the move that is not up
+ * is the one nobody ever built a button for: a student who cannot do the easy
+ * questions is not helped by being marched into the medium ones, and dropping
+ * back is a real instruction a teacher gives.
+ *
+ * The confirmation exists for one reason — the question on screen is being
+ * timed and moving level abandons it — so it says that, and it does not appear
+ * when there is nothing open to abandon.
  */
-function Holding({ session, answered }: { session: Session; answered: number }) {
-  const teacher = session.teacher?.full_name?.split(' ')[0] ?? 'Your teacher'
+function LevelSwitch({
+  session,
+  abandons,
+  onChanged,
+}: {
+  session: Session
+  /** A question is open and would be left unanswered by the move. */
+  abandons: boolean
+  onChanged: () => Promise<void>
+}) {
+  const [asking, setAsking] = useState<SessionLevel | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function move(to: SessionLevel) {
+    setBusy(true)
+    setErr(null)
+    // Inside the click, which is the only moment a browser grants it — the
+    // student may be coming back from the end of a test, where the screen let
+    // full screen go.
+    await document.documentElement.requestFullscreen?.().catch(() => {})
+    const { error } = await supabase.rpc('set_session_level', {
+      p_session: session.id,
+      p_level: to,
+    })
+    if (error) setErr(error.message)
+    await onChanged()
+    setBusy(false)
+    setAsking(null)
+  }
+
+  const others = LEVELS.filter((l) => l !== session.level)
 
   return (
-    <div className="exam-wait">
-      <div className="ring" aria-hidden="true" />
-      <h2>{answered === 0 ? 'Your teacher is starting you off' : 'Hold on a moment'}</h2>
-      <p>
-        {answered === 0
-          ? `${teacher} chooses each question in this session. The first one appears here as soon as they send it.`
-          : `That one is in. ${teacher} is choosing what to ask next — it appears here on its own, so stay on this screen.`}
-      </p>
-      {answered > 0 && (
-        <p className="exam-when">
-          {answered} question{answered === 1 ? '' : 's'} answered
-        </p>
+    <div className="level-switch">
+      {err && <Notice kind="error">{err}</Notice>}
+
+      <div className="level-switch-row">
+        <span className="level-switch-label">
+          You are on the <strong>{levelLabel(session.level).toLowerCase()}</strong> test
+        </span>
+        {others.map((l) => (
+          <button
+            key={l}
+            type="button"
+            className={`btn btn-sm ${l === nextLevel(session.level) ? 'btn-navy' : 'btn-ghost'}`}
+            disabled={busy}
+            onClick={() => (abandons ? setAsking(l) : void move(l))}
+          >
+            Switch to {levelLabel(l).toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      {asking && (
+        <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="switch-title">
+          <div className="leave-box">
+            <h2 id="switch-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
+            <p>
+              The question on your screen will be left unanswered, and the rest of the{' '}
+              {levelLabel(session.level).toLowerCase()} test goes away. You start at question 1 of
+              the {levelLabel(asking).toLowerCase()} test.
+            </p>
+            <div className="leave-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                disabled={busy}
+                onClick={() => void move(asking)}
+              >
+                {busy ? 'Switching…' : `Switch to ${levelLabel(asking).toLowerCase()}`}
+              </button>
+              <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
+                Stay on this question
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -301,13 +343,7 @@ function Holding({ session, answered }: { session: Session; answered: number }) 
  * refuses anything early on the server, so a student who finds the call by
  * hand gets the same answer this screen would have given them.
  */
-function Lobby({
-  session,
-  onStarted,
-}: {
-  session: Session
-  onStarted: () => Promise<void>
-}) {
+function Lobby({ session, onStarted }: { session: Session; onStarted: () => Promise<void> }) {
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -331,29 +367,15 @@ function Lobby({
     setBusy(false)
   }
 
-  const empty = session.question_count === 0
-  const teacherLed = session.pacing === 'teacher'
-
   return (
     <div className="exam-wait">
       <div className="ring" aria-hidden="true" />
-      <h2>{empty ? 'Nothing to answer yet' : state.open ? 'Ready when you are' : 'Not open yet'}</h2>
+      <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
       <p>
-        {empty ? (
-          'Your teacher has not put any questions in this session yet. This page will update on its own once they do.'
-        ) : teacherLed ? (
-          <>
-            Your teacher chooses each question and sends it to you one at a time. Each one is timed
-            from the moment it appears, and between them you wait on this screen. Once you submit an
-            answer you cannot go back to it.
-          </>
-        ) : (
-          <>
-            {session.question_count} question{session.question_count === 1 ? '' : 's'}. You answer
-            them one at a time, and each one is timed from the moment it appears. Once you submit an
-            answer you move on to the next.
-          </>
-        )}
+        You start on the {levelLabel(session.level).toLowerCase()} test and answer one question at a
+        time, each timed from the moment it appears. Once you submit an answer you move on to the
+        next one and cannot go back to it. If it turns out to be the wrong level, you can switch
+        tests while you work.
       </p>
       <p className="exam-when">
         {formatUtcLong(session.scheduled_at)} — {state.label}
@@ -364,7 +386,7 @@ function Lobby({
       <button
         type="button"
         className="btn btn-primary btn-lg"
-        disabled={!state.open || busy || session.question_count === 0}
+        disabled={!state.open || busy}
         onClick={() => void start()}
       >
         {busy ? 'Starting…' : 'Start the test'}
@@ -376,25 +398,36 @@ function Lobby({
 /* ------------------------------------------------------------ finished --- */
 
 /**
- * The paper, afterwards.
+ * The end of a test — which is not necessarily the end of the session.
  *
- * Every question as they met it — stimulus, stem, all four choices — with what
- * they picked and, once the teacher has published the results, which one was
- * right and why. A list of stems and letters told a student nothing they could
- * learn from; going back over the question is the point of going back at all.
+ * A student who has worked through the easy test and found it easy is exactly
+ * the student the medium test is for, so the move up is offered here rather
+ * than only mid-question. Underneath it, every question as they met it —
+ * stimulus, stem, all four choices — with what they picked and, once the
+ * teacher has published the results, which one was right and why. A list of
+ * stems and letters told a student nothing they could learn from.
  *
  * The key is not in the student's reach (question_keys is teacher-only), so it
  * comes from what the reveal copied onto the item itself.
  */
-function Finished({ items }: { items: SessionItem[] }) {
+function Finished({
+  session,
+  items,
+  onChanged,
+}: {
+  session: Session
+  items: SessionItem[]
+  onChanged: () => Promise<void>
+}) {
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
+  const over = session.status === 'completed' || session.status === 'cancelled'
 
   return (
     <div className="exam-done">
       <div className="exam-done-head">
-        <h2>That is the whole paper</h2>
+        <h2>That is the {levelLabel(session.level).toLowerCase()} test</h2>
         <p>
           {items.length} answered.{' '}
           {out === 0
@@ -402,6 +435,8 @@ function Finished({ items }: { items: SessionItem[] }) {
             : `You got ${right} of ${out} right.`}
         </p>
       </div>
+
+      {!over && <LevelSwitch session={session} abandons={false} onChanged={onChanged} />}
 
       {items.map((it) =>
         it.questions ? (
@@ -414,7 +449,9 @@ function Finished({ items }: { items: SessionItem[] }) {
               chosen={it.selected_option}
               header={
                 it.status === 'revealed' ? (
-                  <span className={`badge ${it.revealed_result === 'correct' ? 'badge-ok' : 'badge-bad'}`}>
+                  <span
+                    className={`badge ${it.revealed_result === 'correct' ? 'badge-ok' : 'badge-bad'}`}
+                  >
                     {it.revealed_result === 'correct' ? 'Right' : 'Wrong'}
                   </span>
                 ) : (
@@ -443,13 +480,15 @@ function ItemPane({
   item,
   number,
   total,
+  session,
   onChanged,
 }: {
   item: SessionItem
-  /** Where this question came in the session, which is not always its place in the paper. */
+  /** Where this question came in the test the student is on. */
   number: number
-  /** How long the paper is, or null when the teacher is choosing and it is not the student's to know. */
+  /** How long that test is, or null before the server has said. */
   total: number | null
+  session: Session
   onChanged: () => Promise<void>
 }) {
   const [selected, setSelected] = useState<OptionLabel | null>(item.selected_option)
@@ -512,6 +551,8 @@ function ItemPane({
     setBusy(false)
   }, [selected, struck, confidence, item.id, onChanged])
 
+  const last = total !== null && number >= total
+
   return (
     <div className="exam-body">
       <section className="exam-stimulus">
@@ -553,7 +594,10 @@ function ItemPane({
             const isSel = selected === o.label
 
             return (
-              <div key={o.id} className={`ch ${isSel ? 'selected' : ''} ${isStruck ? 'struck' : ''}`}>
+              <div
+                key={o.id}
+                className={`ch ${isSel ? 'selected' : ''} ${isStruck ? 'struck' : ''}`}
+              >
                 <button
                   type="button"
                   className="ch-main"
@@ -604,15 +648,11 @@ function ItemPane({
             disabled={!selected || busy}
             onClick={() => void submit()}
           >
-            {busy
-              ? 'Sending…'
-              : selected
-                ? `Submit ${selected} and go on`
-                : 'Pick an answer'}
+            {busy ? 'Sending…' : !selected ? 'Pick an answer' : last ? 'Finish the test' : 'Next'}
           </button>
-          <p className="exam-lock">
-            You cannot come back to a question once you have submitted it.
-          </p>
+          <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
+
+          <LevelSwitch session={session} abandons onChanged={onChanged} />
         </div>
       </section>
     </div>

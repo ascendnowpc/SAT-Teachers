@@ -12,7 +12,8 @@
 --    * a student cannot waive their own clock, and neither can a stranger
 --    * the waiver does not rewrite scheduled_at — the arrangement stands
 --    * nor does it touch status; the student is still the one who starts
---    * after it, the student starts and the first question is really published
+--    * after it, the student starts and the easy test's first question is
+--      really published
 --    * and it cannot be taken back once they are in
 --
 --  Every row must read PASS. Cleans up after itself, and is safe to run
@@ -26,7 +27,7 @@ declare
   t_id uuid := gen_random_uuid();
   s_id uuid := gen_random_uuid();
   o_id uuid := gen_random_uuid();          -- a second student, not on the session
-  qa uuid; sess uuid; n int; txt text; v_sched timestamptz;
+  sess uuid; n int; txt text; v_sched timestamptz;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -42,19 +43,15 @@ begin
      'early.other@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
 
-  -- ============ TEACHER: a one-question session, three hours off ============
+  -- ============ TEACHER: a session three hours off ============
+  -- There is nothing to prepare — the easy test loads when the student opens
+  -- it — so this is the whole of the teacher's side.
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
-
-  qa := create_question('english','craft_and_structure', null, 'Early Q?',
-        'easy'::difficulty_level, null,
-        '[{"label":"A","body":"one"},{"label":"B","body":"two"}]'::jsonb,
-        'B'::answer_option, null);
 
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
   values (t_id, s_id, 'english', now() + interval '3 hours')
   returning id into sess;
-  n := set_session_paper(sess, array[qa]);
   execute 'reset role';
 
   -- ============ the gate is real ============
@@ -119,9 +116,8 @@ begin
   execute 'reset role';
 
   -- Cleanup. The serial numbers the three accounts consumed stay consumed; see
-  -- the note in prepared_session.sql for why they are not rewound.
+  -- the note in level_session.sql for why they are not rewound.
   delete from sessions where id=sess;
-  delete from questions where created_by=t_id;
   delete from auth.users where id in (t_id,s_id,o_id);
 end $fn$;
 
