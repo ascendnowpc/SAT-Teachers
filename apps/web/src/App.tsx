@@ -5,7 +5,6 @@ import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
 import { QuestionNew } from './pages/QuestionNew'
 import { ReportEdit } from './pages/ReportEdit'
-import { Tests } from './pages/Tests'
 import { Paper } from './pages/Paper'
 import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
@@ -50,7 +49,6 @@ export function App() {
             <Route path="/questions" element={<Questions />} />
             <Route path="/questions/new" element={<QuestionNew />} />
             <Route path="/questions/:id/edit" element={<QuestionNew />} />
-            <Route path="/tests" element={<Tests />} />
             <Route path="/tests/:id" element={<Paper />} />
             <Route path="/sessions/:id/report/edit" element={<ReportEdit />} />
           </>

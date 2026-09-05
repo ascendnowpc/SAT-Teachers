@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconCalendar, IconClipboard, IconHome, IconLogout, IconStack } from './icons'
+import { IconCalendar, IconHome, IconLogout, IconStack } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -28,15 +28,12 @@ export function AppLayout() {
             <NavLink to="/sessions" className={cls}>
               <IconCalendar /> Sessions
             </NavLink>
+            {/* The three tests are the first thing Questions opens on, so a
+                second nav item for them would point at the same list. */}
             {isTeacher && (
-              <>
-                <NavLink to="/questions" className={cls}>
-                  <IconStack /> Questions
-                </NavLink>
-                <NavLink to="/tests" className={cls}>
-                  <IconClipboard /> Tests
-                </NavLink>
-              </>
+              <NavLink to="/questions" className={cls}>
+                <IconStack /> Questions
+              </NavLink>
             )}
           </nav>
 

@@ -78,8 +78,8 @@ export function Paper() {
         <div className="card">
           <div className="empty">
             <h3>Not found</h3>
-            <Link className="btn btn-primary" to="/tests">
-              Back to the tests
+            <Link className="btn btn-primary" to="/questions">
+              Back to the question bank
             </Link>
           </div>
         </div>
@@ -90,7 +90,7 @@ export function Paper() {
   return (
     <div className="page page-wide">
       <div className="page-head paper-head">
-        <Link className="paper-back" to="/tests" aria-label="Back to tests">
+        <Link className="paper-back" to="/questions" aria-label="Back to the question bank">
           <IconBack />
         </Link>
         <div>

@@ -20,7 +20,7 @@ npm run dev                                    # http://localhost:5173
 | **Signup** | Direct, for teachers and students. Each person gets a readable ID (see below) |
 | **Login** | Email + password |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
-| **Three tests** | English is easy, medium and hard — twenty questions each, read as printed |
+| **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
@@ -63,7 +63,7 @@ instead, listed item by item in
 
 ### Reading one as a paper
 
-`/tests` lists the three, and `/questions` opens on the same three. Opening one prints it: the
+`/questions` opens on the three. Opening one prints it: the
 directions block at the top, each passage set once above the questions that hang off it, the
 choices as the paper's own `A)`–`D)` run, and the test's own numbering. The answers are a toggle
 and start hidden — a key on screen while a teacher is talking a student through a question is a
@@ -166,9 +166,11 @@ unanswered and recorded as such, and a question already asked is never asked aga
 back down. Easy → medium → hard is the path; the other direction works too, because "drop one
 level — rebuild fluency before speed" is a real instruction and had nowhere to be acted on.
 
-**Routes.** Every screen is a place: `/tests` (the three), `/tests/:id` (read one),
-`/questions` (the bank), `/sessions/:id` (the console). The exam is `/exam/:id`, deliberately
-outside the app shell: a student sitting a test should see the test and nothing else.
+**Routes.** Every screen is a place: `/questions` (the bank, opening on the three tests),
+`/tests/:id` (read one), `/sessions/:id` (the console). There is no `/tests` list and no Tests
+nav item — Questions already opens on that list, and a second entry pointing at the same three
+rows was a menu item that told you nothing. The exam is `/exam/:id`, deliberately outside the app
+shell: a student sitting a test should see the test and nothing else.
 
 **Times are UTC**, everywhere and always — written on the schedule form, printed on every
 session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
