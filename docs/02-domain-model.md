@@ -128,6 +128,11 @@ lands.
 (the pasted Zoom link — no Zoom API in v1), `subject_id`, `status`
 (`scheduled` | `live` | `completed` | `cancelled`), `started_at`, `ended_at`, `teacher_notes`.
 
+Plus the one thing the session is *about*: `level` (`easy` | `medium` | `hard`, starting at
+`easy`) and `level_size`, how many questions the level holds for this session. English is three
+tests, a session is on one of them, and moving between them is the only in-session decision —
+see `docs/04-session-flow.md`.
+
 `started_at` is load-bearing: it is the wall-clock anchor that lets relative transcript
 timestamps be aligned to question attempts. See `docs/05-report-engine.md`.
 
@@ -150,9 +155,10 @@ what happened.
 | `teacher_note` | optional |
 | `revealed_result` | `correct` \| `incorrect`, `NULL` until the teacher reveals |
 
-`staged` exists so the teacher can queue questions **before** the session and publish each with
-one click during it, instead of searching the bank while the student waits. That is the
-concrete workflow win over sharing screenshots from Drive.
+`staged` exists so that a level's other nineteen questions can be *in* the session without being
+*readable*: RLS hides every item that is not published, so loading a whole test puts one question
+in front of the student and the rest out of reach. It is what makes the per-question clock mean
+something, and it is why moving a level is a server operation rather than a client one.
 
 ### Capturing *process*, not just the answer
 

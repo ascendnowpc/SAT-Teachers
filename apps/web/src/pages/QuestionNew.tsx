@@ -179,7 +179,7 @@ export function QuestionNew() {
         if (added.error) throw new Error(added.error.message)
       }
 
-      navigate(paperId ? `/questions/papers/${paperId}` : `/questions?added=${questionId}`)
+      navigate(paperId ? `/tests/${paperId}` : `/questions?added=${questionId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the question.')
     } finally {
@@ -191,7 +191,7 @@ export function QuestionNew() {
 
   return (
     <div className="page">
-      <Link className="back-link" to={paperId ? `/questions/papers/${paperId}` : '/questions'}>
+      <Link className="back-link" to={paperId ? `/tests/${paperId}` : '/questions'}>
         <IconBack /> {paper ? paper.title : 'Question bank'}
       </Link>
 

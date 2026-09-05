@@ -5,7 +5,7 @@ import { Field, Input, Notice, Select } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, SessionPacing, Subject } from '../lib/types'
+import type { Profile, Subject } from '../lib/types'
 
 export function SessionNew() {
   const navigate = useNavigate()
@@ -19,7 +19,6 @@ export function SessionNew() {
   const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
   const [duration, setDuration] = useState(60)
   const [meetingUrl, setMeetingUrl] = useState('')
-  const [pacing, setPacing] = useState<SessionPacing>('student')
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -73,14 +72,14 @@ export function SessionNew() {
           scheduled_at: utcInputToIso(scheduledAt),
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
-          pacing,
         })
         .select('id')
         .single()
 
       if (err) throw new Error(err.message)
-      // Straight into the builder: a session with no paper is not yet a session.
-      navigate(`/sessions/${(data as { id: string }).id}/paper`)
+      // Straight to the session itself. There is nothing left to prepare: the
+      // student opens it at its time and the easy test loads for them.
+      navigate(`/sessions/${(data as { id: string }).id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the session.')
     } finally {
@@ -98,8 +97,8 @@ export function SessionNew() {
         <div>
           <h1>New session</h1>
           <p className="sub">
-            Pick a student and a time. Next you choose the questions — the student opens the
-            session themselves once that time has passed.
+            Pick a student and a time. That is the whole of it — the student opens the session
+            themselves once that time has passed and starts on the easy test.
           </p>
         </div>
       </div>
@@ -129,11 +128,19 @@ export function SessionNew() {
           )}
 
           <div className="grid-2">
-            <Field label="Subject" required>
+            <Field
+              label="Subject"
+              required
+              hint="Maths has no tests yet — a session in it would have nothing to open."
+            >
               <Select value={subject} onChange={(e) => setSubject(e.target.value as Subject)}>
                 {SUBJECTS.map((s) => (
-                  <option key={s.value} value={s.value}>
+                  // Only English has the three tests. Offering a subject the
+                  // student could not start is a dead end the teacher would
+                  // only find out about from the student.
+                  <option key={s.value} value={s.value} disabled={s.value !== 'english'}>
                     {s.label}
+                    {s.value === 'english' ? '' : ' — no tests yet'}
                   </option>
                 ))}
               </Select>
@@ -189,24 +196,11 @@ export function SessionNew() {
             />
           </Field>
 
-          <Field
-            label="Who chooses the next question"
-            hint="Changeable later, including mid-session."
-          >
-            <Select value={pacing} onChange={(e) => setPacing(e.target.value as SessionPacing)}>
-              <option value="student">
-                The paper — they work straight through it on their own
-              </option>
-              <option value="teacher">
-                You — pick each question by difficulty as the lesson goes
-              </option>
-            </Select>
-          </Field>
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
-            {busy ? 'Creating…' : 'Create and pick questions'}
+            {busy ? 'Creating…' : 'Create the session'}
           </button>
           <Link className="btn btn-ghost" to="/sessions">
             Cancel

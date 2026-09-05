@@ -9,21 +9,17 @@ import { row, rows, supabase } from '../lib/supabase'
 import type { Question, QuestionSet } from '../lib/types'
 
 /**
- * One paper, read.
- *
- * Two things open here and they are the same object: a source paper from the
- * bank, and a test a teacher assembled. The only difference is where Back
- * goes, and that a test can be edited — which is why opening a test lands
- * here rather than in the builder. You read it first; you edit it if you meant
- * to.
+ * One test, read.
  *
  * Each question is drawn the way the student meets it, stimulus and all, so a
- * teacher reading a paper is reading the screen their student will sit.
+ * teacher reading a level is reading the screen their student will sit — which
+ * is the point of reading it before moving anybody onto it.
  *
  * The answers are marked on it — the correct choice ticked where it stands,
  * the way a worked paper is marked — because that is what a teacher reads a
  * paper for. Hiding them is one click, for going through a question with a
- * student watching.
+ * student watching. Under each one, why the item sits at this level: the
+ * sentence the teachers wrote about what makes it easy, medium or hard.
  */
 export function Paper() {
   const { id } = useParams<{ id: string }>()
@@ -67,10 +63,6 @@ export function Paper() {
   }, [load])
 
   const groups = useMemo(() => buildPaper(questions), [questions])
-  const isTest = set?.kind === 'test'
-  // A paper the teacher made is one they can write into; a source paper is a
-  // record of a document and gains nothing by being added to.
-  const isOwnPaper = set?.kind === 'paper' && set.source_ref === null
 
   if (loading) return <div className="page">Loading…</div>
   if (error) {
@@ -86,8 +78,8 @@ export function Paper() {
         <div className="card">
           <div className="empty">
             <h3>Not found</h3>
-            <Link className="btn btn-primary" to="/questions">
-              Back to the question bank
+            <Link className="btn btn-primary" to="/tests">
+              Back to the tests
             </Link>
           </div>
         </div>
@@ -98,11 +90,7 @@ export function Paper() {
   return (
     <div className="page page-wide">
       <div className="page-head paper-head">
-        <Link
-          className="paper-back"
-          to={isTest ? '/tests' : '/questions'}
-          aria-label={isTest ? 'Back to tests' : 'Back to the question bank'}
-        >
+        <Link className="paper-back" to="/tests" aria-label="Back to tests">
           <IconBack />
         </Link>
         <div>
@@ -110,7 +98,7 @@ export function Paper() {
           <p className="sub">
             {questions.length} question{questions.length === 1 ? '' : 's'} ·{' '}
             {subjectLabel(set.subject)}
-            {set.source_ref ? ` · ${set.source_ref}` : ''}
+            {set.level ? ` · ${set.level} level` : ''}
           </p>
         </div>
         <div className="spring" />
@@ -125,16 +113,9 @@ export function Paper() {
         <button type="button" className="btn" onClick={() => window.print()}>
           Print
         </button>
-        {isTest && (
-          <Link className="btn btn-primary" to={`/tests/${id}/edit`}>
-            Edit
-          </Link>
-        )}
-        {isOwnPaper && (
-          <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
-            Add question
-          </Link>
-        )}
+        <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+          Add question
+        </Link>
       </div>
 
       <article className="paper">
@@ -145,14 +126,10 @@ export function Paper() {
 
         {groups.length === 0 ? (
           <div className="empty">
-            <h3>Nothing in this paper yet</h3>
-            {isOwnPaper ? (
-              <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
-                Write the first question
-              </Link>
-            ) : (
-              <p>{isTest ? 'Edit it to add questions.' : 'This paper loaded empty.'}</p>
-            )}
+            <h3>Nothing in this test yet</h3>
+            <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+              Write the first question
+            </Link>
           </div>
         ) : (
           groups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)

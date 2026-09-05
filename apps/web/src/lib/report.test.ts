@@ -43,8 +43,8 @@ function item(over: {
 }
 
 describe('buildReport', () => {
-  it('numbers a teacher-paced session by when questions were asked, not where they sit', () => {
-    // The teacher took the paper's third question first and its first second.
+  it('numbers a session by when questions were asked, not where they sit', () => {
+    // A level move: the third question was asked first and the first one second.
     const r = buildReport([
       item({ seq: 1, asked: 2 }),
       item({ seq: 3, asked: 1 }),
@@ -53,7 +53,7 @@ describe('buildReport', () => {
     expect(r.attempts.map((a) => a.stem)).toEqual(['Q3', 'Q1'])
   })
 
-  it('falls back to the paper order when the paper paced itself', () => {
+  it('falls back to the questions\' own order when nothing moved', () => {
     const r = buildReport([item({ seq: 2 }), item({ seq: 1 })])
     expect(r.attempts.map((a) => a.sequence)).toEqual([1, 2])
   })

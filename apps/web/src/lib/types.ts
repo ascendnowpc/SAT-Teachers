@@ -4,11 +4,10 @@ export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
 export type SessionStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 /**
- * Who decides what the student sees next. 'student': the paper runs itself and
- * every answer brings up the next question. 'teacher': nothing is published
- * until the teacher picks it out of the paper.
+ * Which of the three English tests a session is on. Every session starts on
+ * 'easy'; the student or the teacher moves it while the session runs.
  */
-export type SessionPacing = 'student' | 'teacher'
+export type SessionLevel = Difficulty
 export type ItemStatus = 'staged' | 'published' | 'answered' | 'revealed' | 'voided'
 export type GradeResult = 'correct' | 'incorrect'
 export type Diagnosis =
@@ -78,10 +77,13 @@ export interface Session {
   duration_mins: number
   meeting_url: string | null
   status: SessionStatus
-  pacing: SessionPacing
+  /** The test the student is on now. Starts easy and is moved during the session. */
+  level: SessionLevel
+  /** How many questions the current level holds for this session — the student's "of 20". */
+  level_size: number
   /** When a teacher waived the scheduled time. scheduled_at still says when it was arranged. */
   opened_early_at: string | null
-  /** How many questions the paper holds. Maintained by trigger; the student reads it. */
+  /** Everything this session has put in front of the student, across levels. Maintained by trigger. */
   question_count: number
   started_at: string | null
   ended_at: string | null
@@ -136,6 +138,8 @@ export interface QuestionSet {
   source_ref: string | null
   /** 'paper': questions are written into it, filed under Questions. 'test': assembled to be sat. */
   kind: 'paper' | 'test'
+  /** Which of the three English tests this is, or null for anything that is not one. */
+  level: SessionLevel | null
   is_active: boolean
   created_at: string
   /** Present when the list query counts the set's items. */

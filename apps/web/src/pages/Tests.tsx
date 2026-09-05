@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { IconStack } from '../components/icons'
-import { Notice } from '../components/ui'
-import { subjectLabel } from '../lib/constants'
+import { DifficultyBadge, Notice } from '../components/ui'
+import { LEVELS, subjectLabel } from '../lib/constants'
 import { rows, supabase } from '../lib/supabase'
 import type { QuestionSet } from '../lib/types'
 
 /**
- * A test: questions taken from the bank, in an order, saved to be used again.
+ * The three tests.
  *
- * The test is the unit of work here, not the session. A teacher assembles it
- * once and every session that uses it gets the same questions in the same
- * order — which is what makes two students' reports comparable.
+ * English is easy, medium and hard, and that is the whole of it — there is no
+ * fourth test to build and no paper to assemble for a particular student. A
+ * session opens on the easy one and the teacher moves the student up or down
+ * while it runs, so what a teacher wants from this screen is to read what is
+ * in each level before they send anyone to it.
  *
- * Only tests a teacher built are listed. The bank's own source papers are
- * filed under Questions, where they came from; they are not something anybody
- * here assembled.
+ * They are ordered easy → hard rather than by when they were made, because
+ * that is the order they are climbed in.
  */
 export function Tests() {
-  const [params, setParams] = useSearchParams()
-  const notice = params.get('saved')
-
   const [sets, setSets] = useState<QuestionSet[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -29,10 +27,17 @@ export function Tests() {
     const { data, error: err } = await supabase
       .from('question_sets')
       .select('*, question_set_items(count)')
-      .eq('kind', 'test')
-      .order('created_at', { ascending: false })
+      .not('level', 'is', null)
+      .eq('is_active', true)
     if (err) setError(err.message)
-    else setSets(rows<QuestionSet>(data))
+    else {
+      const found = rows<QuestionSet>(data)
+      setSets(
+        [...found].sort(
+          (a, b) => LEVELS.indexOf(a.level ?? 'easy') - LEVELS.indexOf(b.level ?? 'easy'),
+        ),
+      )
+    }
     setLoading(false)
   }, [])
 
@@ -46,28 +51,11 @@ export function Tests() {
         <div>
           <h1>Tests</h1>
           <p className="sub">
-            {sets.length} test{sets.length === 1 ? '' : 's'}
+            Three levels. A session starts on easy and moves with the student.
           </p>
         </div>
-        <div className="spring" />
-        <Link className="btn btn-primary" to="/tests/new">
-          New test
-        </Link>
       </div>
 
-      {notice && (
-        <Notice kind="ok">
-          Test saved.{' '}
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            style={{ marginLeft: 8 }}
-            onClick={() => setParams({}, { replace: true })}
-          >
-            Dismiss
-          </button>
-        </Notice>
-      )}
       {error && <Notice kind="error">{error}</Notice>}
 
       {loading ? (
@@ -75,11 +63,11 @@ export function Tests() {
       ) : sets.length === 0 ? (
         <div className="card">
           <div className="empty">
-            <h3>No tests yet</h3>
-            <p>Build one once and use it with every student.</p>
-            <Link className="btn btn-primary" to="/tests/new">
-              New test
-            </Link>
+            <h3>No tests loaded</h3>
+            <p>
+              The three English tests come in with the bank. If none are here the content
+              migrations have not been run against this database.
+            </p>
           </div>
         </div>
       ) : (
@@ -94,6 +82,7 @@ export function Tests() {
                 {s.description && <span className="d">{s.description}</span>}
               </span>
               <span className="tags">
+                {s.level && <DifficultyBadge level={s.level} />}
                 <span className="badge badge-neutral">{subjectLabel(s.subject)}</span>
                 <span className="badge badge-sky">
                   {s.question_set_items?.[0]?.count ?? 0} questions

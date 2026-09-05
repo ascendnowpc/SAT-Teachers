@@ -53,18 +53,23 @@ begin
         'A'::answer_option, null);
 
   insert into sessions (teacher_id, student_id, subject, title, scheduled_at, meeting_url)
-  values (t_id, s_id, 'english', 'Diagnostic follow-up', now() + interval '1 hour',
+  values (t_id, s_id, 'english', 'Diagnostic follow-up', now() - interval '1 minute',
           'https://zoom.us/j/123456789')
   returning id into sess;
   return query select '1 session'::text,'teacher creates it'::text,'created'::text,'created'::text,'PASS'::text;
 
-  i1 := stage_question(sess, q1);
-  i2 := stage_question(sess, q2);
+  -- Two questions of this teacher's own, staged straight onto the session.
+  -- A real session loads a level instead (see level_session.sql); what is
+  -- being asserted here is what 'staged' and 'published' mean, and two known
+  -- questions make the counts below readable.
+  insert into session_items (session_id, question_id, student_id, sequence_no)
+  values (sess, q1, s_id, 1), (sess, q2, s_id, 2);
+  select id into i1 from session_items where session_id=sess and sequence_no=1;
+  select id into i2 from session_items where session_id=sess and sequence_no=2;
+
   select count(*) into n from session_items where session_id = sess and status='staged';
   return query select '2 stage'::text,'two questions queued'::text,'2'::text,n::text,
     (case when n=2 then 'PASS' else 'FAIL' end)::text;
-
-  perform set_session_status(sess,'live');
   execute 'reset role';
 
   -- ============ STUDENT: staged questions must be invisible ============
@@ -82,17 +87,9 @@ begin
   exception when others then ok:=true; end;
   return query select '3 staged'::text,'student answers before publish'::text,'blocked'::text,
     (case when ok then 'blocked' else 'ALLOWED' end)::text,(case when ok then 'PASS' else 'FAIL' end)::text;
-  execute 'reset role';
 
-  -- ============ TEACHER publishes item 1 ============
-  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
-  execute 'set local role authenticated';
-  perform publish_item(i1);
-  execute 'reset role';
-
-  -- ============ STUDENT now sees exactly one question ============
-  perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
-  execute 'set local role authenticated';
+  -- ============ STUDENT opens the session: one question, not two ============
+  perform start_session_as_student(sess);
 
   select count(*) into n from session_items;
   return query select '4 publish'::text,'student sees published item'::text,'1'::text,n::text,
@@ -158,9 +155,11 @@ begin
   return query select '7 reveal'::text,'diagnosis stays teacher-only'::text,'0'::text,n::text,
     (case when n=0 then 'PASS' else 'FAIL' end)::text;
 
-  select count(*) into n from session_items where id=i2;
-  return query select '7 reveal'::text,'item 2 still staged + hidden'::text,'0'::text,n::text,
-    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+  -- Answering item 1 opened item 2 — that is the loop — so it is readable now
+  -- and it is the one thing they are being timed on.
+  select status::text into txt from session_items where id=i2;
+  return query select '7 reveal'::text,'answering opened item 2'::text,'published'::text,
+    coalesce(txt,'hidden'),(case when txt='published' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- cleanup

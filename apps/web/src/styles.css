@@ -1046,162 +1046,39 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
 .paper-box-note { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; }
 .paper-box-actions { display: flex; gap: 8px; margin-top: 14px; }
 .paper-box-actions:empty { display: none; }
-.empty-paper p { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; margin-bottom: 14px; }
 
-/* The left column of the room: the paper, then who is pacing it. */
+/* The left column of the room: which test the student is on. */
 .room-side { display: flex; flex-direction: column; gap: 18px; }
 
-.pacing-switch { display: flex; flex-direction: column; gap: 8px; }
-.pacing-opt {
-  display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
-  padding: 11px 13px; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
-  background: #fff; transition: border-color .13s, background .13s, box-shadow .13s;
+/* --------------------------------------------------------- the three tests --- */
+/* Easy, medium, hard, as one control on both screens. Three buttons rather
+   than a "next level" one, because dropping back is a real instruction and it
+   never had anywhere to be pressed. */
+.level-pick { display: flex; gap: 8px; margin-top: 14px; }
+.level-opt {
+  flex: 1; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  padding: 9px 6px; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: #fff; color: var(--ink-2);
+  transition: border-color .13s, background .13s, box-shadow .13s, color .13s;
 }
-.pacing-opt:hover:not(:disabled) { border-color: var(--sky); background: var(--sky-wash); }
-.pacing-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.pacing-opt b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-.pacing-opt span { font-size: 12.5px; font-weight: 300; color: var(--muted); line-height: 1.45; }
-.pacing-opt.on {
-  border-color: var(--sky); background: var(--sky-wash);
+.level-opt:hover:not(:disabled) { border-color: var(--sky); background: var(--sky-wash); color: var(--ink); }
+.level-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.level-opt.on {
+  border-color: var(--sky); background: var(--sky-wash); color: var(--ink);
   box-shadow: 0 0 0 3px rgba(64,176,229,.14);
   cursor: default; opacity: 1;
 }
-.pacing-opt:disabled:not(.on) { opacity: .55; cursor: default; }
+.level-opt:disabled:not(.on) { opacity: .55; cursor: default; }
 
-/* -------------------------------------------- choosing the next question --- */
-/* The paper as a pool to draw from: cut by difficulty, one click to hand a
-   question over. It sits above the board because during a teacher-paced lesson
-   it is the thing being used, and the board is the thing being read. */
-.ask { background: #fff; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
-.ask-head {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 14px 16px; border-bottom: 1px solid var(--border); background: #fbfcfe;
+/* On the student's screen the same move sits under the question, quiet enough
+   that it is not mistaken for part of answering it. */
+.level-switch { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+.level-switch-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
 }
-.ask-head .spring { flex: 1; }
-.ask-head .select { width: auto; min-width: 160px; }
-.ask-sub { font-size: 13px; color: var(--muted); font-weight: 300; }
-
-.ask-list { list-style: none; margin: 0; padding: 0; max-height: min(70vh, 680px); overflow-y: auto; }
-.ask-list li { border-bottom: 1px solid var(--border); }
-.ask-list li:last-child { border-bottom: 0; }
-.ask-list li.open { background: #fbfcfe; }
-
-.ask-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
-.ask-row:hover { background: var(--page); }
-.ask-list li.open .ask-row { background: transparent; }
-.ask-row .btn { flex-shrink: 0; }
-
-/* The stem row is the toggle, not a chevron the size of a full stop. */
-.ask-open {
-  flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px;
-  background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit;
-}
-.ask-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
-.ask-open .chev { color: var(--faint); flex-shrink: 0; margin-top: 3px; transition: transform .16s; }
-.ask-list li.open .ask-open .chev { transform: rotate(90deg); }
-.ask-open:hover .chev { color: var(--ink-2); }
-
-.ask-q { flex: 1; min-width: 0; display: block; }
-.ask-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
-.ask-tags .num { font-size: 11.5px; font-weight: 600; color: var(--muted); }
-.ask-skill { font-size: 11.5px; color: var(--muted); font-weight: 300; }
-.ask-stem {
-  font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.ask-list li.open .ask-stem { -webkit-line-clamp: unset; }
-
-/* Opened: the question as the student will meet it, stimulus and all. */
-.ask-full {
-  padding: 4px 16px 18px 38px; border-top: 1px solid var(--border);
-  margin-top: -1px;
-}
-.ask-full .qsplit { padding-top: 14px; }
-/* The panel lives in the room's right column, not the full page, so it wants
-   more room than the bank card does before it will take two columns. */
-@media (max-width: 1319px) {
-  .ask-full .qsplit { grid-template-columns: 1fr; }
-  .ask-full .qsplit-stim { border-right: 0; padding-bottom: 4px; }
-}
-.ask-full .qsplit-stim { padding-left: 0; }
-.ask-full .qsplit-main { padding-left: 0; padding-right: 0; }
-.ask-key { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-
-/* --------------------------------------------------------- the builder --- */
-/* Picking questions and putting them in order, shared by a session's paper and
-   the pre-test editor. Questions are shown whole wherever they are shown — a
-   stem on its own does not tell a teacher whether the question belongs here. */
-.builder-lede {
-  color: var(--ink-2); font-size: 14px; font-weight: 300; line-height: 1.6;
-  max-width: 70ch; margin-bottom: 16px;
-}
-.builder-source { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
-
-.builder-filters {
-  display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
-  position: sticky; top: 0; z-index: 3; background: var(--page); padding: 8px 0 10px;
-}
-.builder-filters .select { width: auto; min-width: 140px; }
-.builder-filters .input { flex: 1; min-width: 150px; max-width: 320px; }
-
-/* Stays in view while you tick your way down a long paper. */
-.builder-cta {
-  position: sticky; bottom: 14px; display: flex; justify-content: center;
-  margin-top: 26px; z-index: 3;
-}
-.builder-cta .btn { box-shadow: var(--shadow-lift); }
-
-/* The shelf of source papers reuses the pre-test card, where a button now sits
-   in place of a link. */
-button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
-/* A paper on the shelf can be opened, or taken whole — so the card carries an
-   action beside it rather than nesting a button inside a button. */
-.shelf-item { display: flex; align-items: center; gap: 10px; }
-.shelf-item .set-card { flex: 1; min-width: 0; }
-.shelf-item > .btn { flex-shrink: 0; }
-
-.bank-group { margin-bottom: 26px; }
-.bank-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
-.bank-group-head h3 { font-size: 14px; font-weight: 700; color: var(--navy-600); }
-.bank-group-head .muted { font-size: 12.5px; color: var(--muted); font-weight: 300; }
-
-.bank-q {
-  display: flex; gap: 12px; padding: 14px 16px; margin-bottom: 8px;
-  background: #fff; border: 1px solid var(--border); border-radius: var(--r);
-}
-.bank-q.picked { border-color: var(--sky); background: var(--sky-wash); box-shadow: inset 3px 0 0 var(--sky); }
-.bank-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; cursor: pointer; }
-.bank-pick input { width: 17px; height: 17px; accent-color: var(--sky-dark); cursor: pointer; }
-.bank-pick .n { font-size: 12px; font-weight: 700; color: var(--muted); }
-.bank-q-main { flex: 1; min-width: 0; }
-.bank-q-main .q-passage { background: var(--page); font-size: 13.5px; margin-bottom: 12px; }
-.bank-q.picked .q-passage { background: #fff; }
-.bank-stem { font-size: 14.5px; font-weight: 500; line-height: 1.5; margin: 0 0 10px; }
-
-/* ------------------------------------------------------------- ordering --- */
-/* Whole questions, wrapped rather than truncated: by this point the teacher is
-   reading the paper they have just made. */
-.order-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.order-card {
-  background: #fff; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden;
-}
-.order-card[draggable='true'] { cursor: grab; }
-.order-card[draggable='true']:active { cursor: grabbing; }
-.order-card.over { border-color: var(--sky); box-shadow: 0 -3px 0 var(--sky); }
-.order-head {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 9px 12px; background: var(--navy-50); border-bottom: 1px solid var(--border);
-}
-.order-head .grip { color: var(--faint); display: inline-flex; }
-.order-head .no {
-  font-weight: 700; font-size: 13px; color: #fff; background: var(--navy-600);
-  min-width: 24px; height: 24px; border-radius: var(--pill);
-  display: inline-grid; place-items: center; padding: 0 6px;
-  font-variant-numeric: tabular-nums;
-}
-.order-head .btn { padding: 3px 8px; min-width: 0; }
-.order-body { padding: 14px 16px 16px; }
-.order-body .q-passage { background: var(--page); font-size: 13.5px; }
+.level-switch-label { font-size: 12.5px; font-weight: 300; color: var(--muted); margin-right: 2px; }
+.level-switch-label strong { font-weight: 600; color: var(--ink-2); }
+.exam-done .level-switch { border-top: 0; margin: 0 0 20px; padding: 0; }
 
 /* ------------------------------------------------------- one question --- */
 /* The shape the student meets a question in — stimulus left, question right —
@@ -1270,19 +1147,8 @@ button.set-card { width: 100%; text-align: left; font: inherit; cursor: pointer;
   text-transform: uppercase; letter-spacing: .04em;
 }
 
-/* The bank card and the ordering card are frames around one of these. */
-.bank-q, .order-card { padding: 0; }
+/* The bank card is a frame around one of these. */
 .q-card .qsplit { border-top: 1px solid var(--border); }
-.bank-q { display: block; }
-.bank-q .bank-pick {
-  flex-direction: row; gap: 8px; align-items: center;
-  font-size: 13px; font-weight: 500; color: var(--ink-2);
-}
-.bank-q.picked .qsplit-stim { border-right-color: var(--sky); }
-.order-card .qsplit-head {
-  margin: -18px -20px 15px; padding: 9px 12px;
-  background: var(--navy-50); border-bottom: 1px solid var(--border);
-}
 
 /* A figure on a question, in the form that sets it. */
 .figure-field { display: flex; flex-direction: column; gap: 10px; }

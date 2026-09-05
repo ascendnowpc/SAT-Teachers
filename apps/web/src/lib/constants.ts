@@ -1,4 +1,4 @@
-import type { Diagnosis, Difficulty, OptionLabel, Subject } from './types'
+import type { Diagnosis, Difficulty, OptionLabel, SessionLevel, Subject } from './types'
 
 export const OPTION_LABELS: OptionLabel[] = ['A', 'B', 'C', 'D']
 
@@ -7,6 +7,31 @@ export const DIFFICULTIES: { value: Difficulty; label: string }[] = [
   { value: 'medium', label: 'Medium' },
   { value: 'hard', label: 'Hard' },
 ]
+
+/**
+ * The three tests, in the order a student climbs them.
+ *
+ * English is three tests and a session is on one of them, so the level is both
+ * a question's difficulty and a session's state. One list serves both — and
+ * being an array rather than a set is the point, because "the next one up" is
+ * the move the whole session is built around.
+ */
+export const LEVELS: SessionLevel[] = ['easy', 'medium', 'hard']
+
+export function levelLabel(level: SessionLevel): string {
+  return DIFFICULTIES.find((d) => d.value === level)?.label ?? level
+}
+
+/** The level above this one, or null at the top. */
+export function nextLevel(level: SessionLevel): SessionLevel | null {
+  return LEVELS[LEVELS.indexOf(level) + 1] ?? null
+}
+
+/** The level below this one, or null at the bottom. */
+export function previousLevel(level: SessionLevel): SessionLevel | null {
+  const i = LEVELS.indexOf(level)
+  return i > 0 ? LEVELS[i - 1] : null
+}
 
 export const SUBJECTS: { value: Subject; label: string }[] = [
   { value: 'english', label: 'English' },

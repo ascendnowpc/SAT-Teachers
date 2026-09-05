@@ -53,11 +53,13 @@ database supplies facts; the teacher signs off.
 
 ## Status
 
-Signup, the question bank, and the live session loop are built (migrations `0001`–`0012`), and
-applied to the live Supabase project. Both English diagnostics are loaded — 65 items with
-passages, options, keys, sections, skills, difficulty and pace targets — so the bank is no longer
-empty and the screenshot deck is no longer stuck behind its missing key. Pre-tests, the exam-shaped
-student screen and the session report are built, and a real recorded diagnostic is seeded as a
-session you can open (see [the recorded session](reference/recorded-session.md)). Q1 and Q2 are answered for English;
+Signup, the question bank, and the live session loop are built (migrations `0001`–`0027`), and
+applied to the live Supabase project. English is three tests — easy, medium and hard, twenty
+questions each, every one with passage, options, key, section, skill, pace target and a sentence
+saying why it sits at that level — so the bank is no longer empty and the screenshot deck is no
+longer stuck behind its missing key. The exam-shaped student screen and the session report are
+built, a session starts on the easy test and either seat can move it, and a real recorded
+diagnostic is seeded as a session you can open
+(see [the recorded session](reference/recorded-session.md)). Q1 and Q2 are answered for English;
 [Q3](07-open-questions.md) (provenance and licensing) is still open and still blocking for
 anything sourced from official practice tests.

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
 import { IconChevron, IconStack } from '../components/icons'
 import {
   DIFFICULTIES,
+  LEVELS,
   SECTIONS,
   SUBJECTS,
   sectionLabel,
@@ -17,26 +18,21 @@ import type { Difficulty, Question, QuestionSet, Subject } from '../lib/types'
 /**
  * The bank, in the two units a teacher actually asks for it in.
  *
- * *Papers* is the default and the one the teachers named: the diagnostics as
- * whole documents — "SAT Diagnostic Test (Reading and Writing - 25Q)" — which
- * open as the paper itself, in its order. *All questions* is the flat bank
- * underneath, which is the right unit only when hunting one item by skill or
- * level.
+ * *Tests* is the default and the one a session runs: easy, medium and hard,
+ * each opening as the paper itself in its order. *All questions* is the flat
+ * bank underneath, which is the right unit only when hunting one item by skill
+ * or level, or when writing a new one.
  *
- * Only the source papers are here. A test a teacher assembled out of these
- * questions is under Tests: it is their paper, not the bank's.
+ * The bank still holds items that are in none of the three — the in-class 25Q
+ * diagnostic among them — and they are here under All questions. What they are
+ * not is runnable: a session is a level, and there are three.
  */
 export function Questions() {
-  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const justAdded = params.get('added')
 
-  const [view, setView] = useState<'papers' | 'questions'>(justAdded ? 'questions' : 'papers')
-  const [naming, setNaming] = useState(false)
-  const [newPaper, setNewPaper] = useState('')
-  const [newSubject, setNewSubject] = useState<Subject>('english')
-  const [creating, setCreating] = useState(false)
-  const [papers, setPapers] = useState<QuestionSet[]>([])
+  const [view, setView] = useState<'tests' | 'questions'>(justAdded ? 'questions' : 'tests')
+  const [tests, setTests] = useState<QuestionSet[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,21 +51,26 @@ export function Questions() {
         .from('questions')
         .select('*, question_options(*), question_keys(*)')
         .order('created_at', { ascending: false }),
-      // Papers: the diagnostics the bank was loaded with, and any a teacher
-      // has made to write into. A test — assembled from questions that already
-      // exist, to be sat — is a different thing and lives under Tests.
+      // The three level tests, which are the only sets a session can run.
       supabase
         .from('question_sets')
         .select('*, question_set_items(count)')
-        .eq('kind', 'paper')
-        .order('source_ref', { nullsFirst: false }),
+        .not('level', 'is', null)
+        .eq('is_active', true),
     ])
 
     if (qRes.error) setError(qRes.error.message)
     else setQuestions(rows<Question>(qRes.data))
 
     if (pRes.error) setError(pRes.error.message)
-    else setPapers(rows<QuestionSet>(pRes.data))
+    else {
+      const found = rows<QuestionSet>(pRes.data)
+      setTests(
+        [...found].sort(
+          (a, b) => LEVELS.indexOf(a.level ?? 'easy') - LEVELS.indexOf(b.level ?? 'easy'),
+        ),
+      )
+    }
 
     setLoading(false)
   }, [])
@@ -77,20 +78,6 @@ export function Questions() {
   useEffect(() => {
     void load()
   }, [load])
-
-  /** A paper of the teacher's own, empty, ready to be written into. */
-  async function createPaper() {
-    setCreating(true)
-    setError(null)
-    const { data, error: err } = await supabase
-      .from('question_sets')
-      .insert({ title: newPaper.trim(), subject: newSubject, kind: 'paper' })
-      .select('id')
-      .single()
-    setCreating(false)
-    if (err) return setError(err.message)
-    navigate(`/questions/papers/${(data as { id: string }).id}`)
-  }
 
   const sectionChoices = subject ? SECTIONS[subject] : [...SECTIONS.english, ...SECTIONS.mathematics]
   const skillChoices = skillsFor(section || null)
@@ -122,63 +109,16 @@ export function Questions() {
         <div>
           <h1>Question bank</h1>
           <p className="sub">
-            {papers.length} paper{papers.length === 1 ? '' : 's'} · {questions.length} question
+            {tests.length} test{tests.length === 1 ? '' : 's'} · {questions.length} question
             {questions.length === 1 ? '' : 's'} · {counts.easy} easy · {counts.medium} medium ·{' '}
             {counts.hard} hard
           </p>
         </div>
         <div className="spring" />
-        {view === 'papers' && (
-          <button type="button" className="btn" onClick={() => setNaming(true)}>
-            New paper
-          </button>
-        )}
         <Link className="btn btn-primary" to="/questions/new">
           Add question
         </Link>
       </div>
-
-      {naming && (
-        <div className="card card-pad" style={{ marginBottom: 16 }}>
-          <div className="section-title">New paper</div>
-          <p className="muted" style={{ marginBottom: 12 }}>
-            A paper you write questions into — a module, a worksheet, a set of your own.
-          </p>
-          <div className="toolbar">
-            <div className="grow">
-              <Input
-                value={newPaper}
-                onChange={(e) => setNewPaper(e.target.value)}
-                placeholder="English Module 3"
-                aria-label="Paper name"
-                autoFocus
-              />
-            </div>
-            <Select
-              value={newSubject}
-              onChange={(e) => setNewSubject(e.target.value as Subject)}
-              aria-label="Subject"
-            >
-              {SUBJECTS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </Select>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!newPaper.trim() || creating}
-              onClick={() => void createPaper()}
-            >
-              {creating ? 'Creating…' : 'Create'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setNaming(false)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {justAdded && (
         <Notice kind="ok">
@@ -199,11 +139,11 @@ export function Questions() {
         <button
           type="button"
           role="tab"
-          aria-selected={view === 'papers'}
-          className={`tab ${view === 'papers' ? 'on' : ''}`}
-          onClick={() => setView('papers')}
+          aria-selected={view === 'tests'}
+          className={`tab ${view === 'tests' ? 'on' : ''}`}
+          onClick={() => setView('tests')}
         >
-          Papers
+          Tests
         </button>
         <button
           type="button"
@@ -216,23 +156,23 @@ export function Questions() {
         </button>
       </div>
 
-      {view === 'papers' ? (
+      {view === 'tests' ? (
         loading ? (
           <div className="empty">Loading…</div>
-        ) : papers.length === 0 ? (
+        ) : tests.length === 0 ? (
           <div className="card">
             <div className="empty">
-              <h3>No papers yet</h3>
-              <p>Make one to write questions into.</p>
-              <button type="button" className="btn btn-primary" onClick={() => setNaming(true)}>
-                New paper
-              </button>
+              <h3>No tests loaded</h3>
+              <p>
+                The three English tests come in with the bank. If none are here the content
+                migrations have not been run against this database.
+              </p>
             </div>
           </div>
         ) : (
           <div className="set-list">
-            {papers.map((p) => (
-              <Link key={p.id} className="set-card" to={`/questions/papers/${p.id}`}>
+            {tests.map((p) => (
+              <Link key={p.id} className="set-card" to={`/tests/${p.id}`}>
                 <span className="ico">
                   <IconStack />
                 </span>
@@ -241,6 +181,7 @@ export function Questions() {
                   {p.description && <span className="d">{p.description}</span>}
                 </span>
                 <span className="tags">
+                  {p.level && <DifficultyBadge level={p.level} />}
                   <span className="badge badge-neutral">
                     {SUBJECTS.find((s) => s.value === p.subject)?.label ?? p.subject}
                   </span>
