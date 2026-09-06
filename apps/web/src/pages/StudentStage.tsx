@@ -648,19 +648,31 @@ function ItemPane({
         </div>
 
         <div className="exam-after">
-          <div className="section-title">How sure are you?</div>
-          <div className="confidence">
-            {['Not sure', 'Fairly sure', 'Certain'].map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
-                onClick={() => setConfidence(i + 1)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* The confidence is asked about an answer, so it is not on screen
+              until there is one. Sitting under four unpicked choices it caught
+              clicks the student had not meant to make — "Certain" marked while
+              they were still reading — and a number given before the answer is
+              a number about nothing, which is the one thing this column of the
+              report cannot afford. */}
+          {selected ? (
+            <div className="conf-ask">
+              <div className="section-title">How sure are you?</div>
+              <div className="confidence">
+                {['Not sure', 'Fairly sure', 'Certain'].map((label, i) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
+                    onClick={() => setConfidence(i + 1)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="conf-wait">Pick an answer, then say how sure you are.</p>
+          )}
 
           <button
             type="button"
