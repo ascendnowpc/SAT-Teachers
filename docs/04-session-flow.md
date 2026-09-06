@@ -12,6 +12,12 @@ pre-test, a builder, a console for handing questions over — and all three aske
 decide before the lesson a thing they can only judge during it. English is **three tests**, easy,
 medium and hard, and the decision is which one this student is on.
 
+Which is also the whole of the bank: **sixty questions, twenty per level**. The loaders brought in
+more than that — the in-class 25Q diagnostic and the Test 4 items the teachers did not pick — and
+0029 retired them, because an item no level test holds cannot be asked by anything and counting it
+with the sixty made the bank look half again as deep as it is. Retired is not deleted: the items
+stay in the bank under All questions, and every session already sat on them still renders.
+
 ```
   ┌─ New session ────────────────────────────────────────┐
   │ Student   ▾ BATU Ozcelik  (BATO26-1)                 │

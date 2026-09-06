@@ -25,7 +25,9 @@ import type { Difficulty, Question, QuestionSet, Subject } from '../lib/types'
  *
  * The bank still holds items that are in none of the three — the in-class 25Q
  * diagnostic among them — and they are here under All questions. What they are
- * not is runnable: a session is a level, and there are three.
+ * not is runnable: a session is a level, and there are three. 0029 marked them
+ * retired for exactly that reason, so this list shows what is in use by default
+ * and keeps them one dropdown away rather than mixed in with the sixty.
  */
 export function Questions() {
   const [params, setParams] = useSearchParams()
@@ -41,6 +43,9 @@ export function Questions() {
   const [section, setSection] = useState('')
   const [skill, setSkill] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty | ''>('')
+  // In use unless asked otherwise: a retired question cannot be put in front of
+  // a student, so it is not what a teacher is looking at the bank to find.
+  const [status, setStatus] = useState<'published' | 'retired' | ''>('published')
   const [search, setSearch] = useState('')
 
   const load = useCallback(async () => {
@@ -85,6 +90,7 @@ export function Questions() {
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return questions.filter((q) => {
+      if (status && q.status !== status) return false
       if (subject && q.subject !== subject) return false
       if (section && q.section !== section) return false
       if (skill && q.skill !== skill) return false
@@ -95,11 +101,21 @@ export function Questions() {
       }
       return true
     })
-  }, [questions, subject, section, skill, difficulty, search])
+  }, [questions, status, subject, section, skill, difficulty, search])
 
+  // The headline counts the bank a session can draw on. What is retired is
+  // named separately rather than folded in, because the two are not the same
+  // kind of thing and adding them together is what made 86 look like stock.
   const counts = useMemo(() => {
-    const by = { easy: 0, medium: 0, hard: 0 }
-    for (const q of questions) by[q.difficulty] += 1
+    const by = { easy: 0, medium: 0, hard: 0, live: 0, retired: 0 }
+    for (const q of questions) {
+      if (q.status === 'retired') {
+        by.retired += 1
+        continue
+      }
+      by[q.difficulty] += 1
+      by.live += 1
+    }
     return by
   }, [questions])
 
@@ -109,9 +125,10 @@ export function Questions() {
         <div>
           <h1>Question bank</h1>
           <p className="sub">
-            {tests.length} test{tests.length === 1 ? '' : 's'} · {questions.length} question
-            {questions.length === 1 ? '' : 's'} · {counts.easy} easy · {counts.medium} medium ·{' '}
+            {tests.length} test{tests.length === 1 ? '' : 's'} · {counts.live} question
+            {counts.live === 1 ? '' : 's'} in use · {counts.easy} easy · {counts.medium} medium ·{' '}
             {counts.hard} hard
+            {counts.retired > 0 && ` · ${counts.retired} retired`}
           </p>
         </div>
         <div className="spring" />
@@ -254,6 +271,15 @@ export function Questions() {
               </option>
             ))}
           </Select>
+          <Select
+            value={status}
+            aria-label="Filter by whether the question is in use"
+            onChange={(e) => setStatus(e.target.value as 'published' | 'retired' | '')}
+          >
+            <option value="published">In use</option>
+            <option value="retired">Retired</option>
+            <option value="">In use and retired</option>
+          </Select>
         </div>
 
         {loading ? (
@@ -265,7 +291,9 @@ export function Questions() {
               <p>
                 {questions.length === 0
                   ? 'Add your first multiple-choice question and set its difficulty.'
-                  : 'Try widening the subject, section or level.'}
+                  : status === 'retired'
+                    ? 'Nothing retired matches. Retired questions are the ones no level test holds — they stay in the bank but no session can ask them.'
+                    : 'Try widening the subject, section or level.'}
               </p>
               {questions.length === 0 && (
                 <Link className="btn btn-primary" to="/questions/new">
@@ -301,6 +329,7 @@ function QuestionCard({ question: q, defaultOpen }: { question: Question; defaul
             </span>
             {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
             {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
+            {q.status === 'retired' && <span className="badge badge-neutral">Retired</span>}
           </div>
         </div>
       </summary>
