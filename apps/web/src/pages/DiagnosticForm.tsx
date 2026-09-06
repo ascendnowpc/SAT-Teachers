@@ -11,8 +11,8 @@ import {
   summariseProblems,
   validate,
   type DiagnosticRow,
+  type EditableField,
   type Problem,
-  type RowField,
 } from '../lib/diagnostic'
 import { formatDuration } from '../lib/report'
 import { row, rows as toRows, supabase } from '../lib/supabase'
@@ -90,7 +90,7 @@ export function DiagnosticForm() {
   const parsed = useMemo(() => (body.trim() ? parseTranscript(body) : null), [body])
   const done = rowsComplete(gridRows)
 
-  function setCell(domain: string, field: RowField, value: string) {
+  function setCell(domain: string, field: EditableField, value: string) {
     setSaved(null)
     setGridRows((prev) =>
       prev.map((r) =>
@@ -124,6 +124,7 @@ export function DiagnosticForm() {
         session_id: id,
         domain: r.domain,
         performance: r.performance,
+        performance_note: r.performanceNote.trim() || null,
         strengths: r.strengths.trim() || null,
         gaps: r.gaps.trim() || null,
         targets: r.targets.trim() || null,
@@ -205,29 +206,13 @@ export function DiagnosticForm() {
         )}
       </div>
 
-      <Notice kind="info">
-        Nothing is scored yet. Fill the reflection grid in while the session is fresh, write what
-        you made of it, and add the Fathom transcript — the diagnostic report is generated from
-        those and shared with {student.split(' ')[0]} and their parent afterwards.
-      </Notice>
-
       {error && <Notice kind="error">{error}</Notice>}
-      {saved === 'draft' && <Notice kind="ok">Saved as a draft. Nothing has been handed in yet.</Notice>}
-      {saved === 'submitted' && (
-        <Notice kind="ok">
-          Form submitted. Everything the report needs from you is in — come back and edit it any
-          time before the report goes out.
-        </Notice>
-      )}
+      {saved === 'draft' && <Notice kind="ok">Saved as a draft.</Notice>}
+      {saved === 'submitted' && <Notice kind="ok">Form submitted.</Notice>}
 
       {/* ------------------------------------------------ the grid --------- */}
       <div className="card card-pad">
         <div className="section-title">English reflection grid</div>
-        <p className="card-note">
-          The same grid as the paper form. Domain and Skill Focus are printed on it; the tick or
-          cross, the strengths, the gaps and the targets are yours. The targets start as the
-          form's own — edit them into what {student.split(' ')[0]} actually needs.
-        </p>
         <DiagnosticGrid
           rows={gridRows}
           problems={problems}
@@ -239,11 +224,7 @@ export function DiagnosticForm() {
       {/* ---------------------------------------------- the comments ------- */}
       <div className="card card-pad">
         <div className="section-title">Your comments on the session</div>
-        <Field
-          label="Comments and reflection"
-          required
-          hint="How the hour went as a whole — pace, engagement, how they worked through it, anything the grid has nowhere to put."
-        >
+        <Field label="Comments and reflection" required>
           <Textarea
             rows={6}
             value={reflection}
@@ -272,7 +253,7 @@ export function DiagnosticForm() {
               style={{ display: 'none' }}
             />
           </label>
-          <span className="muted">{filename ?? 'Paste the transcript below, or upload the file.'}</span>
+          <span className="muted">{filename ?? 'Paste it below, or upload the file.'}</span>
           <span className="spring" />
           {parsed && parsed.lines.length > 0 && (
             <span className="badge badge-sky">
@@ -282,11 +263,7 @@ export function DiagnosticForm() {
           )}
         </div>
 
-        <Field
-          label="Transcript"
-          required
-          hint="Straight out of Fathom, timestamps and all — they are what put each quote under the question it was about."
-        >
+        <Field label="Transcript" required>
           <Textarea
             rows={10}
             value={body}
@@ -303,8 +280,8 @@ export function DiagnosticForm() {
 
         {body.trim() && parsed && parsed.lines.length === 0 && (
           <Notice kind="info">
-            No Fathom timestamps in this — nothing here reads as <code>@12:34 - Name</code>. It will
-            save, but the report cannot line quotes up against questions without them.
+            No Fathom timestamps in this — nothing reads as <code>@12:34 - Name</code>. It saves,
+            but the report cannot line quotes up against questions without them.
           </Notice>
         )}
       </div>

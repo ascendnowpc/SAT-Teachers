@@ -160,6 +160,8 @@ export interface DomainNote {
   domain: string
   /** The Student Performance column as the teacher marked it on the form. */
   performance: 'tick' | 'cross' | null
+  /** Anything written beside the mark. Optional — the mark is the required part. */
+  performance_note: string | null
   strengths: string | null
   gaps: string | null
   /** The Next steps/Targets column. Null means the form's printed default stands. */
