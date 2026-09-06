@@ -33,6 +33,33 @@ export function previousLevel(level: SessionLevel): SessionLevel | null {
   return i > 0 ? LEVELS[i - 1] : null
 }
 
+/**
+ * The one level move offered on the student's screen.
+ *
+ * There used to be a button for every level the student was not on, which on
+ * the hard test meant two of them side by side asking a question nobody was
+ * asking: a student who is coping with hard is not choosing between easy and
+ * medium. There is only ever one move worth offering unprompted — the next one
+ * up, and at the top the one below, which is the way back off a test that has
+ * turned out to be too much.
+ *
+ * The teacher's console still carries all three: a drop straight from hard to
+ * easy is a real instruction, and it is theirs to give.
+ */
+export function levelSwitchTarget(
+  level: SessionLevel,
+): { level: SessionLevel; back: boolean } | null {
+  const up = nextLevel(level)
+  if (up) return { level: up, back: false }
+  const down = previousLevel(level)
+  return down ? { level: down, back: true } : null
+}
+
+/** What the button says: "Switch to medium", or "Switch back to medium". */
+export function levelSwitchLabel(target: { level: SessionLevel; back: boolean }): string {
+  return `Switch ${target.back ? 'back ' : ''}to ${levelLabel(target.level).toLowerCase()}`
+}
+
 export const SUBJECTS: { value: Subject; label: string }[] = [
   { value: 'english', label: 'English' },
   { value: 'mathematics', label: 'Mathematics' },

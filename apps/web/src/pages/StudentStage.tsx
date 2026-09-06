@@ -6,7 +6,13 @@ import { Notice, Passage } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { clock, openState } from '../lib/countdown'
 import { formatUtcLong } from '../lib/time'
-import { LEVELS, OPTION_LABELS, levelLabel, nextLevel, subjectLabel } from '../lib/constants'
+import {
+  OPTION_LABELS,
+  levelLabel,
+  levelSwitchLabel,
+  levelSwitchTarget,
+  subjectLabel,
+} from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/types'
 
@@ -120,7 +126,7 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
               type="button"
               className="exam-back"
               onClick={() => setLeaving(true)}
-              aria-label="Leave the test"
+              aria-label="Submit the test and leave"
             >
               <IconBack />
             </button>
@@ -152,6 +158,15 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
             >
               <IconVideo /> Join call
             </a>
+          )}
+          {/* Finishing early was only ever reachable through the back arrow,
+              which is a way out of a page rather than a way to hand a test in.
+              A student who has run out of road on question 6 of 20 needs to be
+              able to say so, and to see that they can. */}
+          {inProgress && (
+            <button type="button" className="btn btn-navy btn-sm" onClick={() => setLeaving(true)}>
+              Submit test
+            </button>
           )}
         </div>
       </header>
@@ -190,10 +205,11 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
       {leaving && (
         <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="leave-title">
           <div className="leave-box">
-            <h2 id="leave-title">Leave the test?</h2>
+            <h2 id="leave-title">Submit the test?</h2>
             <p>
               Your test will be submitted as it stands, with the {done.length} question
-              {done.length === 1 ? '' : 's'} you have answered. You cannot come back to it.
+              {done.length === 1 ? '' : 's'} you have answered. The rest are left unattempted and
+              you cannot come back to them.
             </p>
             <div className="leave-actions">
               <button
@@ -205,7 +221,7 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
                 Keep going
               </button>
               <button type="button" className="btn" disabled={ending} onClick={() => void leave()}>
-                {ending ? 'Submitting…' : 'Submit and leave'}
+                {ending ? 'Submitting…' : 'Submit and finish'}
               </button>
             </div>
           </div>
@@ -241,10 +257,15 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
 /**
  * Moving to another test.
  *
- * Three buttons rather than one "next level", because the move that is not up
- * is the one nobody ever built a button for: a student who cannot do the easy
- * questions is not helped by being marched into the medium ones, and dropping
- * back is a real instruction a teacher gives.
+ * One button, not a row of them. Every level the student was not on used to get
+ * its own button, which on the hard test put "Switch to easy" and "Switch to
+ * medium" side by side and made the student pick between two levels they had
+ * not asked about. There is only one move worth offering here: the next test up
+ * while there is one, and on the hard test the way back down to medium.
+ *
+ * A drop straight from hard to easy is still a real instruction — it is just
+ * the teacher's to give, from the console, rather than a choice put to a
+ * student mid-question.
  *
  * The confirmation exists for one reason — the question on screen is being
  * timed and moving level abandons it — so it says that, and it does not appear
@@ -281,7 +302,7 @@ function LevelSwitch({
     setAsking(null)
   }
 
-  const others = LEVELS.filter((l) => l !== session.level)
+  const target = levelSwitchTarget(session.level)
 
   return (
     <div className="level-switch">
@@ -291,17 +312,16 @@ function LevelSwitch({
         <span className="level-switch-label">
           You are on the <strong>{levelLabel(session.level).toLowerCase()}</strong> test
         </span>
-        {others.map((l) => (
+        {target && (
           <button
-            key={l}
             type="button"
-            className={`btn btn-sm ${l === nextLevel(session.level) ? 'btn-navy' : 'btn-ghost'}`}
+            className={`btn btn-sm ${target.back ? 'btn-ghost' : 'btn-navy'}`}
             disabled={busy}
-            onClick={() => (abandons ? setAsking(l) : void move(l))}
+            onClick={() => (abandons ? setAsking(target.level) : void move(target.level))}
           >
-            Switch to {levelLabel(l).toLowerCase()}
+            {levelSwitchLabel(target)}
           </button>
-        ))}
+        )}
       </div>
 
       {asking && (
@@ -310,8 +330,9 @@ function LevelSwitch({
             <h2 id="switch-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
               The question on your screen will be left unanswered, and the rest of the{' '}
-              {levelLabel(session.level).toLowerCase()} test goes away. You start at question 1 of
-              the {levelLabel(asking).toLowerCase()} test.
+              {levelLabel(session.level).toLowerCase()} test goes away. You pick up the{' '}
+              {levelLabel(asking).toLowerCase()} test at its first question you have not already
+              answered.
             </p>
             <div className="leave-actions">
               <button

@@ -362,6 +362,25 @@ button { font-family: inherit; }
 .sess-card .body .meta { font-size: 13px; color: var(--muted); font-weight: 300; }
 .sess-card .tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
 
+/* One student per group, so the page is read a student at a time rather than a
+   Tuesday at a time. The heading carries the name and the ID a teacher types
+   to find them; the rule below it separates what is coming from what was sat. */
+.sess-group + .sess-group { margin-top: 30px; }
+.sess-group-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 14px; border-bottom: 1px solid var(--border-strong);
+}
+.sess-group-head h2 { font-size: 17px; font-weight: 600; }
+.sess-group-head .num { font-size: 12.5px; color: var(--muted); font-weight: 300; }
+.sess-group-head .spring { flex: 1; }
+.sess-group-count { font-size: 12.5px; color: var(--muted); font-weight: 300; white-space: nowrap; }
+.sess-group-rule {
+  display: flex; align-items: center; gap: 10px; margin: 16px 0 12px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint);
+}
+.sess-group-rule::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
 /* -------------------------------------------------------- session room --- */
 .room { display: grid; gap: 18px; align-items: start; }
 @media (min-width: 1060px) { .room { grid-template-columns: 330px 1fr; } }
@@ -387,6 +406,12 @@ table.board-table th {
 table.board-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 table.board-table tbody tr:last-child td { border-bottom: 0; }
 table.board-table tr.live-row { background: var(--sky-wash); }
+/* The one line that stands in for the rows a finished-early session used to
+   print: every question the student never reached, said once. */
+.board-foot {
+  padding: 11px 14px; border-top: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 300; color: var(--muted); background: var(--page);
+}
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pill-opt {
   display: inline-grid; place-items: center; width: 24px; height: 24px;

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { subjectLabel } from '../lib/constants'
+import { groupByStudent, type StudentGroup } from '../lib/sessions'
 import { formatUtc, utcParts } from '../lib/time'
 import { rows, supabase } from '../lib/supabase'
 import type { Session } from '../lib/types'
@@ -33,6 +34,9 @@ export function Sessions() {
 
   const upcoming = sessions.filter((s) => s.status === 'scheduled' || s.status === 'live')
   const past = sessions.filter((s) => s.status === 'completed' || s.status === 'cancelled')
+  // A teacher's list is read one student at a time, so it is built that way.
+  // A student's own list is already one student's, and has nothing to group by.
+  const groups = useMemo(() => (isTeacher ? groupByStudent(sessions) : []), [isTeacher, sessions])
 
   return (
     <div className="page">
@@ -41,7 +45,7 @@ export function Sessions() {
           <h1>Sessions</h1>
           <p className="sub">
             {isTeacher
-              ? 'Schedule a session, pick its questions, and the student sits it at that time.'
+              ? 'Your students, and every session with each of them.'
               : 'Your tutoring sessions. Open one once its time has come.'}
           </p>
         </div>
@@ -73,6 +77,8 @@ export function Sessions() {
             )}
           </div>
         </div>
+      ) : isTeacher ? (
+        groups.map((g) => <StudentSessions key={g.key} group={g} />)
       ) : (
         <>
           {upcoming.length > 0 && (
@@ -101,11 +107,69 @@ export function Sessions() {
   )
 }
 
-export function SessionCard({ session: s, isTeacher }: { session: Session; isTeacher: boolean }) {
+/**
+ * One student, and the sessions this teacher has with them.
+ *
+ * The heading is the student — their name and the ID the teacher types to find
+ * them — and underneath it their history in the order it is asked about: the
+ * lesson that is next, then the ones already sat. Where both exist a rule
+ * separates them, so "what is coming" and "what happened" do not have to be
+ * told apart by reading the badges.
+ */
+function StudentSessions({ group: g }: { group: StudentGroup }) {
+  const ahead = g.upcoming.length
+  const behind = g.past.length
+
+  return (
+    <section className="sess-group">
+      <div className="sess-group-head">
+        <h2>{g.name}</h2>
+        {g.displayId && <span className="num">{g.displayId}</span>}
+        <span className="spring" />
+        <span className="sess-group-count">
+          {ahead > 0 && `${ahead} coming up`}
+          {ahead > 0 && behind > 0 && ' · '}
+          {behind > 0 && `${behind} sat`}
+        </span>
+      </div>
+
+      {ahead > 0 && (
+        <div className="sess-list">
+          {g.upcoming.map((s) => (
+            <SessionCard key={s.id} session={s} isTeacher withCounterpart={false} />
+          ))}
+        </div>
+      )}
+
+      {behind > 0 && (
+        <>
+          {ahead > 0 && <div className="sess-group-rule">Past</div>}
+          <div className="sess-list">
+            {g.past.map((s) => (
+              <SessionCard key={s.id} session={s} isTeacher withCounterpart={false} />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+export function SessionCard({
+  session: s,
+  isTeacher,
+  // Under a heading that already names the student, repeating them on every
+  // card is the same name six times down the page.
+  withCounterpart = true,
+}: {
+  session: Session
+  isTeacher: boolean
+  withCounterpart?: boolean
+}) {
   // Every session time in the product is written in UTC, so a teacher and a
   // student in different countries mean the same moment by it.
   const when = utcParts(s.scheduled_at)
-  const counterpart = isTeacher ? s.student : s.teacher
+  const counterpart = withCounterpart ? (isTeacher ? s.student : s.teacher) : null
 
   return (
     <Link className="sess-card" to={isTeacher ? `/sessions/${s.id}` : `/exam/${s.id}`}>
