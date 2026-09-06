@@ -258,9 +258,11 @@ diagnostic session ends
 **The console follows that order and offers nothing else.** There is no Report button and no
 Diagnostic form button sitting in the header from the moment a session is created — a button that
 is there before there is anything behind it is a button that gets pressed at the wrong time. While
-the test is running the console is the board. Once the session is over, a panel under it offers
-the form; once the form is submitted, the same panel shows what was written — the grid, the
-comments, the transcript — with **Generate report** underneath. `generate_report` refuses to run
+the test is running the console is the board. Once the session is over, a panel above it offers
+the form — above, because writing it up is the work now and the answers are the reference, and a
+teacher scrolling past twenty rows to find the button is being shown the wrong thing first. Once
+the form is submitted, the same panel shows what was written — the grid, the comments, the
+transcript — with **Generate report** underneath. `generate_report` refuses to run
 before `form_submitted_at` is set, so the rule holds outside the browser too. Generating is not
 sharing: the report stays a draft until it is published.
 
