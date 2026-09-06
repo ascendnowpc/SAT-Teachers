@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EvaluationGrid } from '../components/EvaluationGrid'
+import {
+  ClaimLine,
+  DomainFindings,
+  QuestionFindings,
+  SessionFindings,
+} from '../components/RecordingFindings'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
@@ -13,7 +19,11 @@ import {
   recommendedPriority,
   timeManagement,
 } from '../lib/grid'
+import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
+import { FEEDBACK_LABELS } from '../lib/extraction'
+import { rowsFrom } from '../lib/diagnostic'
 import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from '../lib/report'
+import { buildReportDoc, disagreements, taughtInSession } from '../lib/reportDoc'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow } from '../lib/types'
@@ -33,14 +43,17 @@ export function SessionReport() {
 
   const [notes, setNotes] = useState<DomainNote[]>([])
   const [meta, setMeta] = useState<SessionReportRow | null>(null)
+  const [extraction, setExtraction] = useState<ContextExtractionRow | null>(null)
 
   const loadWritten = useCallback(async () => {
-    const [n, m] = await Promise.all([
+    const [n, m, e] = await Promise.all([
       supabase.from('session_domain_notes').select('*').eq('session_id', id),
       supabase.from('session_reports').select('*').eq('session_id', id).maybeSingle(),
+      loadExtraction(id),
     ])
     setNotes(rows<DomainNote>(n.data))
     setMeta((m.data as SessionReportRow | null) ?? null)
+    setExtraction(e)
   }, [id])
 
   useEffect(() => {
@@ -48,6 +61,22 @@ export function SessionReport() {
   }, [loadWritten])
 
   const grid = useMemo(() => buildGrid(report, notes), [report, notes])
+
+  // The document: the teacher's form, the recording's findings and the computed
+  // numbers, joined but never merged. It is assembled at read time from the
+  // three of them, so it cannot drift from any of them.
+  const doc = useMemo(
+    () =>
+      buildReportDoc({
+        rows: rowsFrom(notes),
+        reflection: meta?.teacher_reflection ?? '',
+        report,
+        extraction: extraction?.body ?? null,
+      }),
+    [notes, meta, report, extraction],
+  )
+  const taught = useMemo(() => taughtInSession(doc), [doc])
+  const conflicts = useMemo(() => disagreements(doc), [doc])
   const pace = useMemo(() => timeManagement(report), [report])
   const confidence = useMemo(() => confidenceAverage(items), [items])
   const priority = meta?.practice_priority ?? recommendedPriority(report)
@@ -124,6 +153,92 @@ export function SessionReport() {
             <div className="section-title">Teacher evaluation grid</div>
             <EvaluationGrid rows={grid} />
           </div>
+
+          {extraction && (
+            <>
+              <SessionFindings doc={doc} />
+
+              {conflicts.length > 0 && (
+                <div className="card card-pad">
+                  <div className="section-title">Worth a second look before this goes out</div>
+                  <p className="step-text muted">
+                    The recording sits awkwardly against what was written on the form here. One of
+                    the two needs correcting, and only the teacher can say which.
+                  </p>
+                  <DomainFindings evidence={conflicts} />
+                </div>
+              )}
+
+              {taught.length > 0 && (
+                <div className="card card-pad">
+                  <div className="section-title">Taught in this lesson</div>
+                  <p className="step-text muted">
+                    The strategies and words that came up, and the questions they came up on.
+                  </p>
+                  {taught.map(({ feedback, questions }, k) => (
+                    <div key={k}>
+                      <ClaimLine
+                        claim={feedback}
+                        label={`${FEEDBACK_LABELS[feedback.kind]} · ${questions
+                          .map((q) => `Q${q}`)
+                          .join(', ')}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="card card-pad">
+                <div className="section-title">Each domain: what was written, and what was said</div>
+                {doc.domains.map((d) => (
+                  <div key={d.domain} className="question-findings">
+                    <div className="question-head">
+                      <b>{d.label}</b>
+                      {d.teacher.performance && (
+                        <span
+                          className={
+                            d.teacher.performance === 'tick' ? 'badge badge-ok' : 'badge badge-bad'
+                          }
+                        >
+                          {d.teacher.performance === 'tick' ? 'Tick' : 'Cross'}
+                        </span>
+                      )}
+                      {d.measured && (
+                        <span className="muted">
+                          {d.measured.correct} of {d.measured.total} correct
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="two-columns">
+                      <div>
+                        <h4>What the teacher wrote</h4>
+                        {d.teacher.strengths && (
+                          <p className="step-text">
+                            <b>Strengths.</b> {d.teacher.strengths}
+                          </p>
+                        )}
+                        {d.teacher.gaps && (
+                          <p className="step-text">
+                            <b>Gaps.</b> {d.teacher.gaps}
+                          </p>
+                        )}
+                        {d.teacher.targets && (
+                          <p className="step-text">
+                            <b>Next steps.</b> {d.teacher.targets}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <h4>What the recording shows</h4>
+                        <DomainFindings evidence={d.evidence} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="card card-pad summary-card">
             <div className="section-title">Overall diagnostic summary</div>
@@ -223,6 +338,19 @@ export function SessionReport() {
                   <MissRow key={a.itemId} attempt={a} />
                 ))}
               </div>
+            </div>
+          )}
+
+          {extraction && (
+            <div className="card card-pad">
+              <div className="section-title">What was said about each question</div>
+              <p className="step-text muted">
+                {doc.coverage.covered} of {doc.coverage.total} questions were discussed in the
+                recording. Every finding below carries the words it came from.
+              </p>
+              {doc.questions.map((q) => (
+                <QuestionFindings key={q.itemId} question={q} />
+              ))}
             </div>
           )}
 

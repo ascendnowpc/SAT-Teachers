@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DiagnosticGrid } from './DiagnosticGrid'
 import { Notice } from './ui'
 import { rowsComplete, rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
+import {
+  alignmentFor,
+  loadExtraction,
+  readRecording,
+  type ContextExtractionRow,
+} from '../lib/contextExtraction'
 import { row, rows as toRows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
-import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/types'
+import type { DomainNote, Session, SessionItem, SessionReportRow, SessionTranscript } from '../lib/types'
 
 /**
  * What the console offers once the test is over.
@@ -18,29 +24,78 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
  * that quietly happens when the boxes are full; the teacher presses the button,
  * and until they do there is nothing to press it with.
  */
-export function AfterTheTest({ sessionId }: { sessionId: string }) {
+/** "2:30" — where the lesson is taken to start in the recording. */
+function formatClock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+/** "Sara Rohit is the student and Malya Rastogi the teacher" — who is who. */
+function describeRoles(roles: Record<string, string>): string {
+  const named = (role: string) =>
+    Object.entries(roles)
+      .filter(([, r]) => r === role)
+      .map(([speaker]) => speaker)
+
+  const student = named('student')
+  const teacher = named('teacher')
+  if (student.length === 0 && teacher.length === 0) return 'nobody on it has been matched to a name yet'
+  if (student.length === 0) return `nobody on it matches the student's name`
+  if (teacher.length === 0) return `nobody on it matches the teacher's name`
+  return `${student.join(', ')} is the student and ${teacher.join(', ')} the teacher`
+}
+
+export function AfterTheTest({
+  sessionId,
+  session,
+  items,
+}: {
+  sessionId: string
+  session: Session | null
+  items: SessionItem[]
+}) {
   const [gridRows, setGridRows] = useState<DiagnosticRow[]>(rowsFrom([]))
   const [report, setReport] = useState<SessionReportRow | null>(null)
   const [transcript, setTranscript] = useState<SessionTranscript | null>(null)
+  const [extraction, setExtraction] = useState<ContextExtractionRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [reading, setReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [n, m, t] = await Promise.all([
+    const [n, m, t, e] = await Promise.all([
       supabase.from('session_domain_notes').select('*').eq('session_id', sessionId),
       supabase.from('session_reports').select('*').eq('session_id', sessionId).maybeSingle(),
       supabase.from('session_transcripts').select('*').eq('session_id', sessionId).maybeSingle(),
+      loadExtraction(sessionId),
     ])
     setGridRows(rowsFrom(toRows<DomainNote>(n.data)))
     setReport(row<SessionReportRow>(m.data))
     setTranscript(row<SessionTranscript>(t.data))
+    setExtraction(e)
     setLoading(false)
   }, [sessionId])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  async function read() {
+    setReading(true)
+    setError(null)
+    try {
+      await readRecording({
+        sessionId,
+        session,
+        items,
+        transcriptBody: transcript?.body ?? '',
+      })
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+    setReading(false)
+  }
 
   async function generate() {
     setBusy(true)
@@ -51,11 +106,26 @@ export function AfterTheTest({ sessionId }: { sessionId: string }) {
     setBusy(false)
   }
 
+  // suggestOffset tries every offset up to twenty minutes against every
+  // question, so this is a scan over the whole transcript rather than a lookup —
+  // not something to redo on each keystroke elsewhere on the console.
+  const alignment = useMemo(
+    () => alignmentFor(session, items, transcript?.body ?? ''),
+    [session, items, transcript],
+  )
+
   if (loading) return null
 
   const submitted = report?.form_submitted_at ?? null
   const generated = report?.generated_at ?? null
   const started = rowsComplete(gridRows)
+  const total = extraction?.body.questions.length ?? 0
+  const covered = extraction?.body.questions.filter((q) => q.covered).length ?? 0
+  // A transcript row is replaced rather than added to, so one created after the
+  // reading is a different recording than the one that was read.
+  const stale = Boolean(
+    extraction && transcript && Date.parse(transcript.created_at) > Date.parse(extraction.created_at),
+  )
 
   /* ------------------------------------------- the form is not in yet --- */
   if (!submitted) {
@@ -103,6 +173,45 @@ export function AfterTheTest({ sessionId }: { sessionId: string }) {
       <p className="step-text muted">
         {transcript?.filename ?? 'Pasted in'} · {transcript?.body.length ?? 0} characters
       </p>
+
+      <div className="section-title step-sub">What the recording says</div>
+      {!extraction ? (
+        <>
+          <p className="step-text">
+            The transcript is cut into one window per question and read back with a quote against
+            every finding — what the student explained, what they misunderstood, and what you told
+            them. Nothing that cannot be pointed at a line of the recording is kept.
+          </p>
+          <p className="step-text muted">
+            The lesson is taken to start at {formatClock(alignment.offset)} into the recording, and{' '}
+            {describeRoles(alignment.roles)}. Both are set on the{' '}
+            <Link to={`/sessions/${sessionId}/report/edit`}>write-up page</Link> if either is wrong.
+          </p>
+        </>
+      ) : (
+        <p className="step-text muted">
+          Read {formatUtc(extraction.created_at)} · {covered} of {total} questions covered
+          {extraction.drops.length > 0 && ` · ${extraction.drops.length} unquotable claims dropped`}
+        </p>
+      )}
+
+      {stale && (
+        <Notice kind="info">
+          The transcript was replaced after this reading was taken. Read it again — the report will
+          not generate from a reading of the old recording.
+        </Notice>
+      )}
+
+      <div className="step-actions">
+        <button
+          type="button"
+          className={extraction ? 'btn btn-ghost' : 'btn btn-primary'}
+          disabled={reading || !transcript?.body}
+          onClick={() => void read()}
+        >
+          {reading ? 'Reading the recording…' : extraction ? 'Read it again' : 'Read the recording'}
+        </button>
+      </div>
 
       <div className="step-actions">
         {generated ? (

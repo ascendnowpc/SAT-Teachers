@@ -1246,3 +1246,33 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
   border-radius: var(--r-sm); background: #fff;
 }
 .qsplit-head .muted { font-size: 12px; color: var(--muted); font-weight: 300; }
+
+/* ------------------------------------------ what the recording says ------ */
+/* A claim and the words behind it. The quote is never hidden behind a click:
+   a teacher checking a report before it goes to a parent cannot check what
+   they have to reveal, and the whole design rests on the quote being there. */
+.claim { margin: 14px 0; }
+.claim-text { font-size: 14px; color: var(--ink); line-height: 1.6; }
+.claim-text .badge { margin-right: 7px; vertical-align: 1px; }
+.claim-quote {
+  margin: 7px 0 0; padding: 9px 14px;
+  border-left: 3px solid var(--border-strong); background: var(--sky-wash);
+  border-radius: 0 var(--r) var(--r) 0;
+  font-size: 13.5px; color: var(--ink-2); line-height: 1.6;
+}
+.claim-quote cite { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); font-style: normal; }
+
+.question-findings { padding: 16px 0; border-top: 1px solid var(--border); }
+.question-findings:first-of-type { border-top: 0; }
+.question-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 4px; }
+.question-head .muted { font-size: 13px; }
+
+/* The teacher's own words and the recording's findings, side by side and never
+   merged — one is a judgement a person signed, the other an observation with a
+   citation, and a reader has to be able to tell which they are reading. */
+.two-columns { display: grid; gap: 18px; }
+@media (min-width: 900px) { .two-columns { grid-template-columns: 1fr 1fr; } }
+.two-columns h4 {
+  margin: 0 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
