@@ -843,6 +843,27 @@ table.board-table tr.live-row { background: var(--sky-wash); }
    column's main answer. */
 .cell-input.perf-note { margin-top: 8px; min-height: 0; text-align: left; font-size: 12px; }
 
+/* The grid read back, on the console. */
+.cell-read { margin: 0; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; }
+.cell-read.perf-note { margin-top: 6px; font-size: 12px; color: var(--ink-2); text-align: left; }
+.cell-read.targets-cell { font-style: italic; color: var(--ink-2); }
+
+/* ------------------------------------------- what happens after the test -- */
+/* One step at a time: fill the form, then generate the report. Neither is
+   offered in the header, because neither is a thing to do at any moment — they
+   are the order the write-up actually goes in. */
+.next-step { margin-top: 18px; }
+.next-step > p { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; margin: 0 0 16px; }
+.step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.step-head .spring { flex: 1; }
+.step-sub { margin-top: 20px; }
+.step-text { margin: 0; font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; }
+.step-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 20px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.step-actions .muted { font-size: 13px; color: var(--muted); }
+
 /* The Student Performance column: one mark, and the form only offers two. */
 .mark-pick { display: inline-flex; gap: 6px; }
 .mark-opt {

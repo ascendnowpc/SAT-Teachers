@@ -55,12 +55,15 @@ comment on column session_domain_notes.targets is
 -- ------------------------------------------- the teacher's own reflection ---
 alter table session_reports
   add column if not exists teacher_reflection text,
-  add column if not exists form_submitted_at  timestamptz;
+  add column if not exists form_submitted_at  timestamptz,
+  add column if not exists generated_at       timestamptz;
 
 comment on column session_reports.teacher_reflection is
   'The teacher''s comments on the session, written on the diagnostic form before any report exists.';
 comment on column session_reports.form_submitted_at is
   'When the diagnostic form was handed in complete. Null while it is still a part-filled draft.';
+comment on column session_reports.generated_at is
+  'When the teacher generated the report from the form and the transcript. Null until they do.';
 
 -- ---------------------------------------------------------- handing it in ---
 -- Every field on the form is required, and "required" that only lives in the
@@ -106,3 +109,26 @@ begin
 end $$;
 
 revoke execute on function public.submit_diagnostic_form(uuid) from anon;
+
+-- ------------------------------------------------------ generating it -----
+-- The report is not a thing that quietly happens once the boxes are full. The
+-- teacher presses the button, and it cannot be pressed before the form is in:
+-- a report generated from a part-filled form reads as a judgement about four
+-- domains when it was only ever told about two.
+create or replace function public.generate_report(p_session uuid)
+returns timestamptz language plpgsql security definer set search_path = public as $$
+declare v_at timestamptz;
+begin
+  perform assert_session_teacher(p_session);
+
+  if not exists (select 1 from session_reports r
+                  where r.session_id = p_session and r.form_submitted_at is not null) then
+    raise exception 'the diagnostic form has not been submitted yet';
+  end if;
+
+  v_at := now();
+  update session_reports set generated_at = v_at where session_id = p_session;
+  return v_at;
+end $$;
+
+revoke execute on function public.generate_report(uuid) from anon;

@@ -181,5 +181,7 @@ export interface SessionReportRow {
   teacher_reflection: string | null
   /** When the diagnostic form was handed in complete. Null while it is a draft. */
   form_submitted_at: string | null
+  /** When the teacher generated the report from the form. Null until they press it. */
+  generated_at: string | null
   published_at: string | null
 }
