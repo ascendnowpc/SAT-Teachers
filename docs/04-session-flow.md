@@ -59,7 +59,7 @@ taps a diagnosis chip:
 
 ── on the call: "these are too easy for you, go to the medium one" ────────
 
-presses [Medium]  ── or ──────────────────► student presses [Switch to medium]
+says "try the medium one" ────────────────► student presses [Switch to medium]
                                            the open question is voided
                                            ── the MEDIUM test loads ──
                                            its question 1 appears, 1 of 20
@@ -68,6 +68,9 @@ presses [Medium]  ── or ─────────────────�
 
 clicks Publish results ──────────────────► every answer revealed at once,
                                            with the right choice and why
+
+fills the diagnostic form
+then clicks Generate report
 ```
 
 The student's screen never contains information the teacher has not released. Correctness is

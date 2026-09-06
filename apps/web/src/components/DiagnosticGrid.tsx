@@ -6,7 +6,6 @@ import {
   type EditableField,
   type MarkedPerformance,
   type Problem,
-  type RowField,
 } from '../lib/diagnostic'
 
 /**
@@ -20,16 +19,20 @@ import {
  */
 export function DiagnosticGrid({
   rows,
-  problems,
-  disabled,
+  problems = [],
+  disabled = false,
+  readOnly = false,
   onChange,
 }: {
   rows: DiagnosticRow[]
   /** Empty until the teacher tries to hand the form in — nothing is red on arrival. */
-  problems: Problem[]
-  disabled: boolean
-  onChange: (domain: string, field: EditableField, value: string) => void
+  problems?: Problem[]
+  disabled?: boolean
+  /** The same grid, read back: what the teacher wrote, on the console. */
+  readOnly?: boolean
+  onChange?: (domain: string, field: EditableField, value: string) => void
 }) {
+  const change = onChange ?? (() => {})
   return (
     <div className="table-wrap">
       <table className="grid-table grid-form">
@@ -59,31 +62,39 @@ export function DiagnosticGrid({
                 </ul>
               </td>
               <td className="c">
-                <MarkPicker
-                  row={r}
-                  bad={hasProblem(problems, r.domain, 'performance')}
-                  disabled={disabled}
-                  onPick={(mark) => onChange(r.domain, 'performance', mark)}
-                />
+                {readOnly ? (
+                  <Mark performance={r.performance} />
+                ) : (
+                  <MarkPicker
+                    row={r}
+                    bad={hasProblem(problems, r.domain, 'performance')}
+                    disabled={disabled}
+                    onPick={(mark) => change(r.domain, 'performance', mark)}
+                  />
+                )}
                 {/* The paper's box is bigger than a tick, and teachers write in
                     it. Optional: the mark is the part the report needs. */}
-                <Box
+                <Cell
                   row={r}
                   field="performanceNote"
+                  problems={problems}
                   disabled={disabled}
-                  onChange={onChange}
+                  readOnly={readOnly}
+                  onChange={change}
                   className="perf-note"
                   placeholder="Optional"
+                  bare
                 />
               </td>
-              <Cell row={r} field="strengths" problems={problems} disabled={disabled} onChange={onChange} />
-              <Cell row={r} field="gaps" problems={problems} disabled={disabled} onChange={onChange} />
+              <Cell row={r} field="strengths" problems={problems} disabled={disabled} readOnly={readOnly} onChange={change} />
+              <Cell row={r} field="gaps" problems={problems} disabled={disabled} readOnly={readOnly} onChange={change} />
               <Cell
                 row={r}
                 field="targets"
                 problems={problems}
                 disabled={disabled}
-                onChange={onChange}
+                readOnly={readOnly}
+                onChange={change}
                 className="targets-cell"
               />
             </tr>
@@ -151,33 +162,60 @@ function Box({
   )
 }
 
-/** One of the written columns, in its own cell. */
+/**
+ * One written column: a box to fill in, or — read back — what was written in
+ * it. `bare` is for the note under the mark, which shares a cell rather than
+ * having one.
+ */
 function Cell({
   row,
   field,
   problems,
   disabled,
+  readOnly,
   onChange,
   className,
+  placeholder,
+  bare = false,
 }: {
   row: DiagnosticRow
-  field: Exclude<RowField, 'performance'>
+  field: Exclude<EditableField, 'performance'>
   problems: Problem[]
   disabled: boolean
+  readOnly: boolean
   onChange: (domain: string, field: EditableField, value: string) => void
   className?: string
+  placeholder?: string
+  bare?: boolean
 }) {
+  const inner = readOnly ? (
+    <p className={`cell-read ${className ?? ''}`.trim()}>
+      {row[field] || <span className="unobserved">—</span>}
+    </p>
+  ) : (
+    <Box
+      row={row}
+      field={field}
+      disabled={disabled}
+      onChange={onChange}
+      className={className}
+      placeholder={placeholder}
+      bad={field !== 'performanceNote' && hasProblem(problems, row.domain, field)}
+    />
+  )
+
+  // The note under the mark is the one that does not own its cell.
+  if (bare) return readOnly && !row[field] ? null : inner
+  return <td>{inner}</td>
+}
+
+/** The mark, read back. */
+function Mark({ performance }: { performance: DiagnosticRow['performance'] }) {
+  if (performance === null) return <span className="perf none">—</span>
   return (
-    <td>
-      <Box
-        row={row}
-        field={field}
-        disabled={disabled}
-        onChange={onChange}
-        className={className}
-        bad={hasProblem(problems, row.domain, field)}
-      />
-    </td>
+    <span className={`perf ${performance}`}>
+      <span className="sym">{performance === 'tick' ? '✓' : '✗'}</span>
+    </span>
   )
 }
 

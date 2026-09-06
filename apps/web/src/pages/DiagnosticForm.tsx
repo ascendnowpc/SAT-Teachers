@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DiagnosticGrid } from '../components/DiagnosticGrid'
 import { IconBack } from '../components/icons'
 import { Field, Notice, Textarea } from '../components/ui'
@@ -37,6 +37,7 @@ import type { DomainNote, Session, SessionReportRow, SessionTranscript } from '.
  */
 export function DiagnosticForm() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
 
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,7 +53,7 @@ export function DiagnosticForm() {
   const [problems, setProblems] = useState<Problem[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null)
+  const [saved, setSaved] = useState<'draft' | null>(null)
 
   const load = useCallback(async () => {
     const [s, n, m, t] = await Promise.all([
@@ -168,8 +169,12 @@ export function DiagnosticForm() {
       if (submit) {
         const { error: err } = await supabase.rpc('submit_diagnostic_form', { p_session: id })
         if (err) throw new Error(err.message)
+        // Back to the session, which is where the form is read and where the
+        // report is generated from it.
+        navigate(`/sessions/${id}`)
+        return
       }
-      setSaved(submit ? 'submitted' : 'draft')
+      setSaved('draft')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the form.')
@@ -207,8 +212,7 @@ export function DiagnosticForm() {
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
-      {saved === 'draft' && <Notice kind="ok">Saved as a draft.</Notice>}
-      {saved === 'submitted' && <Notice kind="ok">Form submitted.</Notice>}
+      {saved && <Notice kind="ok">Saved as a draft.</Notice>}
 
       {/* ------------------------------------------------ the grid --------- */}
       <div className="card card-pad">

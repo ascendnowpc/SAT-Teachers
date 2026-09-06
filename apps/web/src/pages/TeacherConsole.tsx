@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AfterTheTest } from '../components/AfterTheTest'
 import { IconBack, IconVideo } from '../components/icons'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
@@ -58,6 +59,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const live = items.filter(
     (i) => i.status === 'published' || i.status === 'answered' || i.status === 'revealed',
   )
+  const over = session.status === 'completed' || session.status === 'cancelled'
   const skipped = items.filter((i) => i.status === 'voided').length
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
@@ -67,13 +69,16 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
    * teacher says so — but that is one decision about the session, not twenty
    * decisions about twenty questions, and revealing them one at a time only
    * ever meant clicking twenty times.
+   *
+   * It reveals answers and nothing else. It used to publish the report in the
+   * same call, which put a report out before anyone had filled the diagnostic
+   * form — the report is generated deliberately, below the board, once the
+   * form is in.
    */
   async function publishResults() {
     setActionError(null)
     setBusy(true)
-    const reveal = await supabase.rpc('reveal_answered_items', { p_session: sessionId })
-    const report = await supabase.rpc('publish_report', { p_session: sessionId })
-    const err = reveal.error ?? report.error
+    const { error: err } = await supabase.rpc('reveal_answered_items', { p_session: sessionId })
     if (err) setActionError(err.message)
     await reload()
     setBusy(false)
@@ -97,12 +102,6 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         <div className="spring" />
         <StatusBadge status={session.status} />
         <div className="actions">
-          <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/diagnostic`}>
-            Diagnostic form
-          </Link>
-          <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/report`}>
-            Report
-          </Link>
           {session.meeting_url && (
             <a
               className="btn btn-ghost btn-sm"
@@ -145,6 +144,8 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
       <Board items={live} skipped={skipped} busy={busy} onCall={call} />
+
+      {over && <AfterTheTest sessionId={sessionId} />}
     </div>
   )
 }

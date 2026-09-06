@@ -196,9 +196,10 @@ as it stands — `finish_session_as_student` completes the session and voids eve
 never answered, including the one on screen. A test you can leave and come back to is not a test,
 and the per-question clock would mean nothing.
 
-**Afterwards** the teacher presses **Publish results** once: every answered question is revealed
-to the student and the report is published in the same action. Whether the student learns how
-they did is one decision about the session, not twenty decisions about twenty questions.
+**Afterwards** the teacher presses **Publish results** once and every answered question is
+revealed to the student. Whether they learn how they did is one decision about the session, not
+twenty decisions about twenty questions. It publishes no report: that is a separate, deliberate
+step below the board, and it cannot happen before the diagnostic form is in.
 Diagnoses are still per question — that is the teacher's judgement, and it is what the report is
 built out of — but they can be tapped as soon as an answer lands rather than only after a reveal.
 The console is the board and nothing else — one row per answer rather than a card per question,
@@ -245,12 +246,23 @@ is generated from those afterwards. This is that form, in the order they fill it
 ```
 diagnostic session ends
   → no score, no report
+  → the console offers one thing: FILL THE DIAGNOSTIC FORM
   → teacher fills the reflection grid   ✓/✗, strengths, gaps, next steps — per domain
   → teacher writes their comments
   → teacher uploads or pastes the Fathom transcript
-  → the diagnostic report is generated from the form and the transcript
+  → the console shows the form back, and offers GENERATE REPORT
+  → teacher presses it; the report is generated and stored
   → the report goes to the student and the parent
 ```
+
+**The console follows that order and offers nothing else.** There is no Report button and no
+Diagnostic form button sitting in the header from the moment a session is created — a button that
+is there before there is anything behind it is a button that gets pressed at the wrong time. While
+the test is running the console is the board. Once the session is over, a panel under it offers
+the form; once the form is submitted, the same panel shows what was written — the grid, the
+comments, the transcript — with **Generate report** underneath. `generate_report` refuses to run
+before `form_submitted_at` is set, so the rule holds outside the browser too. Generating is not
+sharing: the report stays a draft until it is published.
 
 The grid on screen is the grid on the paper: the same six columns in the same order, four domain
 rows, Domain and Skill Focus printed and the rest editable. **Next steps/Targets arrives
@@ -268,9 +280,10 @@ thing in Postgres, so "required" is a rule rather than a convention the browser 
 part-filled form still saves as a draft — nobody types four domains of notes in one sitting.
 
 What it writes: `session_domain_notes` gains `performance`, `performance_note` and `targets`
-alongside the strengths and gaps it already held, `session_reports.teacher_reflection` takes the comments, and the
-transcript goes where it always went. Nothing on the page computes, scores or concludes anything;
-the report engine is the next piece of work.
+alongside the strengths and gaps it already held; `session_reports` takes the comments in
+`teacher_reflection` and the two moments in `form_submitted_at` and `generated_at`; the transcript
+goes where it always went. Nothing on the form computes, scores or concludes anything — the engine
+that composes the report out of the form and the transcript is the next piece of work.
 
 ## Writing it up from the recording
 
