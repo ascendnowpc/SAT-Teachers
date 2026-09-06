@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SECTIONS, SKILLS, skillFitsSection, skillLabel, skillsFor } from './constants'
+import {
+  SECTIONS,
+  SKILLS,
+  levelSwitchLabel,
+  levelSwitchTarget,
+  skillFitsSection,
+  skillLabel,
+  skillsFor,
+} from './constants'
 
 describe('the skill taxonomy', () => {
   it('covers every English section and no Mathematics one', () => {
@@ -62,5 +70,38 @@ describe('skillLabel', () => {
 
   it('has no label for no skill', () => {
     expect(skillLabel(null)).toBeNull()
+  })
+})
+
+describe('levelSwitchTarget', () => {
+  it('offers the next test up while there is one', () => {
+    expect(levelSwitchTarget('easy')).toEqual({ level: 'medium', back: false })
+    expect(levelSwitchTarget('medium')).toEqual({ level: 'hard', back: false })
+  })
+
+  // At the top there is nowhere to climb, so the one move worth offering is
+  // the way back off a test that has turned out to be too much.
+  it('offers the way back down from the top', () => {
+    expect(levelSwitchTarget('hard')).toEqual({ level: 'medium', back: true })
+  })
+
+  it('never offers more than one move', () => {
+    // The student's screen has room for exactly one button, and a row of them
+    // asked a student mid-question to choose between levels nobody raised.
+    for (const level of ['easy', 'medium', 'hard'] as const) {
+      const target = levelSwitchTarget(level)
+      expect(target?.level).not.toBe(level)
+    }
+  })
+})
+
+describe('levelSwitchLabel', () => {
+  it('says where the button goes', () => {
+    expect(levelSwitchLabel({ level: 'medium', back: false })).toBe('Switch to medium')
+    expect(levelSwitchLabel({ level: 'hard', back: false })).toBe('Switch to hard')
+  })
+
+  it('says it is a step back when it is', () => {
+    expect(levelSwitchLabel({ level: 'medium', back: true })).toBe('Switch back to medium')
   })
 })

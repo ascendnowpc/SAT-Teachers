@@ -109,8 +109,14 @@ next. Nobody hands anything over.
 The only decision is when the level is wrong, and it is made the way it is actually made on a
 call: the teacher watches the student work, says "this is too easy, try the medium one", and
 whoever is nearer the keyboard presses it. So `set_session_level` accepts the call from **either
-seat** — the session's student or the session's teacher — and the same three buttons are on both
-screens.
+seat** — the session's student or the session's teacher.
+
+The two seats do not get the same control, because they are not making the same decision. The
+teacher's console carries all three levels, because a drop straight from hard to easy is a real
+instruction and it is theirs to give. The student's screen carries **one button**: the next test
+up while there is one, and on the hard test the way back down to medium. It used to carry a
+button for every level they were not on, which meant a student on hard being asked, mid-question,
+to choose between easy and medium — a choice nobody had raised.
 
 ```
   STUDENT'S SCREEN                        TEACHER'S CONSOLE
@@ -127,7 +133,7 @@ screens.
   │  [ Next ]                    │        │ ┌──────┬────────┬──────┐ │
   │ ─────────────────────────────│        │ │ Easy │ Medium │ Hard │ │
   │ You are on the easy test     │        │ └──────┴────────┴──────┘ │
-  │  [Switch to medium] [ …hard] │        └──────────────────────────┘
+  │           [Switch to medium] │        └──────────────────────────┘
   └──────────────────────────────┘
 ```
 
@@ -153,7 +159,10 @@ Three things do not change, and they are the ones that matter:
   reach. So the per-question clock means what it meant before, and there is still no reading
   ahead.
 * **Leaving still ends the test.** The screen stays full while a question is open, and walking
-  out submits what they have. A test you can leave and come back to is not a test.
+  out submits what they have. A test you can leave and come back to is not a test. That exit is
+  now a **[Submit test]** button in the exam header as well as the back arrow — handing a test in
+  early is a decision a student makes, and it should not have to be made by trying to leave the
+  page.
 * **Nothing about the reveal moves.** The student learns the result when the teacher publishes
   the results, exactly as before.
 
@@ -172,6 +181,12 @@ they have no way to count it for themselves.
 Teacher ends the session → `status = completed`, `ended_at` set. The session summary is already
 complete without any writing: every item, answer, elimination, time and diagnosis is on the
 board. The teacher adds an optional overall note.
+
+The board shows **what the student sat**, not what the session loaded. Handing in at question six
+voids the fourteen behind it, and those fourteen used to print as fourteen "Not attempted" rows
+that buried the six carrying the lesson. They are one line under the table now — the count is
+still a finding, the empty rows never were. The report and the student's own results screen have
+always read the same way, so all three now agree.
 
 The transcript is uploaded later (usually same day) and the report pipeline takes over —
 `docs/05-report-engine.md`.

@@ -49,7 +49,15 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  const live = items.filter((i) => i.status !== 'staged')
+  // Only what the student actually sat. A session left at question six voids
+  // the fourteen behind it, and a board that printed fourteen "Not attempted"
+  // rows buried the six that carry the lesson — the same list the report and
+  // the student's own screen have always shown. The count is kept, because a
+  // test abandoned two questions in is a finding; fourteen empty rows are not.
+  const live = items.filter(
+    (i) => i.status === 'published' || i.status === 'answered' || i.status === 'revealed',
+  )
+  const skipped = items.filter((i) => i.status === 'voided').length
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
   // How far through the test they are on — not how many questions this session
@@ -143,7 +151,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           <Level session={session} done={doneHere} busy={busy} onCall={call} />
         </div>
         <div>
-          <Board items={live} busy={busy} onCall={call} />
+          <Board items={live} skipped={skipped} busy={busy} onCall={call} />
         </div>
       </div>
     </div>
@@ -310,10 +318,13 @@ function Level({
 
 function Board({
   items: unsorted,
+  skipped,
   busy,
   onCall,
 }: {
   items: SessionItem[]
+  /** Questions this session loaded and the student never reached. */
+  skipped: number
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
@@ -327,8 +338,9 @@ function Board({
         <div className="empty">
           <h3>Nothing answered yet</h3>
           <p>
-            The student opens this session themselves at its scheduled time. Every answer lands
-            here as it happens, with the time it took and how sure they were.
+            {skipped > 0
+              ? `The session ended with nothing answered — ${skipped} question${skipped === 1 ? '' : 's'} were left unattempted.`
+              : 'The student opens this session themselves at its scheduled time. Every answer lands here as it happens, with the time it took and how sure they were.'}
           </p>
         </div>
       </div>
@@ -394,7 +406,6 @@ function Board({
                     <td>
                       {it.status === 'published' && <span className="badge badge-sky">Working</span>}
                       {it.status === 'answered' && <span className="badge badge-neutral">Answered</span>}
-                      {it.status === 'voided' && <span className="badge badge-neutral">Not attempted</span>}
                       {it.status === 'revealed' &&
                         (it.revealed_result === 'correct' ? (
                           <span className="badge badge-ok">Correct</span>
@@ -408,6 +419,12 @@ function Board({
             </tbody>
           </table>
         </div>
+        {skipped > 0 && (
+          <p className="board-foot">
+            {skipped} question{skipped === 1 ? '' : 's'} not attempted — left behind when the test
+            was handed in or the level moved.
+          </p>
+        )}
       </div>
 
       {items
