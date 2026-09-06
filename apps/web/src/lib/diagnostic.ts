@@ -21,12 +21,16 @@ import type { DomainNote } from './types'
 /** The two marks the Student Performance column offers: ✓ or ✗. */
 export type MarkedPerformance = 'tick' | 'cross'
 
-/** The columns of the grid a teacher fills in. */
+/** The columns of the grid a teacher must fill in. */
 export const ROW_FIELDS = ['performance', 'strengths', 'gaps', 'targets'] as const
 export type RowField = (typeof ROW_FIELDS)[number]
 
-export const ROW_FIELD_LABELS: Record<RowField, string> = {
+/** Everything in a row the teacher can write in, required or not. */
+export type EditableField = RowField | 'performanceNote'
+
+export const FIELD_LABELS: Record<EditableField, string> = {
   performance: 'Student performance',
+  performanceNote: 'Student performance — note',
   strengths: 'Strengths observed',
   gaps: 'Gaps observed',
   targets: 'Next steps / Targets',
@@ -39,6 +43,8 @@ export interface DiagnosticRow {
   /** Printed on the form: what the domain covers. Not the teacher's to change. */
   skillFocus: string[]
   performance: MarkedPerformance | null
+  /** Anything the teacher wants to say beside the mark. Optional. */
+  performanceNote: string
   strengths: string
   gaps: string
   targets: string
@@ -76,6 +82,7 @@ export function emptyRows(): DiagnosticRow[] {
     label: sectionLabel(domain) ?? domain,
     skillFocus: DOMAIN_SKILL_FOCUS[domain] ?? [],
     performance: null,
+    performanceNote: '',
     strengths: '',
     gaps: '',
     targets: defaultTargets(domain),
@@ -95,6 +102,7 @@ export function rowsFrom(notes: DomainNote[]): DiagnosticRow[] {
     return {
       ...row,
       performance: note.performance ?? null,
+      performanceNote: note.performance_note ?? '',
       strengths: note.strengths ?? '',
       gaps: note.gaps ?? '',
       // An empty targets column means the row predates the form, not that the
@@ -158,7 +166,7 @@ export function summariseProblems(problems: Problem[]): string {
   if (missingRows.size > 0) {
     const fields = ROW_FIELDS.filter((f) =>
       problems.some((p) => p.where === 'row' && p.field === f),
-    ).map((f) => ROW_FIELD_LABELS[f].toLowerCase())
+    ).map((f) => FIELD_LABELS[f].toLowerCase())
     parts.push(
       `${missingRows.size} of ${DOMAIN_ORDER.length} domain rows are unfinished (${fields.join(', ')})`,
     )

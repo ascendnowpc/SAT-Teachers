@@ -25,8 +25,9 @@
 
 -- ------------------------------------------------------ the grid's columns --
 alter table session_domain_notes
-  add column if not exists performance text,
-  add column if not exists targets     text;
+  add column if not exists performance      text,
+  add column if not exists performance_note text,
+  add column if not exists targets          text;
 
 -- The paper form offers exactly two marks in the Student Performance column,
 -- and so does this. 'mixed' belongs to the computed grid, which is a reading of
@@ -46,6 +47,8 @@ end $$;
 
 comment on column session_domain_notes.performance is
   'The Student Performance column as the teacher marked it: tick or cross. Null until the form is filled in.';
+comment on column session_domain_notes.performance_note is
+  'Anything the teacher wrote beside the mark. Optional — the mark is the required part.';
 comment on column session_domain_notes.targets is
   'The Next steps/Targets column. Null means the form''s printed default for that domain still stands.';
 

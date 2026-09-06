@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef } from 'react'
 import {
-  ROW_FIELD_LABELS,
+  FIELD_LABELS,
   hasProblem,
   type DiagnosticRow,
+  type EditableField,
   type MarkedPerformance,
   type Problem,
   type RowField,
@@ -13,9 +14,9 @@ import {
  *
  * Same six columns as the paper the teachers already fill in, in the same
  * order, so a teacher who has the printed one in front of them is filling the
- * same boxes on screen. Domain and Skill Focus are printed on it; the other
- * three columns are theirs, and all three are required — an unfilled one is
- * marked here rather than only counted in a message at the bottom.
+ * same boxes on screen. Domain and Skill Focus are printed on it; the rest is
+ * theirs, and everything but the note under the mark is required — an unfilled
+ * one is marked here rather than only counted in a message at the bottom.
  */
 export function DiagnosticGrid({
   rows,
@@ -27,7 +28,7 @@ export function DiagnosticGrid({
   /** Empty until the teacher tries to hand the form in — nothing is red on arrival. */
   problems: Problem[]
   disabled: boolean
-  onChange: (domain: string, field: RowField, value: string) => void
+  onChange: (domain: string, field: EditableField, value: string) => void
 }) {
   return (
     <div className="table-wrap">
@@ -64,6 +65,16 @@ export function DiagnosticGrid({
                   disabled={disabled}
                   onPick={(mark) => onChange(r.domain, 'performance', mark)}
                 />
+                {/* The paper's box is bigger than a tick, and teachers write in
+                    it. Optional: the mark is the part the report needs. */}
+                <Box
+                  row={r}
+                  field="performanceNote"
+                  disabled={disabled}
+                  onChange={onChange}
+                  className="perf-note"
+                  placeholder="Optional"
+                />
               </td>
               <Cell row={r} field="strengths" problems={problems} disabled={disabled} onChange={onChange} />
               <Cell row={r} field="gaps" problems={problems} disabled={disabled} onChange={onChange} />
@@ -84,29 +95,30 @@ export function DiagnosticGrid({
 }
 
 /**
- * One written column of one row.
+ * A box that grows with what is in it.
  *
- * The box grows with what is in it. A fixed height would be fine for the two
- * the teacher types into and wrong for the third: the targets arrive with three
- * sentences already printed in them, and a cell that clips its own default is a
- * cell nobody reads before agreeing with it.
+ * A fixed height would be fine for the columns the teacher types into and
+ * wrong for the targets: they arrive with three sentences already printed in
+ * them, and a cell that clips its own default is a cell nobody reads before
+ * agreeing with it.
  */
-function Cell({
+function Box({
   row,
   field,
-  problems,
   disabled,
   onChange,
   className,
+  placeholder,
+  bad = false,
 }: {
   row: DiagnosticRow
-  field: Exclude<RowField, 'performance'>
-  problems: Problem[]
+  field: Exclude<EditableField, 'performance'>
   disabled: boolean
-  onChange: (domain: string, field: RowField, value: string) => void
+  onChange: (domain: string, field: EditableField, value: string) => void
   className?: string
+  placeholder?: string
+  bad?: boolean
 }) {
-  const bad = hasProblem(problems, row.domain, field)
   const ref = useRef<HTMLTextAreaElement>(null)
   const value = row[field]
 
@@ -125,16 +137,45 @@ function Cell({
   }, [value])
 
   return (
+    <textarea
+      ref={ref}
+      className={`cell-input ${className ?? ''} ${bad ? 'bad' : ''}`.trim()}
+      rows={2}
+      value={value}
+      disabled={disabled}
+      placeholder={placeholder}
+      aria-invalid={bad || undefined}
+      aria-label={`${FIELD_LABELS[field]} — ${row.label}`}
+      onChange={(e) => onChange(row.domain, field, e.target.value)}
+    />
+  )
+}
+
+/** One of the written columns, in its own cell. */
+function Cell({
+  row,
+  field,
+  problems,
+  disabled,
+  onChange,
+  className,
+}: {
+  row: DiagnosticRow
+  field: Exclude<RowField, 'performance'>
+  problems: Problem[]
+  disabled: boolean
+  onChange: (domain: string, field: EditableField, value: string) => void
+  className?: string
+}) {
+  return (
     <td>
-      <textarea
-        ref={ref}
-        className={`cell-input ${className ?? ''} ${bad ? 'bad' : ''}`.trim()}
-        rows={3}
-        value={value}
+      <Box
+        row={row}
+        field={field}
         disabled={disabled}
-        aria-invalid={bad || undefined}
-        aria-label={`${ROW_FIELD_LABELS[field]} — ${row.label}`}
-        onChange={(e) => onChange(row.domain, field, e.target.value)}
+        onChange={onChange}
+        className={className}
+        bad={hasProblem(problems, row.domain, field)}
       />
     </td>
   )

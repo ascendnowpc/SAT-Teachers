@@ -257,7 +257,9 @@ rows, Domain and Skill Focus printed and the rest editable. **Next steps/Targets
 prefilled** with the form's own wording — a teacher who agrees with it should not have to retype
 it to say so — and is theirs to rewrite. Student Performance offers a tick and a cross and
 nothing else, because that is what the paper offers: it is one judgement the teacher signs about
-the domain, not an arithmetic over answers nobody has marked yet.
+the domain, not an arithmetic over answers nobody has marked yet. The paper's box is bigger than
+a tick and teachers write in it, so there is a note under the mark — the one optional box on the
+form.
 
 **Every field is required.** A report generated from a form with two domains filled in reads as a
 judgement about four. Trying to hand in an unfinished one marks the empty cells and says what is
@@ -265,8 +267,8 @@ missing by column rather than listing sixteen of them; `submit_diagnostic_form` 
 thing in Postgres, so "required" is a rule rather than a convention the browser keeps. A
 part-filled form still saves as a draft — nobody types four domains of notes in one sitting.
 
-What it writes: `session_domain_notes` gains `performance` and `targets` alongside the strengths
-and gaps it already held, `session_reports.teacher_reflection` takes the comments, and the
+What it writes: `session_domain_notes` gains `performance`, `performance_note` and `targets`
+alongside the strengths and gaps it already held, `session_reports.teacher_reflection` takes the comments, and the
 transcript goes where it always went. Nothing on the page computes, scores or concludes anything;
 the report engine is the next piece of work.
 

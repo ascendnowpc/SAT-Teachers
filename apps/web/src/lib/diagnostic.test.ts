@@ -57,6 +57,7 @@ describe('emptyRows', () => {
   it('leaves every column the teacher owns empty', () => {
     for (const row of emptyRows()) {
       expect(row.performance).toBeNull()
+      expect(row.performanceNote).toBe('')
       expect(row.strengths).toBe('')
       expect(row.gaps).toBe('')
     }
@@ -68,6 +69,7 @@ describe('rowsFrom', () => {
     session_id: 's1',
     domain: 'information_and_ideas',
     performance: 'cross',
+    performance_note: 'Two of four, both inference.',
     strengths: 'Kept going.',
     gaps: 'Inference.',
     targets: 'Ten inference questions a week.',
@@ -77,6 +79,7 @@ describe('rowsFrom', () => {
   it('reads a saved row back exactly as it was filled in', () => {
     const row = rowsFrom([note({})])[0]
     expect(row.performance).toBe('cross')
+    expect(row.performanceNote).toBe('Two of four, both inference.')
     expect(row.strengths).toBe('Kept going.')
     expect(row.gaps).toBe('Inference.')
     expect(row.targets).toBe('Ten inference questions a week.')
@@ -125,6 +128,12 @@ describe('validate', () => {
   it('requires the targets, prefilled though they arrive', () => {
     const rows = emptyRows().map(filled({ targets: '' }))
     expect(validate(form(rows)).filter((p) => p.where === 'row' && p.field === 'targets')).toHaveLength(4)
+  })
+
+  it('never asks for the note beside the mark — it is the one optional box', () => {
+    const rows = emptyRows().map(filled({ performanceNote: '' }))
+    expect(validate(form(rows))).toEqual([])
+    expect(rowsComplete(rows)).toBe(4)
   })
 
   it('requires the teacher’s comments and the transcript', () => {
