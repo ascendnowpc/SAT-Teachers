@@ -28,9 +28,14 @@ export function Dashboard() {
       })
 
     if (isTeacher) {
+      // Only what a session can actually ask. Retired items are still in the
+      // bank and still readable — they are just not stock, and counting them
+      // made the bank look half again as deep as it is, which is the one thing
+      // this number is read to find out.
       void supabase
         .from('questions')
         .select('difficulty')
+        .eq('status', 'published')
         .then(({ data }) => {
           if (!active || !data) return
           const tally: Record<Difficulty, number> = { easy: 0, medium: 0, hard: 0 }
