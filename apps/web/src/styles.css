@@ -661,6 +661,15 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .ch-strike:hover, .ch-strike.on { background: var(--input-hover); color: var(--ink); }
 
 .exam-after { margin-top: 26px; }
+/* The confidence question waits for an answer, so its row appears mid-question.
+   It slides in rather than blinking on, and the line it replaces holds the
+   space so the Next button does not jump under the cursor. */
+.conf-ask { animation: conf-in .16s ease-out; }
+@keyframes conf-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.conf-wait {
+  min-height: 72px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13.5px; font-weight: 300; text-align: center;
+}
 .exam-sent { margin-top: 20px; color: var(--muted); font-size: 14px; font-weight: 300; text-align: center; }
 
 .exam-wait {

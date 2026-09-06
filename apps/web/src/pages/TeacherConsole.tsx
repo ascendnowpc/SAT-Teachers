@@ -57,6 +57,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const live = items.filter(
     (i) => i.status === 'published' || i.status === 'answered' || i.status === 'revealed',
   )
+  const over = session.status === 'completed' || session.status === 'cancelled'
   const skipped = items.filter((i) => i.status === 'voided').length
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
@@ -146,14 +147,23 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {error && <Notice kind="error">{error}</Notice>}
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
-      <div className="room">
-        <div className="room-side">
-          <Level session={session} done={doneHere} busy={busy} onCall={call} />
+      {/* The level card is a control, and once the session is over there is
+          nothing left to control: it sat beside the finished board saying the
+          student finished on the hard test, which the board's own Level column
+          says twenty times over. So the answers get the whole width instead,
+          which is what a teacher opens a finished session to read. */}
+      {over ? (
+        <Board items={live} skipped={skipped} busy={busy} onCall={call} />
+      ) : (
+        <div className="room">
+          <div className="room-side">
+            <Level session={session} done={doneHere} busy={busy} onCall={call} />
+          </div>
+          <div>
+            <Board items={live} skipped={skipped} busy={busy} onCall={call} />
+          </div>
         </div>
-        <div>
-          <Board items={live} skipped={skipped} busy={busy} onCall={call} />
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -249,7 +259,6 @@ function Level({
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
   const first = session.student?.full_name?.split(' ')[0] ?? 'The student'
-  const over = session.status === 'completed' || session.status === 'cancelled'
   const size = session.level_size
   const live = session.status === 'live'
 
@@ -289,27 +298,23 @@ function Level({
           ? session.opened_early_at
             ? `Open now. ${first} can start whenever they are ready and begins on the ${levelLabel(session.level).toLowerCase()} test.`
             : `${first} opens this themselves at the scheduled time and begins on the ${levelLabel(session.level).toLowerCase()} test.`
-          : over
-            ? `Finished on the ${levelLabel(session.level).toLowerCase()} test.`
-            : `${first} is working through the ${levelLabel(session.level).toLowerCase()} test one question at a time. Move them if it is the wrong level — the question they are on is left unanswered and the new test starts at its first question.`}
+          : `${first} is working through the ${levelLabel(session.level).toLowerCase()} test one question at a time. Move them if it is the wrong level — the question they are on is left unanswered and the new test starts at its first question.`}
       </p>
 
-      {!over && (
-        <div className="level-pick" role="group" aria-label="Which test">
-          {LEVELS.map((l) => (
-            <button
-              key={l}
-              type="button"
-              className={`level-opt ${l === session.level ? 'on' : ''}`}
-              aria-pressed={l === session.level}
-              disabled={busy || l === session.level}
-              onClick={() => move(l)}
-            >
-              {levelLabel(l)}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="level-pick" role="group" aria-label="Which test">
+        {LEVELS.map((l) => (
+          <button
+            key={l}
+            type="button"
+            className={`level-opt ${l === session.level ? 'on' : ''}`}
+            aria-pressed={l === session.level}
+            disabled={busy || l === session.level}
+            onClick={() => move(l)}
+          >
+            {levelLabel(l)}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
