@@ -146,7 +146,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {/* Above the board, not under it. Once the test is over, writing it up is
           the thing to do — and a teacher who has to scroll past twenty answers
           to find the button is being shown the answers instead. */}
-      {over && <AfterTheTest sessionId={sessionId} />}
+      {over && <AfterTheTest sessionId={sessionId} session={session} items={items} />}
 
       <Board items={live} skipped={skipped} busy={busy} onCall={call} />
     </div>

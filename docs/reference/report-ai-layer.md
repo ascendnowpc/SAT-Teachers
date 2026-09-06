@@ -77,6 +77,14 @@ Transcript plus answers in, finished report out.
   alignment problem, it will produce statistics, and there is no cheap way to check a fluent
   paragraph. Not recommended at any price.
 
+> **Update — built.** What shipped is option C, with the guard from option B applied to every claim:
+> the model reads pre-cut windows and every claim it makes is dropped unless its quote is verbatim in
+> the recording. The reason for going to C first rather than B is in
+> [`context-extraction.md`](context-extraction.md) — the two Fathom exports showed the deterministic
+> markers are reading the teacher's own explanations as the student's reasoning, because Fathom
+> mislabels the edges of a turn. That is a live bug rather than a dull-sentences problem, and B does
+> not fix it. D is still never.
+
 ## Recommendation
 
 **B now, C next, never D.** B is a day's work, cannot invent anything, and fixes the actual

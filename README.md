@@ -284,8 +284,44 @@ part-filled form still saves as a draft — nobody types four domains of notes i
 What it writes: `session_domain_notes` gains `performance`, `performance_note` and `targets`
 alongside the strengths and gaps it already held; `session_reports` takes the comments in
 `teacher_reflection` and the two moments in `form_submitted_at` and `generated_at`; the transcript
-goes where it always went. Nothing on the form computes, scores or concludes anything — the engine
-that composes the report out of the form and the transcript is the next piece of work.
+goes where it always went. Nothing on the form computes, scores or concludes anything.
+
+## Reading the recording
+
+Between the form and the report there is one more button: **Read the recording**. The transcript is
+cut into one window per question — arithmetic, from `first_viewed_at` plus the offset, never a
+guess — and a model reads each window and records what it shows: how the student got to their
+answer, what they misunderstood, a word they said they did not know, and **everything the teacher
+told them about that question**, typed by what kind of feedback it was.
+
+The rule is the one the rest of the report keeps. **Every claim carries a quote, and a claim whose
+quote is not verbatim in the recording is dropped rather than repaired** — along with any claim
+carrying a number its own quote does not contain, because figures come from the answer rows. The
+checking happens in the edge function, not the browser, since a promise a client makes about itself
+is not a promise. What survives is stored; what did not is stored too, because a rising drop rate is
+how a broken prompt announces itself.
+
+It reads who is speaking from *what was said*, not from the label. Fathom attributes a block of time
+to one person and the other's words land at the end of it — across the two recordings we have, the
+teacher's "Very good absolutely right, good job with the vocab questions" sits at the tail of a turn
+labelled with the student's name, fourteen provable times and never once the other way round. The
+deterministic reader believes the label and therefore reads the teacher's own explanations as the
+student's reasoning. Where the model overrules a label the report says so on the line.
+
+The report then puts the three side by side and never merges them: **what the teacher wrote**, word
+for word; **what the recording shows**, each with its quote; and **what the answers count**. Every
+piece of transcript evidence says whether it *supports*, *complicates* or *adds to* what the teacher
+wrote, and the ones that complicate get their own section — that is the row where one of the two is
+wrong and only the teacher can say which. Without it a teacher's own sentence, handed back in
+different words, would read to a parent as a second independent finding.
+
+A reading is optional. The form, the grid and the computed numbers are a complete report on their
+own, and a model being down on a Thursday does not stop a teacher finishing their work. A reading
+taken from a transcript that has since been replaced is not optional to notice: `generate_report`
+refuses it.
+
+The design, the measurements behind it, and what to watch before trusting it are in
+[`docs/reference/context-extraction.md`](docs/reference/context-extraction.md).
 
 ## Writing it up from the recording
 
@@ -417,6 +453,19 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the project's environmen
 **Supabase** — migrations in `supabase/migrations` are ordered and idempotent to apply in
 sequence. Do not change the schema from the dashboard; RLS policies are exactly the thing you
 cannot afford to have drift undocumented.
+
+**The edge function** — reading the recording runs server-side, because the key would otherwise
+ship to every browser and the quote check would be a promise the client makes about itself:
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase functions deploy extract_session_context
+```
+
+It imports the guard from `apps/web/src/lib/` rather than carrying its own copy, so the modules
+the vitest suite protects are the ones that actually run. Without the secret the function returns
+a 500 saying so, and the rest of the report still works — a reading is an enrichment, not a
+dependency.
 
 > Email confirmation is on by default. To let people in immediately after signing up, turn it
 > off under **Authentication → Sign In / Providers → Email**. The signup screen handles both.
