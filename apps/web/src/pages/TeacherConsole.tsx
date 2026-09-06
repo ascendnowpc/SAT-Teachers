@@ -143,9 +143,12 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {error && <Notice kind="error">{error}</Notice>}
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
-      <Board items={live} skipped={skipped} busy={busy} onCall={call} />
-
+      {/* Above the board, not under it. Once the test is over, writing it up is
+          the thing to do — and a teacher who has to scroll past twenty answers
+          to find the button is being shown the answers instead. */}
       {over && <AfterTheTest sessionId={sessionId} />}
+
+      <Board items={live} skipped={skipped} busy={busy} onCall={call} />
     </div>
   )
 }

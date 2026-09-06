@@ -13,7 +13,8 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
  * There is an order to this and the screen keeps it. The test finishes and
  * there is one thing to do: fill the diagnostic form. Once it is in, the
  * console shows what was written — the grid, the comments, the transcript —
- * and only then is there a report to generate. The report is not something
+ * and only then is there a report to generate. It sits above the board,
+ * because after the lesson this is the work and the answers are the reference. The report is not something
  * that quietly happens when the boxes are full; the teacher presses the button,
  * and until they do there is nothing to press it with.
  */

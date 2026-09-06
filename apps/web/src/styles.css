@@ -852,7 +852,7 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 /* One step at a time: fill the form, then generate the report. Neither is
    offered in the header, because neither is a thing to do at any moment — they
    are the order the write-up actually goes in. */
-.next-step { margin-top: 18px; }
+.next-step { margin-bottom: 18px; }
 .next-step > p { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; margin: 0 0 16px; }
 .step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .step-head .spring { flex: 1; }
