@@ -103,8 +103,8 @@ run:
 | ✗ | `ran_out_of_time` | **Drop one level** — rebuild fluency before speed |
 
 It is a sentence under the board, not an action. Nothing moves a student but a person pressing
-one of the three buttons; the teacher's judgement is the product, and automating it away would
-remove the thing clients pay for.
+the switch on the student's screen; the teacher's judgement is the product, and automating it
+away would remove the thing clients pay for.
 
 ## Who moves the level
 
@@ -117,29 +117,31 @@ call: the teacher watches the student work, says "this is too easy, try the medi
 whoever is nearer the keyboard presses it. So `set_session_level` accepts the call from **either
 seat** — the session's student or the session's teacher.
 
-The two seats do not get the same control, because they are not making the same decision. The
-teacher's console carries all three levels, because a drop straight from hard to easy is a real
-instruction and it is theirs to give. The student's screen carries **one button**: the next test
-up while there is one, and on the hard test the way back down to medium. It used to carry a
-button for every level they were not on, which meant a student on hard being asked, mid-question,
-to choose between easy and medium — a choice nobody had raised.
+The RPC takes it from either seat, but only **one screen carries a button**, and it is the
+student's: the next test up while there is one, and on the hard test the way back down to medium.
+The student's screen used to carry a button for every level they were not on, which meant a
+student on hard being asked, mid-question, to choose between easy and medium — a choice nobody
+had raised. The teacher's console used to carry all three, down the left of a test in progress;
+that is gone too. Nobody was making the decision there — it is made out loud on the call and
+clicked by whoever is looking at the question — and a row of easy/medium/hard beside a live test
+was one misclick away from voiding the question the student was working on.
 
 ```
   STUDENT'S SCREEN                        TEACHER'S CONSOLE
   ────────────────                        ─────────────────
-  ┌──────────────────────────────┐        ┌──────────────────────────┐
-  │ 07  of 20        ⏱ 0:41  ABC │        │ The test                 │
-  │                              │        │ Easy         7 asked · 20│
-  │ Which choice completes the…  │        │ ████████░░░░░░░░░░░░░░░░ │
-  │  A  gentle                   │        │                          │
-  │  B  diverse                  │        │ BATU is working through  │
-  │  C  ordinary                 │        │ the easy test one        │
-  │  D  static                   │        │ question at a time.      │
-  │                              │        │                          │
-  │  [ Next ]                    │        │ ┌──────┬────────┬──────┐ │
-  │ ─────────────────────────────│        │ │ Easy │ Medium │ Hard │ │
-  │ You are on the easy test     │        │ └──────┴────────┴──────┘ │
-  │           [Switch to medium] │        └──────────────────────────┘
+  ┌──────────────────────────────┐        ┌──────────────────────────────────┐
+  │ 07  of 20        ⏱ 0:41  ABC │        │ #  Question   Level  Answer  … │
+  │                              │        │ 5  Which cho… easy   C  ✓      │
+  │ Which choice completes the…  │        │ 6  The autho… easy   A  ✗      │
+  │  A  gentle                   │        │ 7  Which cho… easy   —  Working│
+  │  B  diverse                  │        └──────────────────────────────────┘
+  │  C  ordinary                 │
+  │  D  static                   │         The console watches. It does not
+  │                              │         move anybody.
+  │  [ Next ]                    │
+  │ ─────────────────────────────│
+  │ You are on the easy test     │
+  │           [Switch to medium] │
   └──────────────────────────────┘
 ```
 

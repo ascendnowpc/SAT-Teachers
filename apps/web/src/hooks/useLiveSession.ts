@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { row, rows, supabase } from '../lib/supabase'
 import type { Session, SessionItem } from '../lib/types'
 
-const SESSION_SELECT =
+/** A session with both names on it — what every screen that shows one needs. */
+export const SESSION_SELECT =
   '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
   ' student:profiles!sessions_student_id_fkey(id,full_name,display_id)'
 

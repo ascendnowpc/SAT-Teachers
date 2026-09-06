@@ -159,9 +159,10 @@ loads for them: twenty questions, one on screen at a time, each with its own clo
 press **Next**, and the next one appears.
 
 **The level moves when it is wrong.** The teacher is the one who decides — they are watching the
-work and can see when it is too easy — and both screens carry the same three buttons, because on
-a call it is usually quicker for the student to click than for the teacher to switch windows.
-Moving loads that test and opens its first question. The question that was on screen is left
+work and can see when it is too easy — and they say so on the call; the move itself is made on
+the student's own screen, which is the only place the button is. It used to be on the console
+too, down the left of a test in progress, where nobody was making the decision and a misclick
+abandoned the question the student was on. Moving loads that test and opens its first question. The question that was on screen is left
 unanswered and recorded as such, and a question already asked is never asked again, even coming
 back down. Easy → medium → hard is the path; the other direction works too, because "drop one
 level — rebuild fluency before speed" is a real instruction and had nowhere to be acted on.
@@ -200,9 +201,9 @@ to the student and the report is published in the same action. Whether the stude
 they did is one decision about the session, not twenty decisions about twenty questions.
 Diagnoses are still per question — that is the teacher's judgement, and it is what the report is
 built out of — but they can be tapped as soon as an answer lands rather than only after a reveal.
-The console shows the level as a single box, with the three buttons that change it, rather than a
-card per question: there is nothing to do to any one of them from there, and twenty cards is a
-wall to scroll past.
+The console is the board and nothing else — one row per answer rather than a card per question,
+because there is nothing to do to any one of them from there and twenty cards is a wall to
+scroll past.
 
 One question is in front of the student at a time and it is the *server* that holds that line:
 only the current item is `published` and everything else is `staged`, which is invisible under
@@ -233,6 +234,41 @@ written by hand, so the report cannot say something the session did not.
 buttons — and what is left is the report as it appears on screen, keeping its heading (student,
 subject, date, teacher) and keeping cards off page breaks. There is no second document to hold in
 step with the data: the PDF is the report.
+
+## The diagnostic form
+
+`/sessions/:id/diagnostic`. A diagnostic finishes with no score and no report, and what the
+teachers do next they already do on paper: they fill in the English reflection grid while the
+hour is still fresh, write what they made of it, and hand over the Fathom transcript. The report
+is generated from those afterwards. This is that form, in the order they fill it.
+
+```
+diagnostic session ends
+  → no score, no report
+  → teacher fills the reflection grid   ✓/✗, strengths, gaps, next steps — per domain
+  → teacher writes their comments
+  → teacher uploads or pastes the Fathom transcript
+  → the diagnostic report is generated from the form and the transcript
+  → the report goes to the student and the parent
+```
+
+The grid on screen is the grid on the paper: the same six columns in the same order, four domain
+rows, Domain and Skill Focus printed and the rest editable. **Next steps/Targets arrives
+prefilled** with the form's own wording — a teacher who agrees with it should not have to retype
+it to say so — and is theirs to rewrite. Student Performance offers a tick and a cross and
+nothing else, because that is what the paper offers: it is one judgement the teacher signs about
+the domain, not an arithmetic over answers nobody has marked yet.
+
+**Every field is required.** A report generated from a form with two domains filled in reads as a
+judgement about four. Trying to hand in an unfinished one marks the empty cells and says what is
+missing by column rather than listing sixteen of them; `submit_diagnostic_form` checks the same
+thing in Postgres, so "required" is a rule rather than a convention the browser keeps. A
+part-filled form still saves as a draft — nobody types four domains of notes in one sitting.
+
+What it writes: `session_domain_notes` gains `performance` and `targets` alongside the strengths
+and gaps it already held, `session_reports.teacher_reflection` takes the comments, and the
+transcript goes where it always went. Nothing on the page computes, scores or concludes anything;
+the report engine is the next piece of work.
 
 ## Writing it up from the recording
 
@@ -277,7 +313,7 @@ teacher creates a session with a student and a time      (nothing else to do)
   → Next → answering publishes the next question; repeat
   → teacher sees each answer, the eliminations, the time and the confidence
 
-  → too easy?     either of them presses Medium
+  → too easy?     the teacher says so and the student presses Medium
                   the open question is voided, the rest of easy is dropped,
                   medium's question 1 is published
   → about right?  nothing to press. keep going.
@@ -285,12 +321,12 @@ teacher creates a session with a student and a time      (nothing else to do)
 
   → teacher publishes the results          (only now does the student learn them)
   → teacher taps one diagnosis chip per question; the system suggests the next move
+  → teacher fills the diagnostic form: the grid, their comments, the transcript
 ```
 
 The suggestion encodes what the teachers already do — escalate on solid reasoning, hold the
 level on a lucky guess or a concept gap, drop a level when they ran out of time. It suggests;
-it never moves anybody. The teacher's judgement is the product, and now the three buttons that
-act on it are on both screens.
+it never moves anybody. The teacher's judgement is the product.
 
 ## The one rule that shapes the schema
 
