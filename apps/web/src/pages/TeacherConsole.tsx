@@ -5,30 +5,31 @@ import { DifficultyBadge, Notice } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import {
   DIAGNOSES,
-  LEVELS,
   OPTION_LABELS,
   diagnosisLabel,
-  levelLabel,
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
 import { askOrder } from '../lib/report'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
-import type { Diagnosis, Session, SessionItem, SessionLevel } from '../lib/types'
+import type { Diagnosis, Session, SessionItem } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
 /**
- * The teacher's side of a session — a place to watch, with one control on it.
+ * The teacher's side of a session — a place to watch while the student works.
  *
  * The session needs nothing from this screen to run: the student opens it
  * themselves, the easy test loads, and every answer brings up the next
- * question. What the teacher decides is the level, and they usually decide it
- * out loud on the call — so the button here does the same thing the student's
- * own does, for the times it is quicker to press it than to say it.
+ * question. There used to be a level picker down the left of it, which put a
+ * decision on screen that nobody was making there — the level gets decided out
+ * loud on the call and moved from the student's own screen, and a row of
+ * easy/medium/hard buttons beside a test in progress only ever invited a
+ * misclick that abandoned the question the student was on.
  *
- * The rest is the part that makes the report: seeing each answer land with its
- * time and confidence, revealing, and saying why the student missed it.
+ * What is left is the part that makes the report: seeing each answer land with
+ * its time and confidence, revealing, and saying why the student missed it.
+ * The write-up itself is the diagnostic form, one click away in the header.
  */
 export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
@@ -57,16 +58,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const live = items.filter(
     (i) => i.status === 'published' || i.status === 'answered' || i.status === 'revealed',
   )
-  const over = session.status === 'completed' || session.status === 'cancelled'
   const skipped = items.filter((i) => i.status === 'voided').length
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
-  // How far through the test they are on — not how many questions this session
-  // has put in front of them, which after a level move is a bigger number and
-  // a different question.
-  const doneHere = items.filter(
-    (i) => i.questions?.difficulty === session.level && i.status !== 'staged' && i.status !== 'voided',
-  ).length
 
   /**
    * The whole result, in one go. The student learns how they did when their
@@ -103,6 +97,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         <div className="spring" />
         <StatusBadge status={session.status} />
         <div className="actions">
+          <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/diagnostic`}>
+            Diagnostic form
+          </Link>
           <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/report`}>
             Report
           </Link>
@@ -147,23 +144,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {error && <Notice kind="error">{error}</Notice>}
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
-      {/* The level card is a control, and once the session is over there is
-          nothing left to control: it sat beside the finished board saying the
-          student finished on the hard test, which the board's own Level column
-          says twenty times over. So the answers get the whole width instead,
-          which is what a teacher opens a finished session to read. */}
-      {over ? (
-        <Board items={live} skipped={skipped} busy={busy} onCall={call} />
-      ) : (
-        <div className="room">
-          <div className="room-side">
-            <Level session={session} done={doneHere} busy={busy} onCall={call} />
-          </div>
-          <div>
-            <Board items={live} skipped={skipped} busy={busy} onCall={call} />
-          </div>
-        </div>
-      )}
+      <Board items={live} skipped={skipped} busy={busy} onCall={call} />
     </div>
   )
 }
@@ -228,94 +209,6 @@ function OpenEarly({
     >
       Open early
     </button>
-  )
-}
-
-/* -------------------------------------------------------------- level --- */
-
-/**
- * The level, and the button that changes it.
- *
- * English is three tests and the session is on one of them. That is the only
- * decision left on this screen, and it is the one the teacher was making all
- * along — the console used to dress it up as picking questions out of a paper,
- * which meant reading twenty stems to make a judgement the teacher had already
- * made by watching the student work.
- *
- * The same call is on the student's own screen. Whoever is nearer the keyboard
- * presses it, which is how it goes on a call: the teacher says "try the medium
- * one" and one of them clicks.
- */
-function Level({
-  session,
-  done,
-  busy,
-  onCall,
-}: {
-  session: Session
-  /** How many of this level's questions the student has reached. */
-  done: number
-  busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
-}) {
-  const first = session.student?.full_name?.split(' ')[0] ?? 'The student'
-  const size = session.level_size
-  const live = session.status === 'live'
-
-  const move = (level: SessionLevel) =>
-    void onCall('set_session_level', { p_session: session.id, p_level: level })
-
-  return (
-    <div className="paper-box">
-      <div className="paper-box-head">
-        <div>
-          <div className="section-title" style={{ marginBottom: 2 }}>
-            The test
-          </div>
-          <div className="count">{levelLabel(session.level)}</div>
-        </div>
-        {session.status === 'scheduled' ? (
-          session.opened_early_at ? (
-            <span className="badge badge-sky">Open now</span>
-          ) : (
-            <span className="badge badge-ok">Ready</span>
-          )
-        ) : (
-          <span className="badge badge-sky">
-            {size > 0 ? `${done} of ${size}` : `${done} asked`}
-          </span>
-        )}
-      </div>
-
-      {live && size > 0 && (
-        <div className="paper-bar" aria-hidden="true">
-          <span style={{ width: `${Math.min(100, Math.round((done / size) * 100))}%` }} />
-        </div>
-      )}
-
-      <p className="paper-box-note">
-        {session.status === 'scheduled'
-          ? session.opened_early_at
-            ? `Open now. ${first} can start whenever they are ready and begins on the ${levelLabel(session.level).toLowerCase()} test.`
-            : `${first} opens this themselves at the scheduled time and begins on the ${levelLabel(session.level).toLowerCase()} test.`
-          : `${first} is working through the ${levelLabel(session.level).toLowerCase()} test one question at a time. Move them if it is the wrong level — the question they are on is left unanswered and the new test starts at its first question.`}
-      </p>
-
-      <div className="level-pick" role="group" aria-label="Which test">
-        {LEVELS.map((l) => (
-          <button
-            key={l}
-            type="button"
-            className={`level-opt ${l === session.level ? 'on' : ''}`}
-            aria-pressed={l === session.level}
-            disabled={busy || l === session.level}
-            onClick={() => move(l)}
-          >
-            {levelLabel(l)}
-          </button>
-        ))}
-      </div>
-    </div>
   )
 }
 

@@ -43,8 +43,10 @@ export function previousLevel(level: SessionLevel): SessionLevel | null {
  * up, and at the top the one below, which is the way back off a test that has
  * turned out to be too much.
  *
- * The teacher's console still carries all three: a drop straight from hard to
- * easy is a real instruction, and it is theirs to give.
+ * This is now the only level control on any screen. The console used to carry
+ * all three buttons beside a test in progress; a drop straight from hard to
+ * easy is still a real instruction, and it is given the way it always was —
+ * out loud, and clicked here.
  */
 export function levelSwitchTarget(
   level: SessionLevel,

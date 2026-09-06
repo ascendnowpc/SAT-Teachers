@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
 import { Dashboard } from './pages/Dashboard'
+import { DiagnosticForm } from './pages/DiagnosticForm'
 import { Login } from './pages/Login'
 import { QuestionNew } from './pages/QuestionNew'
 import { ReportEdit } from './pages/ReportEdit'
@@ -50,6 +51,7 @@ export function App() {
             <Route path="/questions/new" element={<QuestionNew />} />
             <Route path="/questions/:id/edit" element={<QuestionNew />} />
             <Route path="/tests/:id" element={<Paper />} />
+            <Route path="/sessions/:id/diagnostic" element={<DiagnosticForm />} />
             <Route path="/sessions/:id/report/edit" element={<ReportEdit />} />
           </>
         )}

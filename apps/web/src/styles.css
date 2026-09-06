@@ -382,9 +382,6 @@ button { font-family: inherit; }
 .sess-group-rule::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 /* -------------------------------------------------------- session room --- */
-.room { display: grid; gap: 18px; align-items: start; }
-@media (min-width: 1060px) { .room { grid-template-columns: 330px 1fr; } }
-
 .room-head {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   background: #fff; border: 1px solid var(--border); border-radius: var(--r);
@@ -807,6 +804,72 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .skill-detail li.ok { color: var(--easy-fg); }
 .skill-detail li.bad { color: var(--danger); }
 
+/* ------------------------------------------------ the grid, as a form ----- */
+/* The same six columns the report prints, with the three the teacher owns
+   turned into controls. Wider than the read-only one because a cell that is
+   being typed into needs room the printed version does not. */
+.grid-form { min-width: 1100px; table-layout: fixed; }
+/* Fixed columns and a nowrap header do not mix: "Student Performance" ran
+   straight over the next heading. */
+.grid-form thead th { white-space: normal; }
+.grid-form thead th .hdr-note { font-weight: 400; color: var(--muted); white-space: nowrap; }
+.grid-form thead th:nth-child(1) { width: 12%; }
+.grid-form thead th:nth-child(2) { width: 16%; }
+.grid-form thead th:nth-child(3) { width: 10%; }
+.grid-form thead th:nth-child(4) { width: 21%; }
+.grid-form thead th:nth-child(5) { width: 21%; }
+.grid-form thead th:nth-child(6) { width: 20%; }
+.grid-form .dom { width: auto; }
+.grid-form td { padding: 8px; }
+.grid-form td:first-of-type { padding: 10px 12px; }
+
+.cell-input {
+  width: 100%; font: inherit; font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  background: var(--input); border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: 8px 10px; min-height: 74px;
+  /* The height is set from the content — see Cell in DiagnosticGrid. */
+  resize: none; overflow: hidden;
+  transition: background .13s, border-color .13s, box-shadow .13s;
+}
+.cell-input::placeholder { color: var(--faint); }
+.cell-input:hover:not(:disabled) { background: var(--input-hover); }
+.cell-input:focus {
+  outline: none; background: #fff; border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(79,174,229,.22);
+}
+.cell-input:disabled { opacity: .6; }
+.cell-input.targets-cell { font-style: italic; }
+
+/* The Student Performance column: one mark, and the form only offers two. */
+.mark-pick { display: inline-flex; gap: 6px; }
+.mark-opt {
+  cursor: pointer; font: inherit; font-size: 17px; font-weight: 700; line-height: 1;
+  width: 40px; padding: 9px 0; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: #fff; color: var(--faint);
+  transition: border-color .13s, background .13s, color .13s, box-shadow .13s;
+}
+.mark-opt:hover:not(:disabled) { border-color: var(--border-strong); background: var(--input); }
+.mark-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.mark-opt:disabled { cursor: default; opacity: .55; }
+.mark-opt.tick.on {
+  color: var(--easy-fg); background: var(--easy-bg); border-color: var(--easy-fg);
+  box-shadow: 0 0 0 3px rgba(47,125,85,.14);
+}
+.mark-opt.cross.on {
+  color: var(--danger); background: var(--danger-bg); border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(192,67,58,.14);
+}
+
+/* Nothing is red on arrival — only once the teacher has tried to hand it in. */
+.cell-input.bad, .textarea.bad { border-color: var(--danger); background: var(--danger-bg); }
+.mark-pick.bad .mark-opt { border-color: var(--danger); }
+
+.card-note { font-size: 12.5px; color: var(--muted); font-weight: 300; line-height: 1.6; margin: -4px 0 14px; }
+.btn-count {
+  margin-left: 8px; padding: 1px 7px; border-radius: var(--pill);
+  background: rgba(30,39,82,.16); font-size: 11.5px; font-weight: 600;
+}
+
 /* -------------------------------------------- overall diagnostic summary --- */
 .summary { display: grid; grid-template-columns: 1fr; gap: 10px 20px; margin: 0; }
 @media (min-width: 780px) { .summary { grid-template-columns: 210px 1fr; } }
@@ -1068,44 +1131,10 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
 .done-list li.correct { border-color: var(--easy-fg); }
 .done-list li.incorrect { border-color: var(--danger); }
 
-/* The session's paper, as one box rather than a card per question. */
-.paper-box {
-  background: #fff; border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px;
-}
-.paper-box-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
-.paper-box-head > div:first-child { flex: 1; }
-.paper-box-head .count { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
-.paper-bar { height: 6px; border-radius: var(--pill); background: var(--input); overflow: hidden; margin-bottom: 12px; }
-.paper-bar span { display: block; height: 100%; background: var(--sky); border-radius: var(--pill); }
-.paper-box-note { color: var(--ink-2); font-size: 13.5px; font-weight: 300; line-height: 1.6; }
-.paper-box-actions { display: flex; gap: 8px; margin-top: 14px; }
-.paper-box-actions:empty { display: none; }
-
-/* The left column of the room: which test the student is on. */
-.room-side { display: flex; flex-direction: column; gap: 18px; }
-
 /* --------------------------------------------------------- the three tests --- */
-/* Easy, medium, hard, as one control on both screens. Three buttons rather
-   than a "next level" one, because dropping back is a real instruction and it
-   never had anywhere to be pressed. */
-.level-pick { display: flex; gap: 8px; margin-top: 14px; }
-.level-opt {
-  flex: 1; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
-  padding: 9px 6px; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
-  background: #fff; color: var(--ink-2);
-  transition: border-color .13s, background .13s, box-shadow .13s, color .13s;
-}
-.level-opt:hover:not(:disabled) { border-color: var(--sky); background: var(--sky-wash); color: var(--ink); }
-.level-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.level-opt.on {
-  border-color: var(--sky); background: var(--sky-wash); color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(64,176,229,.14);
-  cursor: default; opacity: 1;
-}
-.level-opt:disabled:not(.on) { opacity: .55; cursor: default; }
-
-/* On the student's screen the same move sits under the question, quiet enough
-   that it is not mistaken for part of answering it. */
+/* The move belongs to the student's screen alone. The teacher's console used
+   to carry a second copy of it down the left, beside a test in progress; it is
+   gone, and so are .paper-box, .room-side and .level-pick with it. */
 .level-switch { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
 .level-switch-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;

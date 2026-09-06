@@ -158,8 +158,12 @@ export interface SessionTranscript {
 export interface DomainNote {
   session_id: string
   domain: string
+  /** The Student Performance column as the teacher marked it on the form. */
+  performance: 'tick' | 'cross' | null
   strengths: string | null
   gaps: string | null
+  /** The Next steps/Targets column. Null means the form's printed default stands. */
+  targets: string | null
 }
 
 export interface SessionReportRow {
@@ -171,5 +175,9 @@ export interface SessionReportRow {
   /** Overrides the computed weakest domain when set. */
   practice_priority: string | null
   summary: string | null
+  /** The teacher's comments, written on the diagnostic form before any report exists. */
+  teacher_reflection: string | null
+  /** When the diagnostic form was handed in complete. Null while it is a draft. */
+  form_submitted_at: string | null
   published_at: string | null
 }

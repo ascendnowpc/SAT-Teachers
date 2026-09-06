@@ -263,9 +263,10 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
  * not asked about. There is only one move worth offering here: the next test up
  * while there is one, and on the hard test the way back down to medium.
  *
- * A drop straight from hard to easy is still a real instruction — it is just
- * the teacher's to give, from the console, rather than a choice put to a
- * student mid-question.
+ * A drop straight from hard to easy is still a real instruction. It is the
+ * teacher's to give and it is given out loud on the call — the console has no
+ * level buttons of its own — which is not the same as putting the whole ladder
+ * to a student mid-question.
  *
  * The confirmation exists for one reason — the question on screen is being
  * timed and moving level abandons it — so it says that, and it does not appear
