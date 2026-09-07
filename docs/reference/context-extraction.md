@@ -180,15 +180,53 @@ POST /functions/v1/extract_session_context   { session_id, offset_seconds, roles
   →  { extraction, drops, drop_rate, model, coverage }
 ```
 
-Model: `claude-opus-5`, adaptive thinking, structured output through a tool schema so a shape
-mismatch is a retry at the API layer rather than prose to parse. Streamed, because twenty questions
-is a long answer.
+## Which model
+
+**Undecided on purpose, and swappable by an environment variable.** Every vendor-specific line in
+the repo is in `providers.ts` — `grep` finds no vendor named anywhere else. The guard, the prompt,
+the schema, the report assembly and all 208 tests are untouched by a swap.
+
+```
+EXTRACTION_PROVIDER = anthropic | gemini | xai      # or just set one key
+EXTRACTION_MODEL    = …                             # overrides the default
+ANTHROPIC_API_KEY / GEMINI_API_KEY / XAI_API_KEY
+```
+
+Each adapter is a single `fetch` — Anthropic through a tool schema, Gemini through
+`responseSchema`, xAI through OpenAI-compatible strict `json_schema`. Raw HTTP rather than three
+SDKs because this module runs in two runtimes: Deno in the edge function, Node in the bench.
+
+Gemini's schema dialect differs in ways that reject the request rather than degrade it — single
+`type` instead of a union, no `additionalProperties` — so `toGeminiSchema` translates rather than
+duplicating the schema. That translation is tested; a second schema would be a second thing to keep
+in step.
+
+### Deciding it with evidence instead of opinion
+
+The guard is already a scorer. It drops any claim whose quote is not verbatim, and verbatim quoting
+under a deep schema is the capability this feature lives on — a model that paraphrases when asked to
+quote produces an empty report. So:
+
+```bash
+GEMINI_API_KEY=… ANTHROPIC_API_KEY=… node tools/bench-extraction.mjs transcript.txt 23
+```
+
+prints kept / dropped / drop-rate / teacher-feedback found / relabelled / covered per vendor. Only
+vendors with a key set are called.
+
+**Read `kept` beside the rate.** A model that returns two safe claims scores better than one that
+returns eight good ones and fumbles a quote. And `relabelled` near zero means the model is not doing
+the job it is there for — overruling Fathom on who was speaking.
+
+With two transcripts this ranks vendors on the one thing that is machine-checkable. It is a smoke
+test, not an eval.
 
 ## Cost, and why it is not a design input
 
-One session of 23 questions packs to roughly 108 KB — about 27k input tokens, one call. At Opus 5
-rates that is around fifteen cents a report. The margin means most lines appear in two windows,
-which is the reason it is 108 KB rather than 60 KB, and it is still not worth optimising.
+One session of 23 questions packs to roughly 96 KB — about 25k input tokens, one call. That is
+cents per report on any of the three, and an order of magnitude apart between the cheapest and the
+dearest of them, which is still cents. The margin means most lines appear in two windows, and it is
+still not worth optimising.
 
 Latency and trust are the constraints. Cost is not.
 

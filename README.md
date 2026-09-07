@@ -458,8 +458,19 @@ cannot afford to have drift undocumented.
 ship to every browser and the quote check would be a promise the client makes about itself:
 
 ```bash
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase secrets set GEMINI_API_KEY=...          # or ANTHROPIC_API_KEY / XAI_API_KEY
+supabase secrets set EXTRACTION_PROVIDER=gemini  # optional; otherwise the key that is set wins
 supabase functions deploy extract_session_context
+```
+
+**Which model reads it is a secret, not a code change.** Everything vendor-specific in the repo is
+in `apps/web/src/lib/providers.ts` — Gemini, Claude and Grok each behind one `fetch` — and nothing
+else names a vendor. To decide it with evidence rather than opinion, `tools/bench-extraction.mjs`
+runs a transcript through every vendor whose key is set and scores them on the drop rate, which is
+how often a model was asked for a verbatim quote and did not give one:
+
+```bash
+GEMINI_API_KEY=… ANTHROPIC_API_KEY=… node tools/bench-extraction.mjs transcript.txt 23
 ```
 
 It imports the guard from `apps/web/src/lib/` rather than carrying its own copy, so the modules

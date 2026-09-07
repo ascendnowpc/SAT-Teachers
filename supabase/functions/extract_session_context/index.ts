@@ -1,4 +1,3 @@
-import Anthropic from 'npm:@anthropic-ai/sdk@0.124.0'
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 
 import {
@@ -8,6 +7,7 @@ import {
   type ValidationInput,
 } from '../../../apps/web/src/lib/extraction.ts'
 import { EXTRACTION_TOOL, buildPrompt, SYSTEM_PROMPT } from '../../../apps/web/src/lib/extractionPrompt.ts'
+import { providerFrom, type Provider } from '../../../apps/web/src/lib/providers.ts'
 import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcript.ts'
 
 /**
@@ -28,7 +28,12 @@ import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcrip
  *
  *   POST /functions/v1/extract_session_context
  *        { session_id, offset_seconds, roles }
- *     →  { extraction, drops, drop_rate, model, coverage }
+ *     →  { extraction, drops, drop_rate, provider, model, coverage }
+ *
+ * Which model does the reading is not decided here — it is `EXTRACTION_PROVIDER`
+ * and whichever key is set, resolved in providers.ts. Nothing in this file, the
+ * guard or the report knows which vendor answered, so changing it is a secret
+ * change rather than a deploy.
  *
  * `offset_seconds` and `roles` come from the client on purpose. Both are
  * already the teacher's to set: the write-up page has an offset control and a
@@ -38,8 +43,6 @@ import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcrip
  * which lines the model reads, and the report shows the quotes either way, so a
  * wrong offset is visible rather than dangerous.
  */
-
-const MODEL = 'claude-opus-5'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -67,8 +70,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const url = Deno.env.get('SUPABASE_URL')!
   const anon = Deno.env.get('SUPABASE_ANON_KEY')!
   const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-  if (!apiKey) return json({ error: 'ANTHROPIC_API_KEY is not set on this function' }, 500)
+  // Resolved before anything else is loaded: a missing key is a deployment
+  // problem, and finding out after a dozen queries helps nobody.
+  let provider: Provider
+  try {
+    provider = providerFrom((key) => Deno.env.get(key))
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500)
+  }
 
   const authorization = req.headers.get('Authorization') ?? ''
   if (!authorization) return json({ error: 'not signed in' }, 401)
@@ -211,35 +220,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   })
 
   // --------------------------------------------------------------- the read --
-  const anthropic = new Anthropic({ apiKey })
-
   let raw: RawExtraction
   try {
-    // A tool schema rather than "reply in JSON": a shape mismatch is then the
-    // API's problem to retry, not ours to parse out of prose. Streamed because
-    // a session of twenty questions is a long answer and a non-streaming
-    // request that large invites an HTTP timeout rather than a result.
-    const stream = anthropic.messages.stream({
-      model: MODEL,
-      max_tokens: 32000,
-      thinking: { type: 'adaptive' },
+    raw = (await provider.read({
       system: SYSTEM_PROMPT,
-      tools: [EXTRACTION_TOOL as unknown as Anthropic.Tool],
-      // 'auto' rather than forcing the tool: forcing it is refused alongside
-      // extended thinking on some models, and thinking is worth more here than
-      // the guarantee — this is a long reading over a lot of speech. The prompt
-      // names the tool instead, and a reply that somehow arrives without a tool
-      // call is a 502 below rather than prose nobody checked.
-      tool_choice: { type: 'auto' },
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const message = await stream.finalMessage()
-    const call = message.content.find((b) => b.type === 'tool_use')
-    if (!call || call.type !== 'tool_use') {
-      return json({ error: 'the model did not return a reading', stop: message.stop_reason }, 502)
-    }
-    raw = call.input as RawExtraction
+      prompt,
+      schema: EXTRACTION_TOOL.input_schema,
+      name: EXTRACTION_TOOL.name,
+      description: EXTRACTION_TOOL.description,
+    })) as RawExtraction
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     return json({ error: `the model call failed: ${message}` }, 502)
@@ -256,7 +245,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body: result.extraction,
     drops: result.drops,
     transcript_md5: await md5(transcriptBody),
-    model: MODEL,
+    model: `${provider.provider}:${provider.model}`,
     offset_seconds: offset,
   })
   if (saveError) return json({ error: `could not store the reading: ${saveError.message}` }, 500)
@@ -279,7 +268,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Reported rather than logged: a teacher who sees half the claims dropped
     // should know the reading is thin before they publish anything from it.
     drop_rate: kept + result.drops.length === 0 ? 0 : result.drops.length / (kept + result.drops.length),
-    model: MODEL,
+    provider: provider.provider,
+    model: provider.model,
     coverage: { covered, total: windows.length },
   })
 })
