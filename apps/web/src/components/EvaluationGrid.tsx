@@ -1,11 +1,14 @@
-import { DOMAIN_TARGETS, type GridRow, type Performance } from '../lib/grid'
+import type { GridRow, Performance } from '../lib/grid'
 
 /**
  * The teacher evaluation grid, in the six columns the paper form uses.
  *
- * Student Performance is computed from the answers; Strengths and Gaps are the
- * teacher's. A blank written column is left blank rather than filled with a
- * hedge — an empty cell says "not observed", which is a real thing to say.
+ * Student Performance is counted from the answers and marked by the teacher,
+ * and both are shown: the count is what happened and the mark is what they made
+ * of it, and they are allowed to differ. Strengths, Gaps and Next steps are the
+ * teacher's own — reproduced as they typed them, never replaced by the form's
+ * printed wording. A blank written column is left blank rather than filled with
+ * a hedge: an empty cell says "not observed", which is a real thing to say.
  */
 export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
   return (
@@ -36,6 +39,12 @@ export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
               </td>
               <td className="c">
                 <PerformanceMark performance={r.performance} correct={r.correct} total={r.total} />
+                {r.teacherPerformance && (
+                  <div className="perf-teacher">
+                    You marked {r.teacherPerformance === 'tick' ? '✓' : '✗'}
+                  </div>
+                )}
+                {r.performanceNote && <div className="perf-note">{r.performanceNote}</div>}
                 {r.skills.length > 0 && (
                   <ul className="skill-detail">
                     {r.skills.map((s) => (
@@ -49,11 +58,14 @@ export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
               <td>{r.strengths || <span className="unobserved">—</span>}</td>
               <td>{r.gaps || <span className="unobserved">—</span>}</td>
               <td>
-                <ul className="tight targets">
-                  {(r.targets.length > 0 ? r.targets : DOMAIN_TARGETS[r.domain] ?? []).map((t) => (
+                <ul className={r.targetsAreTheTeacher ? 'tight targets written' : 'tight targets'}>
+                  {r.targets.map((t) => (
                     <li key={t}>{t}</li>
                   ))}
                 </ul>
+                {!r.targetsAreTheTeacher && (
+                  <span className="unobserved">the form’s own wording — not edited</span>
+                )}
               </td>
             </tr>
           ))}

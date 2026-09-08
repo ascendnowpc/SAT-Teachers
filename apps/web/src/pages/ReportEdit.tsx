@@ -41,6 +41,30 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
  * keeps: the numbers are computed, the words are the teacher's, and nothing on
  * the page says something the session did not.
  */
+/**
+ * The domain row as this page holds it.
+ *
+ * Only Strengths and Gaps are edited here, but the whole row is carried so the
+ * grid above can print the teacher's own Next steps and their tick rather than
+ * the form's printed wording — those are filled in on the diagnostic form and
+ * were being dropped on the floor by this page.
+ */
+interface DomainNoteDraft {
+  strengths: string
+  gaps: string
+  targets: string | null
+  performance: 'tick' | 'cross' | null
+  performance_note: string | null
+}
+
+const emptyNote = (): DomainNoteDraft => ({
+  strengths: '',
+  gaps: '',
+  targets: null,
+  performance: null,
+  performance_note: null,
+})
+
 export function ReportEdit() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -52,7 +76,7 @@ export function ReportEdit() {
   const [offset, setOffset] = useState(DEFAULT_OFFSET_SECONDS)
   const [roles, setRoles] = useState<Record<string, Role>>({})
 
-  const [notes, setNotes] = useState<Record<string, { strengths: string; gaps: string }>>({})
+  const [notes, setNotes] = useState<Record<string, DomainNoteDraft>>({})
   const [meta, setMeta] = useState<Partial<SessionReportRow>>({})
 
   const [busy, setBusy] = useState(false)
@@ -68,9 +92,15 @@ export function ReportEdit() {
     const tr = (t.data as SessionTranscript | null) ?? null
     setTranscript(tr)
     if (tr) setDraftBody(tr.body)
-    const next: Record<string, { strengths: string; gaps: string }> = {}
+    const next: Record<string, DomainNoteDraft> = {}
     for (const row of rows<DomainNote>(n.data)) {
-      next[row.domain] = { strengths: row.strengths ?? '', gaps: row.gaps ?? '' }
+      next[row.domain] = {
+        strengths: row.strengths ?? '',
+        gaps: row.gaps ?? '',
+        targets: row.targets ?? null,
+        performance: row.performance ?? null,
+        performance_note: row.performance_note ?? null,
+      }
     }
     setNotes(next)
     setMeta((m.data as SessionReportRow | null) ?? {})
@@ -85,11 +115,7 @@ export function ReportEdit() {
     () =>
       buildGrid(
         report,
-        Object.entries(notes).map(([domain, v]) => ({
-          domain,
-          strengths: v.strengths,
-          gaps: v.gaps,
-        })),
+        Object.entries(notes).map(([domain, v]) => ({ domain, ...v })),
       ),
     [report, notes],
   )
@@ -151,14 +177,14 @@ export function ReportEdit() {
   function setNote(domain: string, field: 'strengths' | 'gaps', value: string) {
     setNotes((prev) => ({
       ...prev,
-      [domain]: { ...(prev[domain] ?? { strengths: '', gaps: '' }), [field]: value },
+      [domain]: { ...(prev[domain] ?? emptyNote()), [field]: value },
     }))
   }
 
   /** Puts a finding into a box without overwriting what is already typed. */
   function appendNote(domain: string, field: 'strengths' | 'gaps', text: string) {
     setNotes((prev) => {
-      const row = prev[domain] ?? { strengths: '', gaps: '' }
+      const row = prev[domain] ?? emptyNote()
       const current = row[field].trim()
       if (current.includes(text)) return prev
       return { ...prev, [domain]: { ...row, [field]: current ? `${current} ${text}` : text } }

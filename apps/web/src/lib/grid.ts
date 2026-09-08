@@ -57,18 +57,51 @@ export const DOMAIN_SKILL_FOCUS: Record<string, string[]> = {
 
 export type Performance = 'tick' | 'cross' | 'mixed' | 'untested'
 
+/** One row of session_domain_notes, as much of it as the grid needs. */
+export interface GridNote {
+  domain: string
+  strengths: string | null
+  gaps: string | null
+  /** The teacher's Next steps column, one target per line. */
+  targets?: string | null
+  /** The tick or cross the teacher put against the row. */
+  performance?: 'tick' | 'cross' | null
+  performance_note?: string | null
+}
+
 export interface GridRow {
   domain: string
   label: string
   skillFocus: string[]
+  /** The teacher's next steps when they wrote any; the printed ones otherwise. */
   targets: string[]
+  /** Whether the targets above are the teacher's or the form's own wording. */
+  targetsAreTheTeacher: boolean
   total: number
   correct: number
   performance: Performance
+  /** The teacher's own mark, which is a judgement rather than a count. */
+  teacherPerformance: 'tick' | 'cross' | null
+  /** Anything they wrote beside the mark. */
+  performanceNote: string | null
   /** Per-skill detail behind the tick, so a mixed row can be read. */
   skills: { key: string; label: string; total: number; correct: number }[]
   strengths: string | null
   gaps: string | null
+}
+
+/**
+ * The teacher's Next steps cell, as a list.
+ *
+ * They type it a line at a time, because that is how the printed column reads,
+ * so it comes back a line at a time. Blank lines are dropped rather than
+ * rendered as empty bullets.
+ */
+export function targetLines(written: string | null | undefined): string[] {
+  return (written ?? '')
+    .split('\n')
+    .map((line) => line.replace(/^[-*\u2022]\s*/, '').trim())
+    .filter(Boolean)
 }
 
 /**
@@ -84,10 +117,16 @@ export function performanceOf(correct: number, total: number): Performance {
   return 'mixed'
 }
 
-export function buildGrid(
-  report: Report,
-  notes: { domain: string; strengths: string | null; gaps: string | null }[],
-): GridRow[] {
+/**
+ * The grid, with the teacher's columns actually in it.
+ *
+ * The Next steps column was printed from {@link DOMAIN_TARGETS} whatever the
+ * teacher had written, which meant a teacher who edited the targets on the form
+ * — the one column the form exists to have edited — read their own report back
+ * with the stock wording in it and no sign of their work. So the written cell
+ * wins wherever there is one, and the row says which of the two it is showing.
+ */
+export function buildGrid(report: Report, notes: GridNote[]): GridRow[] {
   const byDomain = new Map(report.sections.map((s) => [s.key, s]))
   const noteFor = new Map(notes.map((n) => [n.domain, n]))
 
@@ -104,14 +143,19 @@ export function buildGrid(
       })
       .filter((s) => s.total > 0)
 
+    const written = targetLines(note?.targets)
+
     return {
       domain: value,
       label: sectionLabel(value) ?? value,
       skillFocus: DOMAIN_SKILL_FOCUS[value] ?? [],
-      targets: DOMAIN_TARGETS[value] ?? [],
+      targets: written.length > 0 ? written : DOMAIN_TARGETS[value] ?? [],
+      targetsAreTheTeacher: written.length > 0,
       total,
       correct,
       performance: performanceOf(correct, total),
+      teacherPerformance: note?.performance ?? null,
+      performanceNote: note?.performance_note?.trim() || null,
       skills,
       strengths: note?.strengths ?? null,
       gaps: note?.gaps ?? null,

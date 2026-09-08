@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildGrid, confidenceAverage, performanceOf, recommendedPriority, timeManagement } from './grid'
+import {
+  buildGrid,
+  confidenceAverage,
+  performanceOf,
+  recommendedPriority,
+  targetLines,
+  timeManagement,
+} from './grid'
 import { buildReport } from './report'
 import type { SessionItem } from './types'
 
@@ -80,6 +87,73 @@ describe('buildGrid', () => {
     expect(cs.strengths).toBe('Eliminates well.')
     expect(cs.gaps).toBeNull()
     expect(rows.find((r) => r.domain === 'information_and_ideas')!.strengths).toBeNull()
+  })
+
+  // The bug this guards: the Next steps column was printed from DOMAIN_TARGETS
+  // whatever the teacher had written, so a teacher who edited the one column
+  // the form exists to have edited read their report back with the stock
+  // wording in it and no sign of their own.
+  it('prints the teacher’s next steps rather than the form’s', () => {
+    const rows = buildGrid(report, [
+      {
+        domain: 'information_and_ideas',
+        strengths: null,
+        gaps: null,
+        targets: 'Ten inference questions a week.\nRead the question before the passage.',
+      },
+    ])
+    const ii = rows.find((r) => r.domain === 'information_and_ideas')!
+    expect(ii.targets).toEqual([
+      'Ten inference questions a week.',
+      'Read the question before the passage.',
+    ])
+    expect(ii.targetsAreTheTeacher).toBe(true)
+  })
+
+  it('falls back to the printed targets, and says that is what they are', () => {
+    const ii = buildGrid(report, [])[0]
+    expect(ii.targets).toEqual(['Review inference questions (implied vs stated).'])
+    expect(ii.targetsAreTheTeacher).toBe(false)
+  })
+
+  it('treats a whitespace-only targets cell as unwritten', () => {
+    const rows = buildGrid(report, [
+      { domain: 'information_and_ideas', strengths: null, gaps: null, targets: '  \n\n ' },
+    ])
+    expect(rows[0].targetsAreTheTeacher).toBe(false)
+  })
+
+  it('carries the teacher’s own mark beside the count from the answers', () => {
+    const rows = buildGrid(report, [
+      {
+        domain: 'information_and_ideas',
+        strengths: null,
+        gaps: null,
+        performance: 'tick',
+        performance_note: 'Better than the score looks.',
+      },
+    ])
+    const ii = rows.find((r) => r.domain === 'information_and_ideas')!
+    // One right of two is mixed by the count; the teacher still ticked it, and
+    // the report shows both rather than picking a winner.
+    expect(ii.performance).toBe('mixed')
+    expect(ii.teacherPerformance).toBe('tick')
+    expect(ii.performanceNote).toBe('Better than the score looks.')
+  })
+})
+
+describe('targetLines', () => {
+  it('is a list of the lines the teacher typed', () => {
+    expect(targetLines('One.\nTwo.')).toEqual(['One.', 'Two.'])
+  })
+
+  it('drops the bullet a teacher types out of habit', () => {
+    expect(targetLines('- One.\n• Two.\n* Three.')).toEqual(['One.', 'Two.', 'Three.'])
+  })
+
+  it('has nothing to say about an empty cell', () => {
+    expect(targetLines(null)).toEqual([])
+    expect(targetLines('')).toEqual([])
   })
 })
 
