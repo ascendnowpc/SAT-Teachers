@@ -25,6 +25,19 @@
 --    * they can open the test, answer on the student's behalf and hand it in
 --    * a stranger cannot do any of that to somebody else's session
 --
+--  0035 — the grants are what they claim to be
+--    * the internal functions — the ones that check nothing, on purpose —
+--      are reachable by nobody: not anon, not authenticated, publish_one_item
+--      (open since 0023) included
+--    * the token functions are reachable by anon, which is the whole point
+--    * everything else is signed-in only
+--
+--    This one is a table check rather than a call, and it is here because the
+--    same mistake has now been made three times (0018, 0028, 0035): revoking
+--    from PUBLIC does not remove the explicit `anon` grant that Supabase's
+--    default privileges hand every new function in `public`. A test that
+--    calls a function and gets "not your session" cannot tell the difference.
+--
 --  Every row must read PASS. Cleans up after itself, and is safe to run
 --  against a real database. Needs the three level tests loaded (0026).
 -- ============================================================================
@@ -230,12 +243,73 @@ begin
     (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
-  -- ============ 6. a dead link ============
+  -- ============ 6. who can even ask ============
+  -- The three that check nothing because their callers do. Reachable by
+  -- nobody: this is the assertion 0028 needed and did not have.
+  for txt in select unnest(array['open_session_now(uuid)',
+                                 'end_session_now(uuid)',
+                                 'new_session_token()',
+                                 'session_for_token(text)',
+                                 'record_answer(uuid,answer_option,answer_option[],smallint,text)',
+                                 'load_session_level(uuid,text)',
+                                 'publish_one_item(uuid)'])
+  loop
+    return query select '6 grants'::text, txt || ' — internal',
+      'nobody'::text,
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon '
+            else '' end
+       || case when has_function_privilege('authenticated', 'public.'||txt, 'execute') then 'authenticated'
+               else '' end
+       || case when not has_function_privilege('anon', 'public.'||txt, 'execute')
+                and not has_function_privilege('authenticated', 'public.'||txt, 'execute')
+               then 'nobody' else '' end),
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute')
+              or has_function_privilege('authenticated', 'public.'||txt, 'execute')
+            then 'FAIL' else 'PASS' end)::text;
+  end loop;
+
+  -- The seven the link is made of. anon has to reach every one.
+  for txt in select unnest(array['session_by_token(text)',
+                                 'start_session_by_token(text)',
+                                 'set_level_by_token(text,text)',
+                                 'mark_viewed_by_token(text,uuid)',
+                                 'mark_decided_by_token(text,uuid)',
+                                 'finish_by_token(text)',
+                                 'answer_by_token(text,uuid,answer_option,answer_option[],smallint,text)'])
+  loop
+    return query select '6 grants'::text, txt || ' — the link',
+      'anon'::text,
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon' else 'nobody' end),
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'PASS' else 'FAIL' end)::text;
+  end loop;
+
+  -- And the ones that need a signed-in caller. anon must not reach them even
+  -- to be refused; authenticated must, or the app cannot work.
+  for txt in select unnest(array['create_student(text,text,text)',
+                                 'set_student_pc(uuid,text)',
+                                 'teacher_start_session(uuid)',
+                                 'teacher_finish_session(uuid)',
+                                 'teacher_answer_item(uuid,answer_option,answer_option[],smallint,text)',
+                                 'start_session_as_student(uuid)',
+                                 'finish_session_as_student(uuid)',
+                                 'submit_answer(uuid,answer_option,answer_option[],smallint,text)'])
+  loop
+    return query select '6 grants'::text, txt || ' — signed in only',
+      'authenticated'::text,
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon too!'
+            when has_function_privilege('authenticated', 'public.'||txt, 'execute') then 'authenticated'
+            else 'nobody' end),
+      (case when not has_function_privilege('anon', 'public.'||txt, 'execute')
+             and has_function_privilege('authenticated', 'public.'||txt, 'execute')
+            then 'PASS' else 'FAIL' end)::text;
+  end loop;
+
+  -- ============ 7. a dead link ============
   execute 'set local role anon';
   perform set_config('request.jwt.claims', '', true);
   begin perform start_session_by_token(tok); txt := 'started';
   exception when others then txt := 'refused'; end;
-  return query select '6 over'::text,'a finished session cannot be reopened by its link'::text,'refused'::text,txt,
+  return query select '7 over'::text,'a finished session cannot be reopened by its link'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 

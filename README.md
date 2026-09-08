@@ -440,13 +440,33 @@ psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 ```
 
-> Every `revoke execute … from anon` in `supabase/migrations` before `0018` is decorative:
-> Postgres grants EXECUTE to PUBLIC, `anon` is a member of PUBLIC, and revoking from the role
-> leaves the PUBLIC grant standing. Nothing leaks through it — the RPCs are all SECURITY DEFINER
-> *and* check `auth.uid()`, and the loaders are not SECURITY DEFINER so RLS refuses their writes —
-> but `0018` shuts it properly for the three functions no client should ever reach. The rest are
-> still granted to PUBLIC; tightening those touches `is_teacher()`, which RLS policies call as the
-> querying role, so it wants its own test pass.
+> **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
+> Postgres grants EXECUTE to PUBLIC and `anon` is a member of PUBLIC, so revoking from the role
+> leaves the PUBLIC grant standing. `0018` found that and fixed three functions by revoking from
+> PUBLIC; `0028` found it again on `load_session_level`. `0035` found that revoking from PUBLIC is
+> only half of it — this project has
+>
+> ```sql
+> alter default privileges in schema public grant execute on functions to anon, authenticated, …;
+> ```
+>
+> so every new function in `public` is born with an **explicit** grant to `anon` that has nothing
+> to do with PUBLIC and survives revoking from it. A function can therefore have no PUBLIC grant,
+> an explicit grant to `authenticated`, and still be callable by anyone holding the publishable
+> key. That left four SECURITY DEFINER functions that check nothing — by design, because their
+> callers do — reachable anonymously: `open_session_now`, `record_answer`, `end_session_now` and
+> `publish_one_item` (open since `0023`). `0035` revokes from `anon` and `authenticated` by name
+> as well as from PUBLIC, and `session_link.sql` now asserts the whole grant table, so the next
+> function written in this schema fails a test rather than repeating the note.
+>
+> Watch for one trap when revoking: a **column default is evaluated as the INSERTing role**, so
+> `sessions.access_token default new_session_token()` broke every session insert the moment that
+> function was revoked from `authenticated`. The default carries the expression inline instead.
+>
+> The report and session RPCs `0018` deferred are still granted to PUBLIC. Every one of them opens
+> with `assert_session_teacher` or a check on `auth.uid()`, so an anonymous caller gets an
+> exception rather than a session; tightening them touches `is_teacher()`, which RLS policies call
+> as the querying role, so it still wants its own test pass.
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
