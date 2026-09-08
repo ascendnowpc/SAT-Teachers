@@ -182,44 +182,48 @@ POST /functions/v1/extract_session_context   { session_id, offset_seconds, roles
 
 ## Which model
 
-**Undecided on purpose, and swappable by an environment variable.** Every vendor-specific line in
-the repo is in `providers.ts` — `grep` finds no vendor named anywhere else. The guard, the prompt,
-the schema, the report assembly and all 208 tests are untouched by a swap.
+**Gemini**, and `apps/web/src/lib/gemini.ts` is the only file in the repo that knows it. The guard,
+the prompt, the schema, the report assembly and every test are written against a shape rather than
+a vendor.
 
 ```
-EXTRACTION_PROVIDER = anthropic | gemini | xai      # or just set one key
-EXTRACTION_MODEL    = …                             # overrides the default
-ANTHROPIC_API_KEY / GEMINI_API_KEY / XAI_API_KEY
+GEMINI_API_KEY   required
+EXTRACTION_MODEL optional; defaults to gemini-2.5-pro
 ```
 
-Each adapter is a single `fetch` — Anthropic through a tool schema, Gemini through
-`responseSchema`, xAI through OpenAI-compatible strict `json_schema`. Raw HTTP rather than three
-SDKs because this module runs in two runtimes: Deno in the edge function, Node in the bench.
+The answer comes back through `responseSchema`, so the structure is enforced by the decoder rather
+than requested in prose — the model cannot return a shape the schema does not describe, and there is
+no JSON to fish out of a paragraph. What it *says* inside that shape is still checked claim by
+claim by the guard: a well-formed lie is still a lie, which is what the quote rule is for.
 
-Gemini's schema dialect differs in ways that reject the request rather than degrade it — single
-`type` instead of a union, no `additionalProperties` — so `toGeminiSchema` translates rather than
-duplicating the schema. That translation is tested; a second schema would be a second thing to keep
-in step.
+Raw `fetch` rather than `@google/genai` because this module runs in two runtimes — Deno in the edge
+function, Node in the bench — and one documented request body works in both without an SDK version
+to keep in step across them.
 
-### Deciding it with evidence instead of opinion
+Gemini takes an OpenAPI 3.0 subset rather than full JSON Schema, and differs in two ways that reject
+the request outright rather than degrade it: `type` is a single string, so the `['object', 'null']`
+union that makes a claim optional becomes `type: 'object'` plus `nullable: true`; and
+`additionalProperties` is refused. `toGeminiSchema` translates rather than duplicating, because a
+second schema would be a second thing to keep in step and the one that drifted would be the one no
+test covered. The translation is tested, descriptions included — they are half the instruction, and
+losing them would leave the request valid and the readings worse.
+
+### Checking a change before deploying it
 
 The guard is already a scorer. It drops any claim whose quote is not verbatim, and verbatim quoting
 under a deep schema is the capability this feature lives on — a model that paraphrases when asked to
 quote produces an empty report. So:
 
 ```bash
-GEMINI_API_KEY=… ANTHROPIC_API_KEY=… node tools/bench-extraction.mjs transcript.txt 23
+GEMINI_API_KEY=… node tools/bench-extraction.mjs transcript.txt 23
 ```
 
-prints kept / dropped / drop-rate / teacher-feedback found / relabelled / covered per vendor. Only
-vendors with a key set are called.
+prints kept, dropped, drop-rate, teacher feedback found, relabelled and covered for one real
+recording, with no database in the way. Use it on a prompt change or a new model id.
 
-**Read `kept` beside the rate.** A model that returns two safe claims scores better than one that
-returns eight good ones and fumbles a quote. And `relabelled` near zero means the model is not doing
-the job it is there for — overruling Fathom on who was speaking.
-
-With two transcripts this ranks vendors on the one thing that is machine-checkable. It is a smoke
-test, not an eval.
+**Read `kept` beside the rate.** Two safe claims score better than eight good ones with a fumbled
+quote. And `relabelled` near zero means the model is not doing the job it is there for — overruling
+Fathom on who was speaking.
 
 ## Cost, and why it is not a design input
 

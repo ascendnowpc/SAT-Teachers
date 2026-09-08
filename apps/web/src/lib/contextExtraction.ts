@@ -30,8 +30,7 @@ export interface ReadResult {
   extraction: Extraction
   drops: Drop[]
   drop_rate: number
-  /** Which vendor answered. Set by the server, not chosen here. */
-  provider: string
+  /** Which model answered. Set by the server, not chosen here. */
   model: string
   coverage: { covered: number; total: number }
 }

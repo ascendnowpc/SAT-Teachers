@@ -1,37 +1,33 @@
 #!/usr/bin/env node
 /**
- * Which model should read the recording — measured, not argued.
+ * Reading a transcript without a database, to see what actually comes back.
  *
- * The guard in extraction.ts is already a scorer. It drops any claim whose quote
- * is not verbatim in the transcript, and verbatim quoting under a deep schema is
- * exactly the capability this feature lives or dies on: a model that paraphrases
- * when asked to quote produces a report with nothing in it. So the drop rate is
- * not a proxy for quality here, it is the thing itself.
+ * The guard in extraction.ts is already a scorer: it drops any claim whose quote
+ * is not verbatim, and verbatim quoting under a deep schema is the capability
+ * this feature lives or dies on — a model that paraphrases when asked to quote
+ * produces a report with nothing in it. So the drop rate is not a proxy for
+ * quality here, it is the thing itself.
  *
- * Run the same recording through each vendor and compare:
+ *   GEMINI_API_KEY=… node tools/bench-extraction.mjs path/to/transcript.txt 23
  *
- *   GEMINI_API_KEY=… ANTHROPIC_API_KEY=… XAI_API_KEY=… \
- *     node tools/bench-extraction.mjs path/to/transcript.txt
- *
- * Only the vendors whose key is set are run. Every call costs real money —
- * roughly 27k input tokens for an hour-long lesson — so it asks nothing and
- * spends nothing you did not set a key for.
+ * Use it to check a prompt change against a real recording before deploying it,
+ * and to see what a new model id does. Each run costs one call — roughly 25k
+ * input tokens for an hour-long lesson.
  *
  * WHAT THIS DOES NOT TELL YOU
  *
- * A low drop rate means the model quoted honestly. It does not mean the model
- * read the lesson well: a model that returns two safe claims per session will
- * score better than one that returns eight good ones and fumbles a quote. So
- * `kept` is printed beside the rate, and neither number replaces a teacher
- * reading the output. With two transcripts this is a smoke test that ranks
- * vendors on the one thing that is machine-checkable — not an eval.
+ * A low drop rate means the model quoted honestly. It does not mean it read the
+ * lesson well: two safe claims score better than eight good ones with a fumbled
+ * quote. So `kept` is printed beside the rate, and neither number replaces a
+ * teacher reading the output. With two transcripts this is a smoke test, not an
+ * eval.
  */
 
 import { readFileSync } from 'node:fs'
 import { parseTranscript, windowsFor } from '../apps/web/src/lib/transcript.ts'
 import { questionWindows, validateExtraction } from '../apps/web/src/lib/extraction.ts'
-import { EXTRACTION_TOOL, SYSTEM_PROMPT, buildPrompt } from '../apps/web/src/lib/extractionPrompt.ts'
-import { KEY_VAR, PROVIDER_NAMES, providerFrom } from '../apps/web/src/lib/providers.ts'
+import { EXTRACTION_SCHEMA, SYSTEM_PROMPT, buildPrompt } from '../apps/web/src/lib/extractionPrompt.ts'
+import { KEY_VAR, readerFrom } from '../apps/web/src/lib/gemini.ts'
 
 const DOMAINS = [
   'information_and_ideas',
@@ -152,51 +148,36 @@ async function main() {
   console.log(`${file}: ${transcript.lines.length} turns, ${windows.length} windows`)
   console.log(`prompt: ${(prompt.length / 1024).toFixed(0)} KB\n`)
 
-  const available = PROVIDER_NAMES.filter((p) => process.env[KEY_VAR[p]])
-  if (available.length === 0) {
-    console.error(`No keys set. Set any of: ${PROVIDER_NAMES.map((p) => KEY_VAR[p]).join(', ')}`)
+  if (!process.env[KEY_VAR]) {
+    console.error(`${KEY_VAR} is not set.`)
     process.exit(1)
   }
 
-  const rows = []
-  for (const name of available) {
-    const provider = providerFrom((key) => (key === 'EXTRACTION_PROVIDER' ? name : process.env[key]))
-    const started = Date.now()
-    try {
-      const raw = await provider.read({
-        system: SYSTEM_PROMPT,
-        prompt,
-        schema: EXTRACTION_TOOL.input_schema,
-        name: EXTRACTION_TOOL.name,
-        description: EXTRACTION_TOOL.description,
-      })
-      const result = validateExtraction(raw, { transcript, windows, roles, domains: DOMAINS })
-      rows.push({ provider: name, model: provider.model, seconds: (Date.now() - started) / 1000, ...summarise(result) })
-    } catch (e) {
-      rows.push({ provider: name, model: provider.model, error: e.message })
-    }
+  const reader = readerFrom((key) => process.env[key])
+  const started = Date.now()
+  let row
+  try {
+    const raw = await reader.read({ system: SYSTEM_PROMPT, prompt, schema: EXTRACTION_SCHEMA })
+    const result = validateExtraction(raw, { transcript, windows, roles, domains: DOMAINS })
+    row = { model: reader.model, seconds: (Date.now() - started) / 1000, ...summarise(result) }
+  } catch (e) {
+    console.error(`${reader.model} failed: ${e.message}`)
+    process.exit(1)
   }
 
-  console.log('provider  model                  kept  dropped  drop-rate  feedback  relabelled  covered  secs')
-  console.log('─'.repeat(104))
-  for (const r of rows) {
-    if (r.error) {
-      console.log(`${r.provider.padEnd(9)} ${r.model.padEnd(22)} FAILED — ${r.error.slice(0, 60)}`)
-      continue
-    }
-    console.log(
-      `${r.provider.padEnd(9)} ${r.model.padEnd(22)} ${String(r.kept).padStart(4)}  ${String(r.dropped).padStart(7)}  ${(r.rate * 100).toFixed(1).padStart(8)}%  ${String(r.feedback).padStart(8)}  ${String(r.relabelled).padStart(10)}  ${String(r.covered).padStart(7)}  ${r.seconds.toFixed(0).padStart(4)}`,
-    )
-  }
+  console.log(`model       ${row.model}`)
+  console.log(`kept        ${row.kept}`)
+  console.log(`dropped     ${row.dropped}`)
+  console.log(`drop-rate   ${(row.rate * 100).toFixed(1)}%`)
+  console.log(`feedback    ${row.feedback}   (teacher feedback found across all questions)`)
+  console.log(`relabelled  ${row.relabelled}   (times it overruled Fathom on who was speaking)`)
+  console.log(`covered     ${row.covered} of ${windows.length}`)
+  console.log(`seconds     ${row.seconds.toFixed(0)}`)
+  if (row.dropped > 0) console.log('\ndrops by reason:', row.byReason)
 
   console.log('\nlower drop-rate is better, but read `kept` beside it — a model that says')
-  console.log('little drops little. `relabelled` is how often it overruled Fathom on who')
-  console.log('was speaking; near zero means it is not doing the job it is there for.')
-
-  for (const r of rows) {
-    if (r.error || r.dropped === 0) continue
-    console.log(`\n${r.provider} drops by reason:`, r.byReason)
-  }
+  console.log('little drops little. `relabelled` near zero means it is not doing the job')
+  console.log('it is there for: overruling Fathom on who was speaking.')
 }
 
 main().catch((e) => {

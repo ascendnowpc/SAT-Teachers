@@ -6,8 +6,8 @@ import {
   type RawExtraction,
   type ValidationInput,
 } from '../../../apps/web/src/lib/extraction.ts'
-import { EXTRACTION_TOOL, buildPrompt, SYSTEM_PROMPT } from '../../../apps/web/src/lib/extractionPrompt.ts'
-import { providerFrom, type Provider } from '../../../apps/web/src/lib/providers.ts'
+import { EXTRACTION_SCHEMA, buildPrompt, SYSTEM_PROMPT } from '../../../apps/web/src/lib/extractionPrompt.ts'
+import { readerFrom, type Reader } from '../../../apps/web/src/lib/gemini.ts'
 import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcript.ts'
 
 /**
@@ -28,12 +28,10 @@ import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcrip
  *
  *   POST /functions/v1/extract_session_context
  *        { session_id, offset_seconds, roles }
- *     →  { extraction, drops, drop_rate, provider, model, coverage }
+ *     →  { extraction, drops, drop_rate, model, coverage }
  *
- * Which model does the reading is not decided here — it is `EXTRACTION_PROVIDER`
- * and whichever key is set, resolved in providers.ts. Nothing in this file, the
- * guard or the report knows which vendor answered, so changing it is a secret
- * change rather than a deploy.
+ * Gemini does the reading, and gemini.ts is the only file that knows that.
+ * Nothing here, in the guard or in the report is written against a vendor.
  *
  * `offset_seconds` and `roles` come from the client on purpose. Both are
  * already the teacher's to set: the write-up page has an offset control and a
@@ -72,9 +70,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   // Resolved before anything else is loaded: a missing key is a deployment
   // problem, and finding out after a dozen queries helps nobody.
-  let provider: Provider
+  let reader: Reader
   try {
-    provider = providerFrom((key) => Deno.env.get(key))
+    reader = readerFrom((key) => Deno.env.get(key))
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)
   }
@@ -222,12 +220,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // --------------------------------------------------------------- the read --
   let raw: RawExtraction
   try {
-    raw = (await provider.read({
+    raw = (await reader.read({
       system: SYSTEM_PROMPT,
       prompt,
-      schema: EXTRACTION_TOOL.input_schema,
-      name: EXTRACTION_TOOL.name,
-      description: EXTRACTION_TOOL.description,
+      schema: EXTRACTION_SCHEMA,
     })) as RawExtraction
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
@@ -245,7 +241,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body: result.extraction,
     drops: result.drops,
     transcript_md5: await md5(transcriptBody),
-    model: `${provider.provider}:${provider.model}`,
+    model: reader.model,
     offset_seconds: offset,
   })
   if (saveError) return json({ error: `could not store the reading: ${saveError.message}` }, 500)
@@ -268,8 +264,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Reported rather than logged: a teacher who sees half the claims dropped
     // should know the reading is thin before they publish anything from it.
     drop_rate: kept + result.drops.length === 0 ? 0 : result.drops.length / (kept + result.drops.length),
-    provider: provider.provider,
-    model: provider.model,
+    model: reader.model,
     coverage: { covered, total: windows.length },
   })
 })

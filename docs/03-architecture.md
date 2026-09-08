@@ -7,7 +7,7 @@
 | Web app | React 18 + TypeScript + Vite, TanStack Query, Tailwind | **Vercel** |
 | Database, auth, realtime, file storage | **Supabase** (Postgres 15 + RLS) | Supabase cloud |
 | API / worker | Node 20 + TypeScript + Fastify | **Render** |
-| AI | Claude (report drafting, later OCR-assisted import) | called from Render only |
+| AI | Gemini (reading the recording into the report) | Supabase edge function |
 
 ## The boundary — what runs where
 
@@ -51,7 +51,7 @@ would add a hop and a second place for authorisation bugs to hide.
                  │  Storage        │        └───────┬──────────────┘
                  └─────────────────┘                │
                                                     ▼
-                                              Claude API
+                                              Gemini API
 ```
 
 ## Security model
