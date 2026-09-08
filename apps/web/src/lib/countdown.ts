@@ -57,3 +57,24 @@ export function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
+
+/**
+ * How long a question has been worked on, in seconds.
+ *
+ * The same interval the server records as elapsed_seconds: it starts when the
+ * question actually reached the student's screen — first_viewed_at, falling
+ * back to when it was published — and stops when they settled on an answer.
+ * While they are still deciding it runs, which is what lets the teacher's
+ * console show the clock the student is watching rather than a blank cell.
+ */
+export function workedFor(
+  item: { published_at: string | null; first_viewed_at: string | null; decided_at: string | null },
+  now: number = Date.now(),
+): number | null {
+  const startedAt = item.first_viewed_at ?? item.published_at
+  if (!startedAt) return null
+  const from = new Date(startedAt).getTime()
+  if (Number.isNaN(from)) return null
+  const to = item.decided_at ? new Date(item.decided_at).getTime() : now
+  return Math.max(0, (to - from) / 1000)
+}

@@ -32,6 +32,16 @@ export interface SessionGateway {
   setLevel(level: SessionLevel): Promise<void>
   markViewed(itemId: string): Promise<void>
   markDecided(itemId: string): Promise<void>
+  /**
+   * What they have picked so far, without answering. The teacher is watching
+   * on a call and "you've gone for B — talk me through it" is the lesson.
+   */
+  saveDraft(args: {
+    itemId: string
+    option: OptionLabel | null
+    eliminated: OptionLabel[]
+    confidence: number | null
+  }): Promise<void>
   submit(args: {
     itemId: string
     option: OptionLabel
@@ -89,6 +99,17 @@ export function accountGateway(sessionId: string): SessionGateway {
 
     async markDecided(itemId) {
       await supabase.rpc('mark_item_decided', { p_item: itemId })
+    },
+
+    async saveDraft({ itemId, option, eliminated, confidence }) {
+      // Best effort: a dropped draft costs the teacher a second of staleness,
+      // and interrupting the student to say so would cost more than that.
+      await supabase.rpc('save_draft', {
+        p_item: itemId,
+        p_option: option,
+        p_eliminated: eliminated,
+        p_confidence: confidence,
+      })
     },
 
     async submit({ itemId, option, eliminated, confidence }) {
@@ -149,6 +170,16 @@ export function linkGateway(token: string): SessionGateway {
 
     async markDecided(itemId) {
       await supabase.rpc('mark_decided_by_token', { p_token: token, p_item: itemId })
+    },
+
+    async saveDraft({ itemId, option, eliminated, confidence }) {
+      await supabase.rpc('draft_by_token', {
+        p_token: token,
+        p_item: itemId,
+        p_option: option,
+        p_eliminated: eliminated,
+        p_confidence: confidence,
+      })
     },
 
     async submit({ itemId, option, eliminated, confidence }) {

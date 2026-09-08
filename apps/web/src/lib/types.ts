@@ -119,6 +119,8 @@ export interface SessionItem {
   status: ItemStatus
   published_at: string | null
   first_viewed_at: string | null
+  /** When the student settled on an answer and a confidence. Stamped once; the clock stops here. */
+  decided_at: string | null
   answered_at: string | null
   revealed_at: string | null
   selected_option: OptionLabel | null

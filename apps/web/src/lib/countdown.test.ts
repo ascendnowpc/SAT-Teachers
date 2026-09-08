@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clock, openState } from './countdown'
+import { clock, openState, workedFor } from './countdown'
 
 const NOW = new Date('2026-09-03T10:00:00Z').getTime()
 const at = (iso: string) => openState(iso, NOW)
@@ -57,5 +57,36 @@ describe('clock', () => {
 
   it('never shows a negative clock', () => {
     expect(clock(-4)).toBe('0:00')
+  })
+})
+
+describe('workedFor', () => {
+  const item = (
+    published: string | null,
+    viewed: string | null,
+    decided: string | null,
+  ) => ({ published_at: published, first_viewed_at: viewed, decided_at: decided })
+
+  it('runs from when the question reached the screen to now', () => {
+    expect(workedFor(item('2026-09-03T09:59:00Z', '2026-09-03T09:59:30Z', null), NOW)).toBe(30)
+  })
+
+  it('falls back to when it was published, if it was never marked seen', () => {
+    expect(workedFor(item('2026-09-03T09:59:00Z', null, null), NOW)).toBe(60)
+  })
+
+  it('stops the moment they settled, and stays stopped', () => {
+    const settled = item('2026-09-03T09:59:00Z', '2026-09-03T09:59:00Z', '2026-09-03T09:59:42Z')
+    expect(workedFor(settled, NOW)).toBe(42)
+    // An hour later it still reads 42 — this is the number the report keeps.
+    expect(workedFor(settled, NOW + 3_600_000)).toBe(42)
+  })
+
+  it('is null before the question has been put up at all', () => {
+    expect(workedFor(item(null, null, null), NOW)).toBeNull()
+  })
+
+  it('never runs backwards when the clocks disagree', () => {
+    expect(workedFor(item('2026-09-03T10:00:30Z', null, null), NOW)).toBe(0)
   })
 })

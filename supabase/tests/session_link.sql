@@ -20,6 +20,7 @@
 --    * the token opens exactly one session: its own
 --    * the payload never carries the answer key, and never carries the token
 --    * staged questions are not in it — there is still no reading ahead
+--    * the working shows up before the answer does, without answering
 --    * answering through the link grades and opens the next question
 --    * a link cannot be pointed at another session's question
 --    * anon — the signed-out role the browser actually uses — can do all of it
@@ -56,7 +57,7 @@ declare
   sess  uuid; other uuid;
   tok   text; tok2 text;
   item  uuid; foreign_item uuid;
-  body  jsonb; n int; txt text;
+  body  jsonb; n int; txt text; v_draft text;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -186,6 +187,25 @@ begin
   return query select '4 answer'::text,'a link cannot answer another session'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
+  -- 0038: what they have picked so far, which is not an answer.
+  perform draft_by_token(tok, item, 'C'::answer_option, array['D']::answer_option[], 2::smallint);
+  execute 'reset role';
+
+  select status::text, selected_option::text into txt, v_draft
+    from session_items where id = item;
+  return query select '4 answer'::text,'a draft is visible before they submit'::text,'C'::text,
+    coalesce(v_draft,'(none)'),
+    (case when v_draft='C' then 'PASS' else 'FAIL' end)::text;
+  return query select '4 answer'::text,'and does not answer the question'::text,'published'::text,txt,
+    (case when txt='published' then 'PASS' else 'FAIL' end)::text;
+
+  select count(*) into n from session_item_assessments where session_item_id = item;
+  return query select '4 answer'::text,'nor grade it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+  execute 'set local role anon';
+  perform set_config('request.jwt.claims', '', true);
+
   perform answer_by_token(tok, item, 'A'::answer_option, '{}'::answer_option[], 2::smallint, null);
   body := session_by_token(tok);
   return query select '4 answer'::text,'answering opens the next question'::text,'2'::text,
@@ -196,6 +216,13 @@ begin
   select count(*) into n from session_item_assessments where session_item_id = item;
   return query select '4 answer'::text,'and it is graded, like any other'::text,'1'::text,n::text,
     (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+  -- The guard that matters: a draft can never land on an answered item.
+  perform draft_by_token(tok, item, 'D'::answer_option, '{}'::answer_option[], 1::smallint);
+  select selected_option::text into v_draft from session_items where id = item;
+  return query select '4 answer'::text,'a late draft cannot overwrite the answer'::text,'A'::text,
+    coalesce(v_draft,'(none)'),
+    (case when v_draft='A' then 'PASS' else 'FAIL' end)::text;
 
   -- ============ 5. the teacher has the same verbs ============
   -- The open question, read as the session's own teacher — a stranger cannot
@@ -266,7 +293,8 @@ begin
                                  'session_for_token(text)',
                                  'record_answer(uuid,answer_option,answer_option[],smallint,text)',
                                  'load_session_level(uuid,text)',
-                                 'publish_one_item(uuid)'])
+                                 'publish_one_item(uuid)',
+                                 'record_draft(uuid,answer_option,answer_option[],smallint)'])
   loop
     return query select '6 grants'::text, txt || ' — internal',
       'nobody'::text,
@@ -289,7 +317,8 @@ begin
                                  'mark_viewed_by_token(text,uuid)',
                                  'mark_decided_by_token(text,uuid)',
                                  'finish_by_token(text)',
-                                 'answer_by_token(text,uuid,answer_option,answer_option[],smallint,text)'])
+                                 'answer_by_token(text,uuid,answer_option,answer_option[],smallint,text)',
+                                 'draft_by_token(text,uuid,answer_option,answer_option[],smallint)'])
   loop
     return query select '6 grants'::text, txt || ' — the link',
       'anon'::text,
@@ -306,7 +335,8 @@ begin
                                  'teacher_answer_item(uuid,answer_option,answer_option[],smallint,text)',
                                  'start_session_as_student(uuid)',
                                  'finish_session_as_student(uuid)',
-                                 'submit_answer(uuid,answer_option,answer_option[],smallint,text)'])
+                                 'submit_answer(uuid,answer_option,answer_option[],smallint,text)',
+                                 'save_draft(uuid,answer_option,answer_option[],smallint)'])
   loop
     return query select '6 grants'::text, txt || ' — signed in only',
       'authenticated'::text,

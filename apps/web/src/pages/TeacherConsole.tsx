@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AfterTheTest } from '../components/AfterTheTest'
-import { IconBack, IconVideo } from '../components/icons'
+import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { QuestionView } from '../components/QuestionView'
 import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
@@ -16,6 +16,7 @@ import {
   subjectLabel,
   suggestNext,
 } from '../lib/constants'
+import { clock, workedFor } from '../lib/countdown'
 import { askOrder } from '../lib/report'
 import { studentLink } from '../lib/sessions'
 import { supabase } from '../lib/supabase'
@@ -29,9 +30,40 @@ import type {
 } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
-/** How the student's 1-3 confidence reads: short in a table, long on a button. */
-const CONFIDENCE = ['low', 'med', 'high']
-const CONFIDENCE_LONG = ['Not sure', 'Fairly sure', 'Certain']
+/**
+ * The student's 1-3 confidence, in the words they were actually offered.
+ *
+ * The board used to abbreviate these to low/med/high, which is a scale nobody
+ * chose from — the student picked "Fairly sure", so that is what the teacher
+ * should read next to their answer.
+ */
+const CONFIDENCE = ['Not sure', 'Fairly sure', 'Certain']
+
+/**
+ * The clock the student is watching.
+ *
+ * It runs while the question is open and they have not settled, and stops at
+ * exactly the moment the server records as elapsed_seconds — so the number
+ * here is the number in the report, not an approximation of it.
+ */
+function LiveClock({ item }: { item: SessionItem }) {
+  const [now, setNow] = useState(() => Date.now())
+  const running = item.status === 'published' && item.decided_at === null
+
+  useEffect(() => {
+    if (!running) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [running])
+
+  const seconds = workedFor(item, now)
+  if (seconds === null) return <span className="dash">—</span>
+  return (
+    <span className={`q-clock ${running ? '' : 'stopped'}`}>
+      <IconClock /> {clock(seconds)}
+    </span>
+  )
+}
 
 /**
  * The teacher's side of a session — which is now the whole session.
@@ -97,6 +129,10 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   if (!session) return <div className="page">Session not found.</div>
 
   const over = session.status === 'completed' || session.status === 'cancelled'
+  // Open means the student could start right now: its time has come, or the
+  // teacher waived the clock.
+  const isOpen =
+    new Date(session.scheduled_at).getTime() <= Date.now() || session.opened_early_at !== null
   const answered = items.filter((i) => i.status === 'answered' || i.status === 'revealed').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
   const started = items.length > 0
@@ -140,19 +176,29 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
               <IconVideo /> Join call
             </a>
           )}
-          {session.status === 'scheduled' && (
+          {/* One of these at a time, never both. Before its time the useful
+              move is to let the student in early; once it is open, the only
+              thing left is to start it for a student who cannot. Two buttons
+              side by side both read as "begin", and the difference between
+              them — who does the starting — is not visible in a label. */}
+          {!over && !started && !isOpen && (
             <OpenEarly session={session} busy={busy} onCall={call} />
           )}
-          {!over && !started && (
-            <button
-              type="button"
-              className="btn btn-navy btn-sm"
-              disabled={busy}
-              title="Open the test yourself, for a student who cannot."
-              onClick={() => void call('teacher_start_session', { p_session: sessionId })}
-            >
-              Start the test
-            </button>
+          {!over && !started && isOpen && (
+            <>
+              <button
+                type="button"
+                className="btn btn-navy btn-sm"
+                disabled={busy}
+                title="Start it yourself, for a student who cannot."
+                onClick={() => void call('teacher_start_session', { p_session: sessionId })}
+              >
+                Start it for them
+              </button>
+              {session.opened_early_at !== null && (
+                <UndoOpenEarly session={session} busy={busy} onCall={call} />
+              )}
+            </>
           )}
           {answered > 0 && (
             <button
@@ -197,9 +243,19 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         />
       )}
 
-      {focus && <FocusQuestion item={focus} busy={busy} onCall={call} />}
+      {/* The panel is for a lesson in progress — it is the question they are
+          on. Once the test is handed in there is no such question, and hoisting
+          the last one they answered to the top of a finished session reads as
+          "this is where we are" when the answer is "nowhere, it is over". The
+          board and the cards below hold all of it, that one included. */}
+      {!over && focus && <FocusQuestion item={focus} busy={busy} onCall={call} />}
 
-      <Board items={items} focusId={focus?.id ?? null} busy={busy} onCall={call} />
+      <Board
+        items={items}
+        focusId={over ? null : (focus?.id ?? null)}
+        busy={busy}
+        onCall={call}
+      />
     </div>
   )
 }
@@ -407,8 +463,12 @@ function FocusQuestion({
             {item.selected_option}
           </span>
         )}
+        {/* While the question is open this is a draft, not an answer: the
+            student has picked it and not pressed Next. Saying so is the
+            difference between "they got it wrong" and "they are about to". */}
+        {isOpen && item.selected_option && <span className="muted">leaning</span>}
         <span className="spring" />
-        {a?.elapsed_seconds != null && <span className="muted">{a.elapsed_seconds}s</span>}
+        <LiveClock item={item} />
         {item.student_confidence != null && (
           <span className="muted">{CONFIDENCE[item.student_confidence - 1]}</span>
         )}
@@ -482,7 +542,7 @@ function FocusQuestion({
               <div className="answer-for">
                 <div className="section-title">How sure were they?</div>
                 <div className="confidence">
-                  {CONFIDENCE_LONG.map((label, i) => (
+                  {CONFIDENCE.map((label, i) => (
                     <button
                       key={label}
                       type="button"
@@ -523,7 +583,14 @@ function FocusQuestion({
                   type="button"
                   className="btn btn-ghost btn-sm"
                   disabled={busy}
-                  onClick={() => setAnswering(true)}
+                  // Starts from whatever the student has already picked, so
+                  // confirming what they said out loud is one click.
+                  onClick={() => {
+                    setSelected(item.selected_option)
+                    setStruck(item.eliminated_options ?? [])
+                    setConfidence(item.student_confidence)
+                    setAnswering(true)
+                  }}
                 >
                   Answer for the student
                 </button>
@@ -624,29 +691,7 @@ function OpenEarly({
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
-  const opened = session.opened_early_at !== null
-  // Past its time already: there is nothing to waive, and a button offering to
-  // do it would only be asking whether the teacher can read a clock.
-  const alreadyDue = new Date(session.scheduled_at).getTime() <= Date.now()
-  if (alreadyDue && !opened) return null
-
   const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
-
-  if (opened) {
-    return (
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm"
-        disabled={busy}
-        title={`${first} can start now. Click to put the scheduled time back.`}
-        onClick={() =>
-          void onCall('set_session_open_early', { p_session: session.id, p_open: false })
-        }
-      >
-        Open now — undo
-      </button>
-    )
-  }
 
   return (
     <button
@@ -656,7 +701,35 @@ function OpenEarly({
       title={`Let ${first} start now instead of waiting for the scheduled time.`}
       onClick={() => void onCall('set_session_open_early', { p_session: session.id, p_open: true })}
     >
-      Open early
+      Let them start now
+    </button>
+  )
+}
+
+/** Putting the scheduled time back, while the student has not gone in. */
+function UndoOpenEarly({
+  session,
+  busy,
+  onCall,
+}: {
+  session: Session
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  // Nothing to put back once its time has come on its own.
+  if (new Date(session.scheduled_at).getTime() <= Date.now()) return null
+
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost btn-sm"
+      disabled={busy}
+      title="Put the scheduled time back."
+      onClick={() =>
+        void onCall('set_session_open_early', { p_session: session.id, p_open: false })
+      }
+    >
+      Undo early access
     </button>
   )
 }
@@ -851,7 +924,7 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
                 <th>Key</th>
                 <th>Eliminated</th>
                 <th>Time</th>
-                <th>Conf.</th>
+                <th>Confidence</th>
                 <th>Result</th>
               </tr>
             </thead>
@@ -892,11 +965,13 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
                     <td className="num">
                       {a?.elapsed_seconds != null ? (
                         `${a.elapsed_seconds}s`
+                      ) : it.status === 'published' ? (
+                        <LiveClock item={it} />
                       ) : (
                         <span className="dash">—</span>
                       )}
                     </td>
-                    <td className="num">
+                    <td className="cell-sub">
                       {it.student_confidence ? (
                         CONFIDENCE[it.student_confidence - 1]
                       ) : (
@@ -938,7 +1013,12 @@ function MissingQuestion({ item }: { item: SessionItem }) {
 }
 
 function ItemResult({ item }: { item: SessionItem }) {
-  if (item.status === 'published') return <span className="badge badge-sky">On screen</span>
+  if (item.status === 'published')
+    return item.selected_option ? (
+      <span className="badge badge-sky">Working — {item.selected_option}</span>
+    ) : (
+      <span className="badge badge-sky">On screen</span>
+    )
   if (item.status === 'answered') return <span className="badge badge-neutral">Answered</span>
   if (item.status === 'staged') return <span className="badge badge-neutral">Queued</span>
   if (item.status === 'voided')
@@ -989,6 +1069,9 @@ function ItemDetail({
             <DifficultyBadge level={question.difficulty} />
             <ItemResult item={item} />
             {a?.elapsed_seconds != null && <span className="muted">{a.elapsed_seconds}s</span>}
+            {item.student_confidence != null && (
+              <span className="muted">{CONFIDENCE[item.student_confidence - 1]}</span>
+            )}
           </>
         }
         tags={
