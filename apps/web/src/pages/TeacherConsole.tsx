@@ -194,8 +194,6 @@ function StudentLinkCard({ session }: { session: Session }) {
   const link = session.access_token ? studentLink(session.access_token) : null
   if (!link) return null
 
-  const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
-
   return (
     <div className="card card-pad link-card">
       <div className="section-title">Student link</div>
@@ -203,9 +201,6 @@ function StudentLinkCard({ session }: { session: Session }) {
         <code className="link-box">{link}</code>
         <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
       </div>
-      <p className="step-text muted">
-        Send this to {first}. It opens this session and nothing else — no account, no sign-in.
-      </p>
     </div>
   )
 }
@@ -263,27 +258,27 @@ function LevelControl({
               type="button"
               className={`level-btn ${session.level === l ? 'on' : ''}`}
               disabled={busy || session.level === l}
-              onClick={() => (hasOpenQuestion ? setAsking(l) : void move(l))}
+              // Always asked, not only when a question is open. Moving level
+              // throws away the rest of the test either way, and these three
+              // buttons sit under the teacher's hand for the whole lesson.
+              onClick={() => setAsking(l)}
             >
               {levelLabel(l)}
             </button>
           ))}
         </div>
       </div>
-      <p className="step-text muted">
-        The student can move themselves too. Either way the question on their screen is left
-        unanswered and the new test opens at its first question they have not already had.
-      </p>
 
       {asking && (
         <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="move-title">
           <div className="leave-box">
-            <h2 id="move-title">Move to the {levelLabel(asking).toLowerCase()} test?</h2>
+            <h2 id="move-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
-              The question on the student's screen is being timed and will be left unanswered, and
-              the rest of the {levelLabel(session.level).toLowerCase()} test goes away. They pick up
-              the {levelLabel(asking).toLowerCase()} test at its first question they have not
-              already answered.
+              {hasOpenQuestion
+                ? `The question on the student's screen is being timed and will be left unanswered.`
+                : `The rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`}{' '}
+              They pick up the {levelLabel(asking).toLowerCase()} test at its first question they
+              have not already answered.
             </p>
             <div className="leave-actions">
               <button
@@ -293,10 +288,10 @@ function LevelControl({
                 disabled={busy}
                 onClick={() => void move(asking)}
               >
-                Move to {levelLabel(asking).toLowerCase()}
+                Switch to {levelLabel(asking).toLowerCase()}
               </button>
               <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
-                Leave them on this question
+                Cancel
               </button>
             </div>
           </div>
@@ -476,10 +471,6 @@ function LiveQuestion({
                 >
                   Cancel
                 </button>
-                <span className="muted">
-                  This is the student's answer: same key, same clock, and it opens their next
-                  question.
-                </span>
               </div>
             </div>
           ) : (
@@ -492,9 +483,6 @@ function LiveQuestion({
               >
                 Answer for the student
               </button>
-              <span className="muted">
-                For when their screen is not working and they are telling you the answer.
-              </span>
             </div>
           )}
         </div>
@@ -637,11 +625,7 @@ function Board({
       <div className="board">
         <div className="empty">
           <h3>Nothing asked yet</h3>
-          <p>
-            The student opens this session themselves at its scheduled time — or you open it for
-            them with <b>Start the test</b>. Every answer lands here as it happens, with the time it
-            took and how sure they were.
-          </p>
+          <p>Answers land here as they happen.</p>
         </div>
       </div>
     )
@@ -701,9 +685,8 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
 
       {rows.length === 0 ? (
         <p className="board-foot">
-          This test was opened and nothing on it was answered. The {run.unattempted} question
-          {run.unattempted === 1 ? '' : 's'} above was left unanswered when the level moved or the
-          test was handed in; the rest of the test was never put in front of the student.
+          Opened, nothing answered — {run.unattempted} question
+          {run.unattempted === 1 ? '' : 's'} reached the student and was left unanswered.
         </p>
       ) : (
         <div className="board-scroll">

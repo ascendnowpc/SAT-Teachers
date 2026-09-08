@@ -281,9 +281,10 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
  * level buttons of its own — which is not the same as putting the whole ladder
  * to a student mid-question.
  *
- * The confirmation exists for one reason — the question on screen is being
- * timed and moving level abandons it — so it says that, and it does not appear
- * when there is nothing open to abandon.
+ * The confirmation is always asked, whether or not there is a question open to
+ * abandon: switching test throws away the rest of the one they are on, and
+ * that is not something to discover by having done it. What it says changes —
+ * mid-question the thing being lost is the answer they were being timed on.
  */
 function LevelSwitch({
   session,
@@ -333,7 +334,7 @@ function LevelSwitch({
             type="button"
             className={`btn btn-sm ${target.back ? 'btn-ghost' : 'btn-navy'}`}
             disabled={busy}
-            onClick={() => (abandons ? setAsking(target.level) : void move(target.level))}
+            onClick={() => setAsking(target.level)}
           >
             {levelSwitchLabel(target)}
           </button>
@@ -345,7 +346,9 @@ function LevelSwitch({
           <div className="leave-box">
             <h2 id="switch-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
-              The question on your screen will be left unanswered, and the rest of the{' '}
+              {abandons
+                ? 'The question on your screen will be left unanswered, and the rest of the '
+                : 'The rest of the '}
               {levelLabel(session.level).toLowerCase()} test goes away. You pick up the{' '}
               {levelLabel(asking).toLowerCase()} test at its first question you have not already
               answered.
