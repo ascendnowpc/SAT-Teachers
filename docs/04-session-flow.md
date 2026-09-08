@@ -70,7 +70,8 @@ clicks Publish results ──────────────────►
                                            with the right choice and why
 
 fills the diagnostic form
-then clicks Generate report
+then clicks Generate report ─────────────► the recording is read, then the
+                                           report is stamped
 ```
 
 The student's screen never contains information the teacher has not released. Correctness is

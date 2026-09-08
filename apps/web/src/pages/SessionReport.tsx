@@ -61,6 +61,20 @@ export function SessionReport() {
   }, [loadWritten])
 
   const grid = useMemo(() => buildGrid(report, notes), [report, notes])
+  // How much the recording actually contributed, counted rather than claimed —
+  // "where was the AI used" has to be answerable from the page itself.
+  const found = useMemo(() => {
+    const body = extraction?.body
+    if (!body) return null
+    const q = body.questions
+    return {
+      feedback: q.reduce((n, x) => n + x.teacherFeedback.length, 0),
+      reasoning: q.filter((x) => x.studentReasoning).length,
+      misunderstandings: q.filter((x) => x.misunderstanding).length,
+      vocabulary: q.filter((x) => x.vocabularyGap).length,
+      domain: body.session.domainEvidence.length,
+    }
+  }, [extraction])
 
   // The document: the teacher's form, the recording's findings and the computed
   // numbers, joined but never merged. It is assembled at read time from the
@@ -151,8 +165,42 @@ export function SessionReport() {
 
           <div className="card card-pad">
             <div className="section-title">Teacher evaluation grid</div>
+            <p className="step-text muted">
+              Filled in on the diagnostic form and reproduced here word for word.
+            </p>
             <EvaluationGrid rows={grid} />
           </div>
+
+          {doc.reflection && (
+            <div className="card card-pad">
+              <div className="section-title">The teacher’s comments on the session</div>
+              <p className="step-text">{doc.reflection}</p>
+            </div>
+          )}
+
+          {/* Whether the recording was read, said plainly and near the top. A
+              report whose AI sections are simply absent reads as a report with
+              no AI in it, which is exactly how this one was read. */}
+          {extraction ? (
+            <div className="card card-pad">
+              <div className="section-title">What the recording added</div>
+              <p className="step-text">
+                The transcript was read by {extraction.model} on{' '}
+                {formatUtc(extraction.created_at)}. It covered {doc.coverage.covered} of{' '}
+                {doc.coverage.total} questions and found {found?.feedback ?? 0} pieces of teaching,{' '}
+                {found?.reasoning ?? 0} explanations from the student, {found?.misunderstandings ?? 0}{' '}
+                misunderstandings and {found?.vocabulary ?? 0} words they did not know, plus{' '}
+                {found?.domain ?? 0} findings against the four domains. Every one of them is below
+                with the words it came from — nothing that could not be quoted was kept.
+              </p>
+            </div>
+          ) : (
+            <Notice kind="info">
+              The recording has not been read for this session, so everything below is the
+              teacher’s own writing and the numbers from the answers. Generate the report again
+              from the session console to have the transcript read.
+            </Notice>
+          )}
 
           {extraction && (
             <>
@@ -187,58 +235,74 @@ export function SessionReport() {
                   ))}
                 </div>
               )}
-
-              <div className="card card-pad">
-                <div className="section-title">Each domain: what was written, and what was said</div>
-                {doc.domains.map((d) => (
-                  <div key={d.domain} className="question-findings">
-                    <div className="question-head">
-                      <b>{d.label}</b>
-                      {d.teacher.performance && (
-                        <span
-                          className={
-                            d.teacher.performance === 'tick' ? 'badge badge-ok' : 'badge badge-bad'
-                          }
-                        >
-                          {d.teacher.performance === 'tick' ? 'Tick' : 'Cross'}
-                        </span>
-                      )}
-                      {d.measured && (
-                        <span className="muted">
-                          {d.measured.correct} of {d.measured.total} correct
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="two-columns">
-                      <div>
-                        <h4>What the teacher wrote</h4>
-                        {d.teacher.strengths && (
-                          <p className="step-text">
-                            <b>Strengths.</b> {d.teacher.strengths}
-                          </p>
-                        )}
-                        {d.teacher.gaps && (
-                          <p className="step-text">
-                            <b>Gaps.</b> {d.teacher.gaps}
-                          </p>
-                        )}
-                        {d.teacher.targets && (
-                          <p className="step-text">
-                            <b>Next steps.</b> {d.teacher.targets}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <h4>What the recording shows</h4>
-                        <DomainFindings evidence={d.evidence} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </>
           )}
+
+          {/* Always shown. The teacher's four rows are the report whether or
+              not the recording was read; hiding them behind the reading is how
+              a teacher came to submit a form and then not find a word of it in
+              their own report. */}
+          <div className="card card-pad">
+            <div className="section-title">
+              Each domain: what was written{extraction && ', and what was said'}
+            </div>
+            {doc.domains.map((d) => (
+              <div key={d.domain} className="question-findings">
+                <div className="question-head">
+                  <b>{d.label}</b>
+                  {d.teacher.performance && (
+                    <span
+                      className={
+                        d.teacher.performance === 'tick' ? 'badge badge-ok' : 'badge badge-bad'
+                      }
+                    >
+                      {d.teacher.performance === 'tick' ? 'Tick' : 'Cross'}
+                    </span>
+                  )}
+                  {d.measured && (
+                    <span className="muted">
+                      {d.measured.correct} of {d.measured.total} correct
+                    </span>
+                  )}
+                </div>
+
+                <div className={extraction ? 'two-columns' : ''}>
+                  <div>
+                    <h4>What the teacher wrote</h4>
+                    {d.teacher.performanceNote && (
+                      <p className="step-text">
+                        <b>On the mark.</b> {d.teacher.performanceNote}
+                      </p>
+                    )}
+                    {d.teacher.strengths && (
+                      <p className="step-text">
+                        <b>Strengths.</b> {d.teacher.strengths}
+                      </p>
+                    )}
+                    {d.teacher.gaps && (
+                      <p className="step-text">
+                        <b>Gaps.</b> {d.teacher.gaps}
+                      </p>
+                    )}
+                    {d.teacher.targets && (
+                      <p className="step-text">
+                        <b>Next steps.</b> {d.teacher.targets}
+                      </p>
+                    )}
+                    {!d.teacher.strengths && !d.teacher.gaps && !d.teacher.targets && (
+                      <p className="step-text muted">Nothing written for this domain.</p>
+                    )}
+                  </div>
+                  {extraction && (
+                    <div>
+                      <h4>What the recording shows</h4>
+                      <DomainFindings evidence={d.evidence} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div className="card card-pad summary-card">
             <div className="section-title">Overall diagnostic summary</div>

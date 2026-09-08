@@ -14,19 +14,26 @@ the session ends
    ├─ 1  the teacher fills the diagnostic form   (0030)
    │       four domain rows, their comments, the Fathom transcript
    │
-   ├─ 2  the teacher presses Read the recording
+   ├─ 2  the teacher presses Generate report, which reads the recording first
    │       └─ the transcript is cut into one window per question — arithmetic,
    │          from first_viewed_at plus one offset. No model is asked which
    │          part of the call is about which question.
    │       └─ a model reads each window and records what it shows
    │       └─ every claim without a verbatim quote is DROPPED, server-side
    │       └─ what survives is stored                              (0031)
+   │       └─ then generate_report stamps the report               (0031)
    │
-   ├─ 3  the teacher presses Generate report
-   │
-   └─ 4  the report: the teacher's words, the recording's findings and the
+   └─ 3  the report: the teacher's words, the recording's findings and the
          computed numbers, joined and never merged
 ```
+
+Reading the recording was its own button beside Generate report, and that was a mistake worth
+recording: generating stamps a timestamp in under a second, so a teacher who pressed only the
+button labelled *Generate report* got a report the model had never touched, in no time at all, with
+no sign on the page that anything was missing. One button now, and it reads before it stamps. A
+reading of the current transcript is reused rather than paid for twice; a failed reading is the
+only case that offers the teacher the old behaviour, named as what it is — *Generate without the
+recording*.
 
 ## Why a model, given we only have two transcripts
 
