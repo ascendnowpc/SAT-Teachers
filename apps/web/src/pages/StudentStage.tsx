@@ -580,6 +580,30 @@ function ItemPane({
     if (selected === label) setSelected(null)
   }
 
+  /**
+   * The working, sent up as it happens.
+   *
+   * The teacher is on a call watching this student, and until now the console
+   * showed nothing at all until Next was pressed — so "you've gone for B, talk
+   * me through it" needed a screen share, which is the thing that keeps
+   * failing. It is a draft, not an answer: the item stays published, nothing
+   * is graded, and the clock keeps running.
+   *
+   * Debounced, because crossing out three options is three renders and the
+   * teacher does not need to watch each one land.
+   */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void gateway.saveDraft({
+        itemId: item.id,
+        option: selected,
+        eliminated: struck,
+        confidence,
+      })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [gateway, item.id, selected, struck, confidence])
+
   // The clock measures working the question out, which ends when there is an
   // answer and a confidence down — not when the button is found. The server is
   // told the moment it happens, so the number in the report is the number the
