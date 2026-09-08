@@ -60,6 +60,8 @@ export function AfterTheTest({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
+  /** Null until the teacher types one; the suggestion stands until they do. */
+  const [offsetOverride, setOffsetOverride] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -89,6 +91,7 @@ export function AfterTheTest({
         session,
         items,
         transcriptBody: transcript?.body ?? '',
+        offset: offsetOverride === null ? undefined : Number(offsetOverride),
       })
       await load()
     } catch (e) {
@@ -182,10 +185,31 @@ export function AfterTheTest({
             every finding — what the student explained, what they misunderstood, and what you told
             them. Nothing that cannot be pointed at a line of the recording is kept.
           </p>
+          <div className="offset-row">
+            <label htmlFor="read-offset">The first question is discussed at</label>
+            <input
+              id="read-offset"
+              type="number"
+              min={0}
+              step={15}
+              value={offsetOverride ?? String(alignment.offset)}
+              onChange={(e) => setOffsetOverride(e.target.value)}
+            />
+            <span className="muted">
+              seconds in — {formatClock(Number(offsetOverride ?? alignment.offset) || 0)}
+            </span>
+            {offsetOverride !== null && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOffsetOverride(null)}>
+                Use the suggestion
+              </button>
+            )}
+          </div>
           <p className="step-text muted">
-            The lesson is taken to start at {formatClock(alignment.offset)} into the recording, and{' '}
-            {describeRoles(alignment.roles)}. Both are set on the{' '}
-            <Link to={`/sessions/${sessionId}/report/edit`}>write-up page</Link> if either is wrong.
+            The suggestion is read off the recording, and it is only reliable when the lesson runs
+            question by question. Where the paper was taken in silence and gone through at the end,
+            set this to the moment the <b>first</b> question is discussed — otherwise every quote
+            comes from the wrong question. {describeRoles(alignment.roles)}; that is corrected on the{' '}
+            <Link to={`/sessions/${sessionId}/report/edit`}>write-up page</Link>.
           </p>
         </>
       ) : (

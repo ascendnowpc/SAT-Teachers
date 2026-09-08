@@ -89,8 +89,20 @@ export async function readRecording(input: {
   session: Session | null
   items: SessionItem[]
   transcriptBody: string
+  /**
+   * Where the first question sits in the recording, when the teacher has said.
+   *
+   * Falls back to {@link alignmentFor}'s guess, which is right for a lesson that
+   * runs question by question and cannot be right for one where the paper is
+   * taken in silence and discussed at the end — there, every candidate offset
+   * inside the discussion scores the same and the guess lands wherever it likes.
+   * So the teacher can overrule it, and on that shape of lesson they have to.
+   */
+  offset?: number
 }): Promise<ReadResult> {
-  const { offset, roles } = alignmentFor(input.session, input.items, input.transcriptBody)
+  const guessed = alignmentFor(input.session, input.items, input.transcriptBody)
+  const offset = Number.isFinite(input.offset) ? Number(input.offset) : guessed.offset
+  const roles = guessed.roles
 
   const { data, error } = await supabase.functions.invoke<ReadResult>('extract_session_context', {
     body: { session_id: input.sessionId, offset_seconds: offset, roles },
