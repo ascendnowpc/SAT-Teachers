@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { QuestionView } from '../components/QuestionView'
 import { Notice, Passage } from '../components/ui'
-import { useLiveSession } from '../hooks/useLiveSession'
+import { useStudentSession } from '../hooks/useStudentSession'
+import type { SessionGateway } from '../lib/gateway'
 import { clock, openState } from '../lib/countdown'
 import { formatUtcLong } from '../lib/time'
 import {
@@ -13,7 +14,6 @@ import {
   levelSwitchTarget,
   subjectLabel,
 } from '../lib/constants'
-import { supabase } from '../lib/supabase'
 import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/types'
 
 /**
@@ -25,18 +25,24 @@ import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/typ
  * show it. Which is what makes the clock on each question honest: there is no
  * way to read ahead while it runs.
  *
- * The only decision on this screen besides the answer is the level. The teacher
- * is the one who makes it — they are watching the work and they can see when it
- * is too easy — and this is where it gets pressed, because the student is the
- * one at the keyboard. Moving up loads the next test and opens its first
+ * The level is a decision on this screen too. The teacher is the one who makes
+ * it — they are watching the work and they can see when it is too easy — and
+ * it can be pressed from either side now: here, because the student is the one
+ * at the keyboard, and on the console, because sometimes the student's screen
+ * is not reaching anybody. Moving up loads the next test and opens its first
  * question; the one on screen is left unanswered, which the confirmation says.
+ *
+ * The screen takes a gateway rather than a session id, which is what lets the
+ * same code serve a signed-in student and one who arrived on a link with no
+ * account at all. See lib/gateway.
  */
-export function StudentStage({ sessionId }: { sessionId: string }) {
-  const { session, items, loading, error, reload } = useLiveSession(sessionId, {
-    withAssessments: false,
-  })
+export function StudentStage({ gateway }: { gateway: SessionGateway }) {
+  const { session, items, loading, error, reload } = useStudentSession(gateway)
 
   const navigate = useNavigate()
+  // A student on a link has no sessions list to be sent back to: the link is
+  // the whole of their app, so handing the test in leaves them on it.
+  const hasApp = gateway.kind === 'account'
   const [leaving, setLeaving] = useState(false)
   const [ending, setEnding] = useState(false)
 
@@ -94,11 +100,17 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
 
   async function leave() {
     setEnding(true)
-    await supabase.rpc('finish_session_as_student', { p_session: sessionId })
+    try {
+      await gateway.finish()
+    } catch {
+      // The screen is being left either way; the reload below tells the truth
+      // about what actually happened to the session.
+    }
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
+    await reload()
     setEnding(false)
     setLeaving(false)
-    navigate('/sessions')
+    if (hasApp) navigate('/sessions')
   }
 
   if (loading) return <div className="page">Loading…</div>
@@ -130,11 +142,11 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
             >
               <IconBack />
             </button>
-          ) : (
+          ) : hasApp ? (
             <Link className="exam-back" to="/sessions" aria-label="Back to sessions">
               <IconBack />
             </Link>
-          )}
+          ) : null}
           <span>
             {session.title || `${subjectLabel(session.subject)} session`}:{' '}
             <strong>{levelLabel(level)}</strong>
@@ -235,12 +247,13 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
           number={number}
           total={total}
           session={session}
+          gateway={gateway}
           onChanged={reload}
         />
       ) : waiting ? (
-        <Lobby session={session} onStarted={reload} />
+        <Lobby session={session} gateway={gateway} onStarted={reload} />
       ) : finished ? (
-        <Finished session={session} items={done} onChanged={reload} />
+        <Finished session={session} gateway={gateway} items={done} onChanged={reload} />
       ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
@@ -274,10 +287,12 @@ export function StudentStage({ sessionId }: { sessionId: string }) {
  */
 function LevelSwitch({
   session,
+  gateway,
   abandons,
   onChanged,
 }: {
   session: Session
+  gateway: SessionGateway
   /** A question is open and would be left unanswered by the move. */
   abandons: boolean
   onChanged: () => Promise<void>
@@ -293,11 +308,11 @@ function LevelSwitch({
     // student may be coming back from the end of a test, where the screen let
     // full screen go.
     await document.documentElement.requestFullscreen?.().catch(() => {})
-    const { error } = await supabase.rpc('set_session_level', {
-      p_session: session.id,
-      p_level: to,
-    })
-    if (error) setErr(error.message)
+    try {
+      await gateway.setLevel(to)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not switch tests.')
+    }
     await onChanged()
     setBusy(false)
     setAsking(null)
@@ -365,7 +380,15 @@ function LevelSwitch({
  * refuses anything early on the server, so a student who finds the call by
  * hand gets the same answer this screen would have given them.
  */
-function Lobby({ session, onStarted }: { session: Session; onStarted: () => Promise<void> }) {
+function Lobby({
+  session,
+  gateway,
+  onStarted,
+}: {
+  session: Session
+  gateway: SessionGateway
+  onStarted: () => Promise<void>
+}) {
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -383,8 +406,11 @@ function Lobby({ session, onStarted }: { session: Session; onStarted: () => Prom
     // Asked for inside the click, which is the only moment a browser will
     // grant it. A refusal is not fatal — the screen handles being out of it.
     await document.documentElement.requestFullscreen?.().catch(() => {})
-    const { error } = await supabase.rpc('start_session_as_student', { p_session: session.id })
-    if (error) setErr(error.message)
+    try {
+      await gateway.start()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not start the test.')
+    }
     await onStarted()
     setBusy(false)
   }
@@ -434,10 +460,12 @@ function Lobby({ session, onStarted }: { session: Session; onStarted: () => Prom
  */
 function Finished({
   session,
+  gateway,
   items,
   onChanged,
 }: {
   session: Session
+  gateway: SessionGateway
   items: SessionItem[]
   onChanged: () => Promise<void>
 }) {
@@ -458,7 +486,9 @@ function Finished({
         </p>
       </div>
 
-      {!over && <LevelSwitch session={session} abandons={false} onChanged={onChanged} />}
+      {!over && (
+        <LevelSwitch session={session} gateway={gateway} abandons={false} onChanged={onChanged} />
+      )}
 
       {items.map((it) =>
         it.questions ? (
@@ -503,6 +533,7 @@ function ItemPane({
   number,
   total,
   session,
+  gateway,
   onChanged,
 }: {
   item: SessionItem
@@ -511,6 +542,7 @@ function ItemPane({
   /** How long that test is, or null before the server has said. */
   total: number | null
   session: Session
+  gateway: SessionGateway
   onChanged: () => Promise<void>
 }) {
   const [selected, setSelected] = useState<OptionLabel | null>(item.selected_option)
@@ -534,8 +566,8 @@ function ItemPane({
   useEffect(() => {
     if (viewed.current) return
     viewed.current = true
-    void supabase.rpc('mark_item_viewed', { p_item: item.id })
-  }, [item.id])
+    void gateway.markViewed(item.id)
+  }, [gateway, item.id])
 
   function toggleStrike(label: OptionLabel) {
     setStruck((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]))
@@ -551,27 +583,27 @@ function ItemPane({
   useEffect(() => {
     if (!decided || stamped.current) return
     stamped.current = true
-    void supabase.rpc('mark_item_decided', { p_item: item.id })
-  }, [decided, item.id])
+    void gateway.markDecided(item.id)
+  }, [decided, gateway, item.id])
 
   const submit = useCallback(async () => {
     if (!selected) return
     setBusy(true)
     setErr(null)
-    const { error } = await supabase.rpc('submit_answer', {
-      p_item: item.id,
-      p_option: selected,
-      p_eliminated: struck,
-      p_confidence: confidence,
-      // Asked for in the lesson, where the teacher can hear the answer — not
-      // typed into a box while a clock runs.
-      p_reasoning: null,
-    })
-    if (error) setErr(error.message)
+    try {
+      await gateway.submit({
+        itemId: item.id,
+        option: selected,
+        eliminated: struck,
+        confidence,
+      })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not send that answer.')
+    }
     // Answering publishes the next question, so the reload brings it with it.
     await onChanged()
     setBusy(false)
-  }, [selected, struck, confidence, item.id, onChanged])
+  }, [selected, struck, confidence, gateway, item.id, onChanged])
 
   const last = total !== null && number >= total
 
@@ -686,7 +718,7 @@ function ItemPane({
           </button>
           <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
 
-          <LevelSwitch session={session} abandons onChanged={onChanged} />
+          <LevelSwitch session={session} gateway={gateway} abandons onChanged={onChanged} />
         </div>
       </section>
     </div>

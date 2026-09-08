@@ -100,6 +100,8 @@ begin
     (case when txt='An edited question?' then 'PASS' else 'FAIL' end)::text;
 
   delete from questions where id = q;
+  -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
+  delete from profiles where id in (t_id, s_id);
   delete from auth.users where id in (t_id, s_id);
 end $fn$;
 

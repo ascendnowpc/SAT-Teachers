@@ -17,14 +17,18 @@ npm run dev                                    # http://localhost:5173
 
 | | |
 | --- | --- |
-| **Signup** | Direct, for teachers and students. Each person gets a readable ID (see below) |
-| **Login** | Email + password |
+| **Signup** | Teachers only. Students are added by their teacher and need no account at all |
+| **Login** | Email + password, for teachers |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
-| **The level** | The session starts on easy; the student or the teacher moves it while it runs |
+| **The roster** | Add a student from the New session form: first name, last name, their PC. No sign-up |
+| **The link** | Every session carries one. Send it and the student is in — no account, no login |
+| **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
+| **The level** | The session starts on easy; the student *or the teacher* moves it while it runs |
+| **The console** | Everything the student's screen can do: open the test, see the live question, answer for them, hand it in |
 | **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
 | **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
@@ -154,24 +158,52 @@ There is nothing to prepare.
 **The teacher** creates a session with a student and a time, and that is the whole of their side
 of it. No paper to build, nothing to stage, nothing to hand over during the lesson.
 
-**The student** opens the session themselves once its time has passed, and the **easy test**
+**The student is a roster row, not an account.** If the teacher already has them, they pick them
+by name, id or PC. If not, they type first name, last name and PC into the same form and
+the student is created as the session is — `create_student` (0032), teacher-only. There is no
+student sign-up any more, and `profiles.id` no longer references `auth.users`, because a roster
+student has no auth user to point at.
+
+**The session is a link.** Every session carries a 64-character token and the form hands it back
+the moment the session exists: `/s/<token>`. Opening it puts the student straight into their own
+session with nothing to sign into — the same lobby, the same questions, the same clock. The token
+functions (0033) take the token, find the one session it names, and do exactly what that
+session's student could already do; the payload is built server-side and never carries the answer
+key, the token itself, or a question that is still staged. Students who already have an account
+still sign in and still open their sessions at `/exam/:id`; the link is a second door, not a
+replacement for the first.
+
+**The student** opens the session once its time has passed, and the **easy test**
 loads for them: twenty questions, one on screen at a time, each with its own clock. They answer,
 press **Next**, and the next one appears.
 
 **The level moves when it is wrong.** The teacher is the one who decides — they are watching the
-work and can see when it is too easy — and they say so on the call; the move itself is made on
-the student's own screen, which is the only place the button is. It used to be on the console
-too, down the left of a test in progress, where nobody was making the decision and a misclick
-abandoned the question the student was on. Moving loads that test and opens its first question. The question that was on screen is left
-unanswered and recorded as such, and a question already asked is never asked again, even coming
-back down. Easy → medium → hard is the path; the other direction works too, because "drop one
-level — rebuild fluency before speed" is a real instruction and had nowhere to be acted on.
+work and can see when it is too easy — and it can be pressed from either side: the student's own
+screen offers the single obvious move (the next test up, or the way back down from hard), and the
+console offers all three, because that is the person making the decision rather than being handed
+it mid-question. Moving loads that test and opens its first question. The question that was on
+screen is left unanswered and recorded as such, and a question already asked is never asked
+again, even coming back down. Easy → medium → hard is the path; the other direction works too,
+because "drop one level — rebuild fluency before speed" is a real instruction and had nowhere to
+be acted on.
+
+**When the student's screen is not working**, the teacher's is. A phone, a school network, a
+browser that will not go full screen, a Zoom share that never starts — any of them used to leave
+the teacher blind and the session stuck, because starting the test, answering, moving level and
+handing in were all things only the student could do. The console does all four now (0034). It
+shows the question the student is on in full — stimulus, stem, all four choices — and **Answer
+for the student** enters what they said out loud. That is not a second kind of answer: it goes on
+the student's own item, is graded against the same key, stops the same clock and opens their next
+question, because the report reads one data set and a second kind of answer in it would be a lie
+about the lesson.
 
 **Routes.** Every screen is a place: `/questions` (the bank, opening on the three tests),
-`/tests/:id` (read one), `/sessions/:id` (the console). There is no `/tests` list and no Tests
-nav item — Questions already opens on that list, and a second entry pointing at the same three
-rows was a menu item that told you nothing. The exam is `/exam/:id`, deliberately outside the app
-shell: a student sitting a test should see the test and nothing else.
+`/tests/:id` (read one), `/sessions` (the table), `/sessions/:id` (the console). There is no
+`/tests` list and no Tests nav item — Questions already opens on that list, and a second entry
+pointing at the same three rows was a menu item that told you nothing. The exam is `/exam/:id`
+for a signed-in student and `/s/:token` for one on a link, both deliberately outside the app
+shell: a student sitting a test should see the test and nothing else. `/s/` is matched before
+anything asks who is signed in, because the answer is nobody.
 
 **Times are UTC**, everywhere and always — written on the schedule form, printed on every
 session card, and said out loud in the text (`31 Aug 2026, 14:30 UTC`). A teacher in Singapore
@@ -202,9 +234,14 @@ twenty decisions about twenty questions. It publishes no report: that is a separ
 step below the board, and it cannot happen before the diagnostic form is in.
 Diagnoses are still per question — that is the teacher's judgement, and it is what the report is
 built out of — but they can be tapped as soon as an answer lands rather than only after a reveal.
-The console is the board and nothing else — one row per answer rather than a card per question,
-because there is nothing to do to any one of them from there and twenty cards is a wall to
-scroll past.
+
+**The board is grouped by test, not by level-the-session-happens-to-be-on.** A student who did
+six easy questions and then twenty medium ones sat two tests, and both get their own heading with
+their own score. Questions the student never reached are behind a switch rather than in the list
+— fourteen "not attempted" rows bury the six that carry the lesson — but a test that was opened
+and produced no answers still gets its heading and says so, which is the case the grouping was
+built for: without it, a level the student was moved off before answering anything vanished from
+the console entirely.
 
 One question is in front of the student at a time and it is the *server* that holds that line:
 only the current item is `published` and everything else is `staged`, which is invisible under
@@ -400,15 +437,36 @@ psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/level_session.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
+psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 ```
 
-> Every `revoke execute … from anon` in `supabase/migrations` before `0018` is decorative:
-> Postgres grants EXECUTE to PUBLIC, `anon` is a member of PUBLIC, and revoking from the role
-> leaves the PUBLIC grant standing. Nothing leaks through it — the RPCs are all SECURITY DEFINER
-> *and* check `auth.uid()`, and the loaders are not SECURITY DEFINER so RLS refuses their writes —
-> but `0018` shuts it properly for the three functions no client should ever reach. The rest are
-> still granted to PUBLIC; tightening those touches `is_teacher()`, which RLS policies call as the
-> querying role, so it wants its own test pass.
+> **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
+> Postgres grants EXECUTE to PUBLIC and `anon` is a member of PUBLIC, so revoking from the role
+> leaves the PUBLIC grant standing. `0018` found that and fixed three functions by revoking from
+> PUBLIC; `0028` found it again on `load_session_level`. `0035` found that revoking from PUBLIC is
+> only half of it — this project has
+>
+> ```sql
+> alter default privileges in schema public grant execute on functions to anon, authenticated, …;
+> ```
+>
+> so every new function in `public` is born with an **explicit** grant to `anon` that has nothing
+> to do with PUBLIC and survives revoking from it. A function can therefore have no PUBLIC grant,
+> an explicit grant to `authenticated`, and still be callable by anyone holding the publishable
+> key. That left four SECURITY DEFINER functions that check nothing — by design, because their
+> callers do — reachable anonymously: `open_session_now`, `record_answer`, `end_session_now` and
+> `publish_one_item` (open since `0023`). `0035` revokes from `anon` and `authenticated` by name
+> as well as from PUBLIC, and `session_link.sql` now asserts the whole grant table, so the next
+> function written in this schema fails a test rather than repeating the note.
+>
+> Watch for one trap when revoking: a **column default is evaluated as the INSERTing role**, so
+> `sessions.access_token default new_session_token()` broke every session insert the moment that
+> function was revoked from `authenticated`. The default carries the expression inline instead.
+>
+> The report and session RPCs `0018` deferred are still granted to PUBLIC. Every one of them opens
+> with `assert_session_teacher` or a check on `auth.uid()`, so an anonymous caller gets an
+> exception rather than a session; tightening them touches `is_teacher()`, which RLS policies call
+> as the querying role, so it still wants its own test pass.
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
@@ -427,8 +485,12 @@ student is in. Every row must read PASS.
 `rls_contract.sql` and `session_flow.sql` are written for a scratch database — they reset the
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
-`level_session.sql` and `opening_early.sql` leave the counters alone and are safe against a real
-one; `level_session.sql` needs the three tests loaded (`0026`).
+`level_session.sql`, `opening_early.sql` and `session_link.sql` leave the counters alone and are
+safe against a real one; `level_session.sql` and `session_link.sql` need the three tests loaded
+(`0026`). `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
+add a roster student and a student cannot; a session's token is unique, opens only its own
+session, and never returns the key or the token itself; a link cannot answer another session's
+question; and only a session's own teacher can open it, answer in it or end it.
 
 ## Layout
 

@@ -1,6 +1,8 @@
 import {
   cloneElement,
+  useEffect,
   useId,
+  useState,
   type InputHTMLAttributes,
   type ReactElement,
   type ReactNode,
@@ -64,6 +66,57 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 
 export function DifficultyBadge({ level }: { level: Difficulty }) {
   return <span className={`badge badge-${level}`}>{level}</span>
+}
+
+/**
+ * Copies a string and says so for a moment.
+ *
+ * The clipboard API needs a secure context and a user gesture, and refuses on
+ * some browsers even with both, so the failure is handled rather than
+ * swallowed: the text is selected in a temporary field the teacher can copy by
+ * hand, and the button says what happened. A link that silently did not copy
+ * is worse than no button, because the teacher pastes an empty message to a
+ * student and finds out from the student.
+ */
+export function CopyButton({
+  value,
+  label = 'Copy link',
+  className = 'btn btn-ghost btn-sm',
+}: {
+  value: string
+  label?: string
+  className?: string
+}) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle')
+
+  useEffect(() => {
+    if (state === 'idle') return
+    const t = setTimeout(() => setState('idle'), 2200)
+    return () => clearTimeout(t)
+  }, [state])
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value)
+      setState('done')
+    } catch {
+      setState('failed')
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={(e) => {
+        e.stopPropagation()
+        void copy()
+      }}
+      title={value}
+    >
+      {state === 'done' ? 'Copied' : state === 'failed' ? 'Copy it by hand' : label}
+    </button>
+  )
 }
 
 export function Notice({

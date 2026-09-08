@@ -125,6 +125,8 @@ begin
   execute 'reset role';
 
   delete from questions where created_by = t_id;
+  -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
+  delete from profiles where id in (t_id, s_id);
   delete from auth.users where id in (t_id, s_id);
 end $fn$;
 

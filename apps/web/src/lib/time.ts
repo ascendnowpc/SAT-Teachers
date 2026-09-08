@@ -40,6 +40,18 @@ export function formatUtcLong(when: string | Date): string {
   })
 }
 
+/** "20:00" — the clock alone, for a table whose row already carries the date. */
+export function utcTime(when: string | Date): string {
+  const d = when instanceof Date ? when : new Date(when)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  })
+}
+
 /** Day and month for the little calendar tile on a session card. */
 export function utcParts(when: string | Date): { day: string; month: string } {
   const d = when instanceof Date ? when : new Date(when)
