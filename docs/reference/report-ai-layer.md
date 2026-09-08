@@ -134,6 +134,7 @@ Nothing is written to `session_domain_notes` by the function. The teacher still 
 
 ## Model choice
 
-Latest Claude models; see the `claude-api` reference for current ids and pricing before wiring
-anything. Structured output via a tool schema, not "reply in JSON" — validation belongs at the
-tool-call layer so the model retries on mismatch instead of returning prose that has to be parsed.
+**Gemini** — see [`context-extraction.md`](context-extraction.md) for the wiring. Structured output
+via the API's own schema enforcement, not "reply in JSON": the shape is guaranteed by the decoder,
+so there is no prose to parse and no malformed answer to recover from. What the model *says* inside
+that shape is a separate question, and the quote rule is what answers it.

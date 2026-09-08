@@ -59,105 +59,98 @@ const feedbackClaim = {
 }
 
 /**
- * The tool the model answers through.
+ * The shape the answer must take.
  *
- * A tool schema rather than "reply in JSON", so a shape mismatch is a retry at
- * the API layer instead of prose that has to be parsed and might be prose.
+ * Handed to Gemini as `responseSchema`, so the structure is enforced by the
+ * decoder rather than requested in prose — the model cannot return a shape this
+ * does not describe, and there is no JSON to parse out of a paragraph and hope.
+ *
+ * Plain JSON Schema, with no vendor's vocabulary in it. gemini.ts translates it
+ * into the dialect the API takes.
  */
-export const EXTRACTION_TOOL = {
-  name: 'record_reading',
-  description:
-    'Record what the recording shows about each question and about the session as a whole. Every claim must carry a verbatim quote.',
-  strict: true,
-  input_schema: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['questions', 'session'],
-    properties: {
-      questions: {
-        type: 'array',
-        description: 'One entry per question you were given a window for. Omit none.',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: [
-            'itemId',
-            'covered',
-            'studentReasoning',
-            'misunderstanding',
-            'vocabularyGap',
-            'teacherFeedback',
-          ],
-          properties: {
-            itemId: {
-              type: 'string',
-              description: 'Exactly as given in the window heading. Never invent one.',
-            },
-            covered: {
-              type: 'boolean',
-              description:
-                'False when nobody actually discusses this question in its window — silence, or only logistics.',
-            },
-            studentReasoning: claim(
-              'How the student reached their answer: what they eliminated and why, what they read first, the rule they applied. Null if they never explain it.',
-            ),
-            misunderstanding: claim(
-              'What the student got wrong about the text, the stem or a word — the thing behind a wrong answer. Null when there is none.',
-            ),
-            vocabularyGap: claim(
-              'A word or phrase the student says outright they do not know. Null when there is none.',
-            ),
-            teacherFeedback: {
-              type: 'array',
-              description:
-                'Everything the teacher said to the student about this question. Empty when they said nothing.',
-              items: feedbackClaim,
-            },
-          },
-        },
-      },
-      session: {
+export const EXTRACTION_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['questions', 'session'],
+  properties: {
+    questions: {
+      type: 'array',
+      description: 'One entry per question you were given a window for. Omit none.',
+      items: {
         type: 'object',
         additionalProperties: false,
         required: [
-          'closingVerdict',
-          'teacherStatedScore',
-          'studentSelfReport',
-          'domainEvidence',
+          'itemId',
+          'covered',
+          'studentReasoning',
+          'misunderstanding',
+          'vocabularyGap',
+          'teacherFeedback',
         ],
         properties: {
-          closingVerdict: claim(
-            "The teacher's own summing-up of the session — what they say the main issue is and what to work on. Usually near the end.",
+          itemId: {
+            type: 'string',
+            description: 'Exactly as given in the window heading. Never invent one.',
+          },
+          covered: {
+            type: 'boolean',
+            description:
+              'False when nobody actually discusses this question in its window — silence, or only logistics.',
+          },
+          studentReasoning: claim(
+            'How the student reached their answer: what they eliminated and why, what they read first, the rule they applied. Null if they never explain it.',
           ),
-          teacherStatedScore: claim(
-            'A score or count the teacher says out loud. Null unless they actually say one.',
+          misunderstanding: claim(
+            'What the student got wrong about the text, the stem or a word — the thing behind a wrong answer. Null when there is none.',
           ),
-          studentSelfReport: claim(
-            'Anything the student says about their own performance or what they find hard. Null when there is none.',
+          vocabularyGap: claim(
+            'A word or phrase the student says outright they do not know. Null when there is none.',
           ),
-          domainEvidence: {
+          teacherFeedback: {
             type: 'array',
             description:
-              "Evidence from the recording for each of the four domains, tied to what the teacher wrote on their form. At most three per domain, and only where the recording actually shows something.",
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['domain', 'relation', 'text', 'quote', 'speaker'],
-              properties: {
-                domain: {
-                  type: 'string',
-                  description: 'One of the four domain keys given to you. Never invent one.',
-                },
-                relation: {
-                  type: 'string',
-                  enum: ['supports', 'complicates', 'adds'],
-                  description:
-                    "supports: the recording shows what the teacher wrote. complicates: the recording sits awkwardly against it. adds: the recording shows something the teacher's form does not mention.",
-                },
-                text: { type: 'string' },
-                quote: { type: 'string', description: 'Verbatim from one turn.' },
-                speaker: { type: 'string', enum: ['teacher', 'student', 'other'] },
+              'Everything the teacher said to the student about this question. Empty when they said nothing.',
+            items: feedbackClaim,
+          },
+        },
+      },
+    },
+    session: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['closingVerdict', 'teacherStatedScore', 'studentSelfReport', 'domainEvidence'],
+      properties: {
+        closingVerdict: claim(
+          "The teacher's own summing-up of the session — what they say the main issue is and what to work on. Usually near the end.",
+        ),
+        teacherStatedScore: claim(
+          'A score or count the teacher says out loud. Null unless they actually say one.',
+        ),
+        studentSelfReport: claim(
+          'Anything the student says about their own performance or what they find hard. Null when there is none.',
+        ),
+        domainEvidence: {
+          type: 'array',
+          description:
+            "Evidence from the recording for each of the four domains, tied to what the teacher wrote on their form. At most three per domain, and only where the recording actually shows something.",
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['domain', 'relation', 'text', 'quote', 'speaker'],
+            properties: {
+              domain: {
+                type: 'string',
+                description: 'One of the four domain keys given to you. Never invent one.',
               },
+              relation: {
+                type: 'string',
+                enum: ['supports', 'complicates', 'adds'],
+                description:
+                  "supports: the recording shows what the teacher wrote. complicates: the recording sits awkwardly against it. adds: the recording shows something the teacher's form does not mention.",
+              },
+              text: { type: 'string' },
+              quote: { type: 'string', description: 'Verbatim from one turn.' },
+              speaker: { type: 'string', enum: ['teacher', 'student', 'other'] },
             },
           },
         },
@@ -311,6 +304,6 @@ export function buildPrompt(input: PromptInput): string {
     renderForm(input.form, input.reflection),
     `THE FOUR DOMAIN KEYS you may file domainEvidence under: ${domains}`,
     `THE RECORDING, cut into one window per question. Lines marked ~ are from the margin either side.\n\n${windows}`,
-    `Now record the reading by calling the record_reading tool — that call is the whole answer, so do not write the findings as prose instead. One entry per window above, using the itemId exactly as given. Every claim carries a verbatim quote from inside its own window.`,
+    `Now return the reading as JSON in the shape you were given. One entry per window above, using the itemId exactly as given. Every claim carries a verbatim quote from inside its own window.`,
   ].join('\n\n========================================\n\n')
 }
