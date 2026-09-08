@@ -5,7 +5,7 @@ import type { Session, SessionItem } from '../lib/types'
 /** A session with both names on it — what every screen that shows one needs. */
 export const SESSION_SELECT =
   '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
-  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id)'
+  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc)'
 
 // Teachers get the answer key embedded; students are not offered it, and RLS
 // would withhold it even if they asked.

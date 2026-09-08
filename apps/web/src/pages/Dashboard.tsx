@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
 import { rows, supabase } from '../lib/supabase'
 import type { Difficulty, Session } from '../lib/types'
-import { SessionCard } from './Sessions'
+
 
 const SESSION_SELECT =
   '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
-  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id)'
+  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc)'
 
 export function Dashboard() {
   const { profile, isTeacher } = useAuth()
@@ -96,7 +97,7 @@ export function Dashboard() {
             <h3>No sessions scheduled</h3>
             <p>
               {isTeacher
-                ? 'Create a session with a student, pick the questions they should sit, and set the time it opens.'
+                ? 'Create a session with a student and send them the link — they need no account to open it.'
                 : `Nothing booked yet. Give your teacher your ID — ${profile.display_id} — so they can schedule one.`}
             </p>
             {isTeacher && (

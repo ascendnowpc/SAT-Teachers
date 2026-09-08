@@ -118,6 +118,8 @@ begin
   -- Cleanup. The serial numbers the three accounts consumed stay consumed; see
   -- the note in level_session.sql for why they are not rewound.
   delete from sessions where id=sess;
+  -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
+  delete from profiles where id in (t_id,s_id,o_id);
   delete from auth.users where id in (t_id,s_id,o_id);
 end $fn$;
 

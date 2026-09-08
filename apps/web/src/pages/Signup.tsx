@@ -4,18 +4,22 @@ import { AuthLayout } from '../components/AuthLayout'
 import { Field, Input, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 
-type SignupRole = 'teacher' | 'student'
-
-const ROLES: { value: SignupRole; title: string; blurb: string }[] = [
-  { value: 'teacher', title: 'Teacher', blurb: 'Write questions, run sessions' },
-  { value: 'student', title: 'Student', blurb: 'Answer questions in a session' },
-]
-
+/**
+ * Signing up, which is a thing teachers do and students do not.
+ *
+ * There was a role picker here and a student half of it, and the student half
+ * was a week of chasing before a lesson on Thursday: choose a password,
+ * confirm an email, sign in, find the session. A student is a roster row their
+ * teacher types in now (0032) and the session reaches them as a link (0033),
+ * so there is nothing on this page for them to do.
+ *
+ * Students who already have an account still sign in with it and still see
+ * their sessions — that door is not shut, it is only no longer the way in.
+ */
 export function Signup() {
   const { signUp } = useAuth()
   const navigate = useNavigate()
 
-  const [role, setRole] = useState<SignupRole>('teacher')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -34,7 +38,7 @@ export function Signup() {
 
     setBusy(true)
     try {
-      const { needsConfirmation } = await signUp({ email, password, fullName, role })
+      const { needsConfirmation } = await signUp({ email, password, fullName, role: 'teacher' })
       if (needsConfirmation) setConfirmSent(true)
       else navigate('/', { replace: true })
     } catch (err) {
@@ -61,8 +65,8 @@ export function Signup() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Pick your role, and we'll set you up with an ID."
+      title="Create your teacher account"
+      subtitle="You'll get a TCH- id. Students need no account — you add them and send them a link."
       footer={
         <>
           Already have an account? <Link to="/login">Sign in</Link>
@@ -71,25 +75,6 @@ export function Signup() {
     >
       <form onSubmit={onSubmit} noValidate>
         {error && <Notice kind="error">{error}</Notice>}
-
-        <span className="label" style={{ display: 'block', marginBottom: 6, fontSize: 13.5, fontWeight: 500 }}>
-          I am a<span className="req" aria-hidden="true">*</span>
-        </span>
-        <div className="role-pick" role="radiogroup" aria-label="Role">
-          {ROLES.map((r) => (
-            <button
-              key={r.value}
-              type="button"
-              role="radio"
-              aria-checked={role === r.value}
-              className={role === r.value ? 'role-opt on' : 'role-opt'}
-              onClick={() => setRole(r.value)}
-            >
-              <span className="t">{r.title}</span>
-              <span className="d">{r.blurb}</span>
-            </button>
-          ))}
-        </div>
 
         <Field label="Full name" required>
           <Input

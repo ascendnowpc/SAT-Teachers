@@ -1,19 +1,38 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { IconBack } from '../components/icons'
-import { Field, Input, Notice, Select } from '../components/ui'
+import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
-import { supabase } from '../lib/supabase'
-import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, Subject } from '../lib/types'
+import { studentLink } from '../lib/sessions'
+import { row, rows, supabase } from '../lib/supabase'
+import { defaultUtcSlot, formatUtc, utcInputToIso } from '../lib/time'
+import type { Profile, Session, Subject } from '../lib/types'
 
+/**
+ * Booking a session, which is now also where a student comes from.
+ *
+ * There used to be a sign-up page standing in front of this one: a student did
+ * not exist until they had chosen a password and confirmed an email, and this
+ * screen's advice, when the list came back empty, was to go and ask them to.
+ * That is a week of chasing for a lesson on Thursday.
+ *
+ * So a student is either one this teacher has already, picked by name or id, or
+ * one typed in here — first name, last name, and the PC they sit under. The
+ * second kind is written straight to the roster and has no account at all,
+ * because they do not need one: what they get is a link.
+ */
 export function SessionNew() {
-  const navigate = useNavigate()
-
   const [students, setStudents] = useState<Profile[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
 
+  /** Which of the two kinds of student this session is for. */
+  const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [studentId, setStudentId] = useState('')
+  const [search, setSearch] = useState('')
+  const [first, setFirst] = useState('')
+  const [last, setLast] = useState('')
+  const [pc, setPc] = useState('')
+
   const [subject, setSubject] = useState<Subject>('english')
   const [title, setTitle] = useState('')
   const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
@@ -22,6 +41,9 @@ export function SessionNew() {
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** Set once the session exists. The link is the thing to do next, so the
+      screen stops being a form and becomes the link. */
+  const [created, setCreated] = useState<{ session: Session; student: string } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -33,7 +55,7 @@ export function SessionNew() {
       .then(({ data, error: err }) => {
         if (!active) return
         if (err) setError(err.message)
-        else setStudents((data ?? []) as Profile[])
+        else setStudents(rows<Profile>(data))
         setLoadingStudents(false)
       })
     return () => {
@@ -41,31 +63,60 @@ export function SessionNew() {
     }
   }, [])
 
-  const canSubmit = useMemo(
-    () => studentId !== '' && scheduledAt !== '' && !busy,
-    [studentId, scheduledAt, busy],
-  )
+  // The roster grows, and a select of two hundred names is a scroll. The box
+  // above it narrows the options rather than replacing them, so picking still
+  // works the way a select works.
+  const matching = useMemo(() => {
+    const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (words.length === 0) return students
+    return students.filter((s) => {
+      const hay = `${s.full_name} ${s.display_id} ${s.pc ?? ''}`.toLowerCase()
+      return words.every((w) => hay.includes(w))
+    })
+  }, [students, search])
+
+  // A student narrowed out of the list is a student who is no longer picked.
+  useEffect(() => {
+    if (studentId && !matching.some((s) => s.id === studentId)) setStudentId('')
+  }, [matching, studentId])
+
+  const namedNewStudent = first.trim() !== '' || last.trim() !== ''
+  const canSubmit =
+    !busy &&
+    scheduledAt !== '' &&
+    (mode === 'existing' ? studentId !== '' : namedNewStudent)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-
-    if (!studentId) {
-      setError('Pick a student for this session.')
-      return
-    }
-
     setBusy(true)
+
     try {
       const { data: auth } = await supabase.auth.getUser()
       const teacherId = auth.user?.id
       if (!teacherId) throw new Error('Your session expired. Sign in again.')
 
+      // The student first, because a session cannot be written without one —
+      // and if this fails nothing has been half-created.
+      let student = students.find((s) => s.id === studentId) ?? null
+      if (mode === 'new') {
+        const { data, error: err } = await supabase.rpc('create_student', {
+          p_first: first.trim(),
+          p_last: last.trim(),
+          p_pc: pc.trim() || null,
+        })
+        if (err) throw new Error(err.message)
+        student = row<Profile>(data)
+        if (!student) throw new Error('The student could not be created.')
+        setStudents((prev) => [...prev, student as Profile])
+      }
+      if (!student) throw new Error('Pick a student for this session.')
+
       const { data, error: err } = await supabase
         .from('sessions')
         .insert({
           teacher_id: teacherId,
-          student_id: studentId,
+          student_id: student.id,
           subject,
           title: title.trim() || null,
           // The field is labelled UTC, so it is read as UTC — see lib/time.
@@ -73,19 +124,36 @@ export function SessionNew() {
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
         })
-        .select('id')
+        // The token comes back with it: it is the next thing the teacher needs.
+        .select('*')
         .single()
 
       if (err) throw new Error(err.message)
-      // Straight to the session itself. There is nothing left to prepare: the
-      // student opens it at its time and the easy test loads for them.
-      navigate(`/sessions/${(data as { id: string }).id}`)
+      const made = row<Session>(data)
+      if (!made) throw new Error('The session was created but could not be read back.')
+      setCreated({ session: made, student: student.full_name })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the session.')
     } finally {
       setBusy(false)
     }
   }
+
+  /** Back to an empty form, keeping the time and duration the teacher just set —
+      a second session is usually the same slot pattern with a different name. */
+  function bookAnother() {
+    setCreated(null)
+    setError(null)
+    setStudentId('')
+    setSearch('')
+    setFirst('')
+    setLast('')
+    setPc('')
+    setTitle('')
+    setScheduledAt(defaultUtcSlot())
+  }
+
+  if (created) return <Created created={created} onAnother={bookAnother} />
 
   return (
     <div className="page">
@@ -97,8 +165,8 @@ export function SessionNew() {
         <div>
           <h1>New session</h1>
           <p className="sub">
-            Pick a student and a time. That is the whole of it — the student opens the session
-            themselves once that time has passed and starts on the easy test.
+            A student and a time. You get a link at the end of it — send that to the student and
+            they are in, with no account and nothing to sign into.
           </p>
         </div>
       </div>
@@ -107,25 +175,109 @@ export function SessionNew() {
         {error && <Notice kind="error">{error}</Notice>}
 
         <div className="card card-pad">
-          <div className="section-title">Who and what</div>
+          <div className="section-title">Who</div>
 
-          <Field label="Student" required hint={loadingStudents ? 'Loading students…' : undefined}>
-            <Select value={studentId} onChange={(e) => setStudentId(e.target.value)} required>
-              <option value="">Select a student</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name} — {s.display_id}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div className="mode-pick" role="group" aria-label="Which student">
+            <button
+              type="button"
+              className={`mode-opt ${mode === 'existing' ? 'on' : ''}`}
+              onClick={() => setMode('existing')}
+            >
+              <span className="t">A student you have</span>
+              <span className="d">Pick them by name, id or PC.</span>
+            </button>
+            <button
+              type="button"
+              className={`mode-opt ${mode === 'new' ? 'on' : ''}`}
+              onClick={() => setMode('new')}
+            >
+              <span className="t">Someone new</span>
+              <span className="d">Type their details. They are added as you go.</span>
+            </button>
+          </div>
 
-          {!loadingStudents && students.length === 0 && (
-            <Notice kind="info">
-              No students have signed up yet. Ask them to create a student account, then their name
-              will appear here.
-            </Notice>
+          {mode === 'existing' ? (
+            <>
+              <Field label="Find a student" hint="Name, id or PC. Leave it empty to see them all.">
+                <Input
+                  type="search"
+                  value={search}
+                  placeholder="Amara, AMAO26-3, Priya Rao…"
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Student"
+                required
+                hint={
+                  loadingStudents
+                    ? 'Loading students…'
+                    : `${matching.length} of ${students.length} students`
+                }
+              >
+                <Select value={studentId} onChange={(e) => setStudentId(e.target.value)} required>
+                  <option value="">Select a student</option>
+                  {matching.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name} — {s.display_id}
+                      {s.pc ? ` · ${s.pc}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              {!loadingStudents && students.length === 0 && (
+                <Notice kind="info">
+                  No students on the roster yet. Switch to <b>Someone new</b> and type theirs in —
+                  it takes three fields and no sign-up.
+                </Notice>
+              )}
+              {!loadingStudents && students.length > 0 && matching.length === 0 && (
+                <Notice kind="info">
+                  Nobody matches “{search}”. Clear the box, or switch to <b>Someone new</b>.
+                </Notice>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="grid-2">
+                <Field label="First name" required>
+                  <Input
+                    value={first}
+                    onChange={(e) => setFirst(e.target.value)}
+                    placeholder="Amara"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Last name">
+                  <Input
+                    value={last}
+                    onChange={(e) => setLast(e.target.value)}
+                    placeholder="Okonkwo"
+                    autoComplete="off"
+                  />
+                </Field>
+              </div>
+              <Field label="PC" hint="Whoever this student sits under. Optional, and editable later.">
+                <Input
+                  value={pc}
+                  onChange={(e) => setPc(e.target.value)}
+                  placeholder="Priya Rao"
+                  autoComplete="off"
+                />
+              </Field>
+              <Notice kind="info">
+                They are added to the roster with their own id — the same shape a teacher's is — when you
+                create the session. No
+                email, no password — they open the session from the link you send them.
+              </Notice>
+            </>
           )}
+        </div>
+
+        <div className="card card-pad">
+          <div className="section-title">What</div>
 
           <div className="grid-2">
             <Field
@@ -146,7 +298,7 @@ export function SessionNew() {
               </Select>
             </Field>
 
-            <Field label="Title" hint="Optional — shown on the session card.">
+            <Field label="Title" hint="Optional — shown on the sessions list.">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -195,7 +347,6 @@ export function SessionNew() {
               placeholder="https://zoom.us/j/…"
             />
           </Field>
-
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
@@ -207,6 +358,74 @@ export function SessionNew() {
           </Link>
         </div>
       </form>
+    </div>
+  )
+}
+
+/**
+ * What a teacher does next, which is send the link.
+ *
+ * So the screen after creating a session is the link, large, with the one
+ * button that matters beside it. Dropping the teacher straight into the console
+ * would have hidden the only thing standing between the student and the test.
+ */
+function Created({
+  created,
+  onAnother,
+}: {
+  created: { session: Session; student: string }
+  onAnother: () => void
+}) {
+  const { session, student } = created
+  const link = session.access_token ? studentLink(session.access_token) : null
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Session created</h1>
+          <p className="sub">
+            {student} · {formatUtc(session.scheduled_at)} · {session.duration_mins} min
+          </p>
+        </div>
+      </div>
+
+      <div className="card card-pad next-step">
+        <div className="section-title">Send this to {student.split(' ')[0]}</div>
+        <p className="step-text">
+          Opening it puts them straight into this session. There is nothing to sign into and no
+          account to make — the link is the whole of it, and it works on a phone.
+        </p>
+
+        {link ? (
+          <>
+            <div className="link-row">
+              <code className="link-box">{link}</code>
+              <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
+            </div>
+            <p className="step-text muted">
+              Keep it to them: anyone holding this link can sit this session.
+            </p>
+          </>
+        ) : (
+          <Notice kind="error">
+            The session was created but its link did not come back. Open it from the sessions list
+            and copy the link there.
+          </Notice>
+        )}
+
+        <div className="step-actions">
+          <Link className="btn btn-navy" to={`/sessions/${session.id}`}>
+            Open the session
+          </Link>
+          <Link className="btn btn-ghost" to="/sessions">
+            All sessions
+          </Link>
+          <button type="button" className="btn btn-ghost" onClick={onAnother}>
+            Book another
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

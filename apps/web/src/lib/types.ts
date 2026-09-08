@@ -24,6 +24,8 @@ export interface Profile {
   display_id: string
   full_name: string
   email: string | null
+  /** The student's PC, as the teachers write it. Null for teachers and for students added before it was asked for. */
+  pc: string | null
   is_active: boolean
   created_at: string
 }
@@ -76,6 +78,11 @@ export interface Session {
   scheduled_at: string
   duration_mins: number
   meeting_url: string | null
+  /**
+   * The student's way in: /s/<token>, no account. Present on a teacher's own
+   * read of the session and never on the student's — the token RPCs strip it.
+   */
+  access_token?: string | null
   status: SessionStatus
   /** The test the student is on now. Starts easy and is moved during the session. */
   level: SessionLevel
@@ -90,7 +97,7 @@ export interface Session {
   teacher_notes: string | null
   created_at: string
   teacher?: Pick<Profile, 'id' | 'full_name' | 'display_id'> | null
-  student?: Pick<Profile, 'id' | 'full_name' | 'display_id'> | null
+  student?: (Pick<Profile, 'id' | 'full_name' | 'display_id'> & { pc?: string | null }) | null
 }
 
 export interface Assessment {

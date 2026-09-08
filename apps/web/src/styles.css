@@ -1284,3 +1284,134 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
   margin: 0 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
   text-transform: uppercase; color: var(--muted);
 }
+
+/* ============================================================================
+   The sessions table, and the teacher's controls over a live session
+   ========================================================================= */
+
+/* ------------------------------------------------------------ filters --- */
+/* One row above the table: a search box that grows, a select per column that
+   has a fixed set of values, and the count of what survived. It wraps rather
+   than scrolls, because a filter you cannot see is a filter you forget you
+   left on. */
+.filters {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r);
+  padding: 12px 14px; margin-bottom: 16px;
+}
+.filters .spring { flex: 1 1 20px; }
+.filters .select { width: auto; min-width: 140px; }
+.filter-search { flex: 1 1 260px; min-width: 200px; }
+.filter-count {
+  font-size: 12.5px; font-weight: 300; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* --------------------------------------------------------- the table ---- */
+table.sess-table { min-width: 860px; }
+
+/* A sortable heading is a button that fills its cell, so the whole heading is
+   the target rather than the six characters of its label. */
+.th-sort {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+  color: inherit; font-size: inherit; font-weight: inherit;
+}
+.th-sort:hover { color: var(--ink-2); }
+.th-sort.on { color: var(--ink); }
+.th-sort:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 3px; }
+
+tr.row-link { cursor: pointer; }
+tr.row-link:hover { background: var(--navy-50); }
+tr.row-link.live-row:hover { background: #dff0fb; }
+
+.cell-link { display: flex; flex-direction: column; gap: 1px; text-decoration: none; color: inherit; }
+.cell-link:hover .when-day { text-decoration: underline; }
+.when-day { font-weight: 500; white-space: nowrap; }
+.when-time {
+  font-size: 12px; color: var(--muted); font-weight: 300;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cell-strong { font-weight: 500; }
+.cell-sub { font-size: 12px; color: var(--muted); font-weight: 300; }
+td .cell-sub { display: block; margin-top: 2px; }
+.row-actions { white-space: nowrap; text-align: right; }
+.row-actions .btn + .btn { margin-left: 6px; }
+
+/* ------------------------------------------------------- the new form --- */
+/* Two ways to name a student, side by side rather than one behind a checkbox:
+   which of them a teacher is doing is known before they reach the screen. */
+.mode-pick { display: grid; gap: 10px; margin-bottom: 18px; }
+@media (min-width: 700px) { .mode-pick { grid-template-columns: 1fr 1fr; } }
+.mode-opt {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 13px 16px; border: 1px solid var(--border-strong); border-radius: var(--r);
+  background: #fff; cursor: pointer; font: inherit;
+}
+.mode-opt:hover { border-color: var(--navy-400); }
+.mode-opt.on { border-color: var(--sky-dark); background: var(--sky-wash); box-shadow: inset 0 0 0 1px var(--sky-dark); }
+.mode-opt .t { font-size: 14.5px; font-weight: 500; color: var(--ink); }
+.mode-opt .d { font-size: 12.5px; font-weight: 300; color: var(--muted); }
+.mode-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ------------------------------------------------------- the link ------- */
+.link-card { border-color: var(--sky); }
+.link-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
+.link-box {
+  flex: 1 1 320px; min-width: 0; overflow-x: auto; white-space: nowrap;
+  padding: 10px 13px; border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--input); font-size: 13px; color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ------------------------------------------------- the level control ---- */
+.level-control-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.level-control-row .spring { flex: 1; }
+.level-btns { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--pill); overflow: hidden; }
+.level-btn {
+  padding: 7px 16px; border: 0; background: #fff; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+.level-btn + .level-btn { border-left: 1px solid var(--border-strong); }
+.level-btn:hover:not(:disabled) { background: var(--navy-50); }
+.level-btn.on { background: var(--navy-600); color: #fff; cursor: default; }
+.level-btn:disabled:not(.on) { opacity: .45; cursor: not-allowed; }
+.level-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* --------------------------------------------- the live question pane --- */
+/* The same split the student has, in a card: what they are reading on the
+   left, what they are choosing between on the right. */
+.live-q { border-color: var(--sky); }
+.live-q .step-head { margin-bottom: 12px; }
+.live-q-body { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 900px) { .live-q-body { grid-template-columns: 1fr 1fr; } }
+.live-q-stim { min-width: 0; }
+@media (min-width: 900px) { .live-q-stim { border-right: 1px solid var(--border); padding-right: 20px; } }
+.live-q-stim .stim { font-size: 14.5px; line-height: 1.65; }
+.live-q-main { min-width: 0; }
+.live-q-main .qsplit-stem { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+
+/* The two controls that appear on each choice while the teacher is entering
+   an answer the student gave out loud. */
+.qch-controls { display: inline-flex; gap: 6px; margin-left: auto; padding-left: 10px; flex-shrink: 0; }
+.qch.is-struck .body { text-decoration: line-through; opacity: .5; }
+.answer-for { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.answer-for .confidence { margin-bottom: 12px; }
+
+/* --------------------------------------------------------- the board ---- */
+.board-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 22px 0 10px; }
+.board-head .spring { flex: 1; }
+.board-title {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  padding: 12px 14px; border-bottom: 1px solid var(--border-strong); background: var(--page);
+}
+.board-title strong { font-size: 14px; }
+.board-title .muted { font-size: 12.5px; color: var(--muted); font-weight: 300; }
+.board .board-foot:first-child { border-top: 0; }
+
+.toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 300; color: var(--ink-2); cursor: pointer;
+}
+.toggle input { accent-color: var(--sky-dark); }

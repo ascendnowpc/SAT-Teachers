@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
 import { Dashboard } from './pages/Dashboard'
@@ -14,9 +14,23 @@ import { Exam } from './pages/Exam'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
 import { Signup } from './pages/Signup'
+import { StudentLink } from './pages/StudentLink'
 
 export function App() {
   const { session, profile, loading, isTeacher } = useAuth()
+
+  // The student's link is not a page of the app — it is the app, for whoever
+  // holds it. It is matched before anything asks who is signed in, because the
+  // answer is "nobody" and that is the whole idea: no gate, no redirect to a
+  // login, and no waiting on an auth check that is going to come back empty.
+  const { pathname } = useLocation()
+  if (pathname.startsWith('/s/')) {
+    return (
+      <Routes>
+        <Route path="/s/:token" element={<StudentLink />} />
+      </Routes>
+    )
+  }
 
   if (loading) return <div className="center-fill">Loading…</div>
 
