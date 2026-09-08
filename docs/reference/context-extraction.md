@@ -188,7 +188,7 @@ a vendor.
 
 ```
 GEMINI_API_KEY   required
-EXTRACTION_MODEL optional; defaults to gemini-2.5-pro
+EXTRACTION_MODEL optional; defaults to gemini-3.1-flash-lite
 ```
 
 The answer comes back through `responseSchema`, so the structure is enforced by the decoder rather
@@ -208,11 +208,50 @@ second schema would be a second thing to keep in step and the one that drifted w
 test covered. The translation is tested, descriptions included — they are half the instruction, and
 losing them would leave the request valid and the readings worse.
 
-### Checking a change before deploying it
+### What it actually does, measured
 
-The guard is already a scorer. It drops any claim whose quote is not verbatim, and verbatim quoting
-under a deep schema is the capability this feature lives on — a model that paraphrases when asked to
-quote produces an empty report. So:
+First real runs, 21 October, against both recordings the teachers gave us. Same prompt, same
+windows, one call each.
+
+| model | kept | dropped | drop-rate | teacher feedback found | relabelled | secs |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gemini-3.5-flash` | 63 | 9 | 12.5% | 35 | 3 | 125 |
+| `gemini-3.1-flash-lite` | 49 | 4 | 7.5% | 24 | 2 | 21 |
+| `gemini-3.8-flash` | — | — | — | — | — | 503 on every attempt |
+
+3.5-flash finds appreciably more of the thing the report is for and drops a little more looking for
+it. It would be the better default but for the clock: 125s is too close to an edge function's wall
+limit, and a run that times out gives the teacher nothing where a thinner reading still gives them
+something. The safe one is the default; the better one is one variable away.
+
+On the 17 July recording — the silent timed paper — the same model covered **9 of 27** questions.
+That is the right answer rather than a failure: most windows genuinely have nobody in them, and
+`covered: false` is the honest report of that.
+
+### What the first live runs found
+
+Three things that only a real call could have found, all now fixed:
+
+1. **`gemini-2.5-pro`, the original default, is gone.** "No longer available to new users." So is
+   `gemini-2.5-flash`. Treat any model name in this repo as a guess with an expiry.
+2. **Thinking tokens count against `maxOutputTokens`.** The budget was 16,000, which looked generous
+   beside a reading that runs ~6k. The model spent **13,511 tokens thinking** and had 2,474 left to
+   answer in, so the JSON arrived cut off mid-string — and `JSON.parse` reported it as "Unterminated
+   string at position 2555", which points at the schema rather than the cause. The budget is now
+   65,536 and `finishReason` is checked *before* parsing, so a truncation says it is a truncation.
+3. **A third of all drops were elision, not invention.** The model quotes a long turn by cutting its
+   own middle out — *"So it can't be B because that's a fact. It's not an inference… A, no, again,
+   that's a fact."* Every fragment was genuinely said, in order, in that turn; a strict substring
+   match called it fabricated. `findQuote` now allows an ellipsis and requires each fragment to be
+   found in the **same line, in order**, each at least 10 characters. That took the drop rate on
+   identical model output from **32.4% to 7.5%** without loosening what the guard promises: nothing
+   is attributed to anyone that they did not say, in the order they said it.
+
+Google also answers 503 "high demand" often enough that it is worth riding out rather than showing a
+teacher, so a 503 is retried three times with a widening pause. A 429 is quota and a 404 is a dead
+model name; retrying either just makes the same mistake more slowly.
+
+### Checking a change before deploying it
 
 ```bash
 GEMINI_API_KEY=… node tools/bench-extraction.mjs transcript.txt 23
@@ -222,8 +261,8 @@ prints kept, dropped, drop-rate, teacher feedback found, relabelled and covered 
 recording, with no database in the way. Use it on a prompt change or a new model id.
 
 **Read `kept` beside the rate.** Two safe claims score better than eight good ones with a fumbled
-quote. And `relabelled` near zero means the model is not doing the job it is there for — overruling
-Fathom on who was speaking.
+quote — which is exactly what the table above shows, and why the lower drop rate did not win the
+argument on its own.
 
 ## Cost, and why it is not a design input
 
@@ -240,7 +279,10 @@ Two transcripts cannot validate this and nothing here pretends otherwise.
 
 - **Drop rate** — stored per reading. Rising means the prompt broke.
 - **`relabelled` count** — how often the model overrules Fathom. Near zero would mean it is not
-  doing the job it is there for; very high would mean it is inventing attributions.
+  doing the job it is there for; very high would mean it is inventing attributions. Two or three per
+  session on the first real runs, which is the right order of magnitude for a transcript with
+  fourteen provable mislabels in it — though note that on one run it cited none of the lines we know
+  are mislabelled, so the mechanism is working rather than proven.
 - **Coverage** — questions with nothing found. A sudden fall is usually the offset, not the lesson.
 - **Teacher edit distance** — how much survives to publish.
 - **Agreement with the deterministic verdicts.** Both readers run. Where they agree, confidence is

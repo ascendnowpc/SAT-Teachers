@@ -319,17 +319,66 @@ function numbersIn(text: string): string[] {
 }
 
 /**
+ * The shortest run of words an elided fragment may be.
+ *
+ * Elision is only safe because each fragment still has to be found. Two
+ * characters would be found in anything, so a fragment below this is treated as
+ * no evidence at all rather than as weak evidence.
+ */
+const MIN_FRAGMENT = 10
+
+/**
  * The line a quote is verbatim inside, or null.
  *
- * Substring rather than equality: the model is asked for the part of a turn
- * that carries the claim, not the whole turn, and a turn on these recordings
- * runs to a paragraph. The match is on the flattened text of a single line —
- * a "quote" spanning two speakers' turns is not a quote.
+ * Substring rather than equality: the model is asked for the part of a turn that
+ * carries the claim, not the whole turn, and a turn on these recordings runs to
+ * a paragraph. The match is against a single line — a "quote" spanning two
+ * speakers' turns is not a quote, and that is the whole point of checking.
+ *
+ * ## Elision
+ *
+ * A quote may cut its own middle out with an ellipsis, because that is how
+ * quotation has always worked and because these turns are long:
+ *
+ *     "So it can't be B because that's a fact. It's not an inference... A, no,
+ *      again, that's a fact."
+ *
+ * That is one turn, in order, with a dull stretch removed. On the first real run
+ * against the 7 August recording this was the single largest cause of dropped
+ * claims — the words were genuinely said, and a strict substring match called
+ * them invented.
+ *
+ * So an ellipsis is allowed, and every fragment either side of it must still be
+ * found in the SAME line, IN ORDER, each at least {@link MIN_FRAGMENT}
+ * characters. That keeps the promise the guard exists to make — nothing is
+ * attributed to anyone that they did not say, in the order they said it — while
+ * not throwing away a third of the honest claims. What elision cannot do is
+ * reverse a meaning across the gap, and that is what the teacher reading the
+ * quote before publishing is for.
  */
 export function findQuote(lines: TranscriptLine[], quote: string): TranscriptLine | null {
-  const needle = flatten(quote)
-  if (needle.length === 0) return null
-  return lines.find((l) => flatten(l.text).includes(needle)) ?? null
+  const fragments = flatten(quote)
+    .split(/\s*\.\.\.\s*|\s*…\s*/)
+    .map((f) => f.trim())
+    .filter((f) => f.length > 0)
+
+  if (fragments.length === 0) return null
+  // One fragment is a plain quote; several means elision, and then each has to
+  // carry enough text to be evidence on its own.
+  if (fragments.length > 1 && fragments.some((f) => f.length < MIN_FRAGMENT)) return null
+
+  return (
+    lines.find((l) => {
+      const hay = flatten(l.text)
+      let from = 0
+      for (const fragment of fragments) {
+        const at = hay.indexOf(fragment, from)
+        if (at === -1) return false
+        from = at + fragment.length
+      }
+      return true
+    }) ?? null
+  )
 }
 
 /**

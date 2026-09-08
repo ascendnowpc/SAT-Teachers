@@ -107,6 +107,36 @@ describe('findQuote', () => {
     expect(findQuote(transcript.lines, "what’s   your approach?")).not.toBeNull()
   })
 
+  it('accepts a quote that elides its own middle, within one turn', () => {
+    // How the model actually quotes a long turn, and what caused a third of the
+    // dropped claims on the first real run.
+    const line = findQuote(
+      transcript.lines,
+      'Rely, it can\'t be rely on ... facts rely on evidence.',
+    )
+    expect(line?.at).toBe(532)
+  })
+
+  it('refuses an elision whose fragments are out of order', () => {
+    // Same words, reversed. Reversing across the gap is how an elision would
+    // change a meaning rather than shorten one.
+    expect(
+      findQuote(transcript.lines, 'facts rely on evidence ... Rely, it can\'t be rely on'),
+    ).toBeNull()
+  })
+
+  it('refuses an elision whose fragments come from different turns', () => {
+    expect(
+      findQuote(transcript.lines, 'I have no idea what B means ... those are the keywords'),
+    ).toBeNull()
+  })
+
+  it('refuses fragments too short to be evidence', () => {
+    // "a ... e ... i" appears in almost any sentence. A fragment that short is
+    // not weak evidence, it is none.
+    expect(findQuote(transcript.lines, 'a ... e ... i')).toBeNull()
+  })
+
   it('refuses a quote stitched from two different turns', () => {
     expect(
       findQuote(transcript.lines, 'I have no idea what B means though. Very good. It is perfect.'),
