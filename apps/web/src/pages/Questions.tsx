@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { DifficultyBadge, Input, Notice, Select } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
-import { IconChevron, IconStack } from '../components/icons'
+import { IconChevron } from '../components/icons'
 import {
   DIFFICULTIES,
   LEVELS,
@@ -31,6 +31,7 @@ import type { Difficulty, Question, QuestionSet, Subject } from '../lib/types'
  */
 export function Questions() {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const justAdded = params.get('added')
 
   const [view, setView] = useState<'tests' | 'questions'>(justAdded ? 'questions' : 'tests')
@@ -47,6 +48,8 @@ export function Questions() {
   // a student, so it is not what a teacher is looking at the bank to find.
   const [status, setStatus] = useState<'published' | 'retired' | ''>('published')
   const [search, setSearch] = useState('')
+  /** The one question read in full, expanded under its row. */
+  const [openId, setOpenId] = useState<string | null>(justAdded)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -180,34 +183,55 @@ export function Questions() {
           <div className="card">
             <div className="empty">
               <h3>No tests loaded</h3>
-              <p>
-                The three English tests come in with the bank. If none are here the content
-                migrations have not been run against this database.
-              </p>
+              <p>The content migrations have not been run against this database.</p>
             </div>
           </div>
         ) : (
-          <div className="set-list">
-            {tests.map((p) => (
-              <Link key={p.id} className="set-card" to={`/tests/${p.id}`}>
-                <span className="ico">
-                  <IconStack />
-                </span>
-                <span className="main">
-                  <span className="t">{p.title}</span>
-                  {p.description && <span className="d">{p.description}</span>}
-                </span>
-                <span className="tags">
-                  {p.level && <DifficultyBadge level={p.level} />}
-                  <span className="badge badge-neutral">
-                    {SUBJECTS.find((s) => s.value === p.subject)?.label ?? p.subject}
-                  </span>
-                  <span className="badge badge-sky">
-                    {p.question_set_items?.[0]?.count ?? 0} questions
-                  </span>
-                </span>
-              </Link>
-            ))}
+          <div className="board">
+            <div className="board-scroll">
+              <table className="board-table">
+                <thead>
+                  <tr>
+                    <th>Test</th>
+                    <th>Level</th>
+                    <th>Subject</th>
+                    <th>Questions</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {tests.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="row-link"
+                      onClick={() => navigate(`/tests/${t.id}`)}
+                    >
+                      <td>
+                        <Link
+                          className="cell-link cell-strong"
+                          to={`/tests/${t.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t.title}
+                        </Link>
+                      </td>
+                      <td>{t.level && <DifficultyBadge level={t.level} />}</td>
+                      <td>{SUBJECTS.find((x) => x.value === t.subject)?.label ?? t.subject}</td>
+                      <td className="num">{t.question_set_items?.[0]?.count ?? 0}</td>
+                      <td className="row-actions">
+                        <Link
+                          className="btn btn-ghost btn-sm"
+                          to={`/tests/${t.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )
       ) : (
@@ -303,10 +327,31 @@ export function Questions() {
             </div>
           </div>
         ) : (
-          <div className="q-list">
-            {visible.map((q) => (
-              <QuestionCard key={q.id} question={q} defaultOpen={q.id === justAdded} />
-            ))}
+          <div className="board">
+            <div className="board-scroll">
+              <table className="board-table q-table">
+                <thead>
+                  <tr>
+                    <th>Question</th>
+                    <th>Level</th>
+                    <th>Section</th>
+                    <th>Skill</th>
+                    <th>Key</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((q) => (
+                    <QuestionRow
+                      key={q.id}
+                      question={q}
+                      open={openId === q.id}
+                      onToggle={() => setOpenId((id) => (id === q.id ? null : q.id))}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         </>
@@ -315,52 +360,84 @@ export function Questions() {
   )
 }
 
-function QuestionCard({ question: q, defaultOpen }: { question: Question; defaultOpen: boolean }) {
+/**
+ * One question, as a row that opens.
+ *
+ * The bank is scanned far more often than it is read — "what have we got at
+ * medium on transitions" is a question about a column, and a run of cards
+ * answers it by making you read every stem. So the list is a table, and the
+ * question itself is one click down: the row expands underneath into the same
+ * QuestionView the student meets it in, rather than sending the teacher to
+ * another page and back.
+ */
+function QuestionRow({
+  question: q,
+  open,
+  onToggle,
+}: {
+  question: Question
+  open: boolean
+  onToggle: () => void
+}) {
   return (
-    <details className="q-card" open={defaultOpen}>
-      <summary>
-        <IconChevron />
-        <div className="q-main">
-          <div className="q-stem">{q.stem}</div>
-          <div className="q-tags">
-            <DifficultyBadge level={q.difficulty} />
-            <span className="badge badge-neutral">
-              {SUBJECTS.find((s) => s.value === q.subject)?.label ?? q.subject}
-            </span>
-            {q.section && <span className="badge badge-neutral">{sectionLabel(q.section)}</span>}
-            {q.skill && <span className="badge badge-sky">{skillLabel(q.skill)}</span>}
-            {q.status === 'retired' && <span className="badge badge-neutral">Retired</span>}
-          </div>
-        </div>
-      </summary>
+    <>
+      <tr className="row-link" onClick={onToggle}>
+        <td style={{ maxWidth: 420 }}>
+          <span className={`chev-cell ${open ? 'on' : ''}`}>
+            <IconChevron />
+          </span>
+          <span className="cell-strong">{q.stem}</span>
+        </td>
+        <td>
+          <DifficultyBadge level={q.difficulty} />
+          {q.status === 'retired' && <span className="cell-sub">Retired</span>}
+        </td>
+        <td className="cell-sub">{sectionLabel(q.section) ?? <span className="dash">—</span>}</td>
+        <td className="cell-sub">{skillLabel(q.skill) ?? <span className="dash">—</span>}</td>
+        <td className="num">
+          {q.question_keys?.correct_option ?? <span className="dash">—</span>}
+        </td>
+        <td className="row-actions">
+          <Link
+            className="btn btn-ghost btn-sm"
+            to={`/questions/${q.id}/edit`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            Edit
+          </Link>
+        </td>
+      </tr>
+      {open && (
+        <tr className="row-open">
+          <td colSpan={6}>
+            <QuestionDetail question={q} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
 
-      <QuestionView
-        question={q}
-        header={
-          <>
-            <Link className="btn btn-ghost btn-sm" to={`/questions/${q.id}/edit`}>
-              Edit
-            </Link>
-            {q.created_by === null && <span className="muted">house question</span>}
-          </>
-        }
-        footer={
-          <>
-            {q.question_keys?.explanation && (
-              <div className="q-note">
-                <div className="section-title">Explanation</div>
-                {q.question_keys.explanation}
-              </div>
-            )}
-            {q.difficulty_rationale && (
-              <div className="q-note">
-                <div className="section-title">Why {q.difficulty}</div>
-                {q.difficulty_rationale}
-              </div>
-            )}
-          </>
-        }
-      />
-    </details>
+function QuestionDetail({ question: q }: { question: Question }) {
+  return (
+    <QuestionView
+      question={q}
+      footer={
+        <>
+          {q.question_keys?.explanation && (
+            <div className="q-note">
+              <div className="section-title">Explanation</div>
+              {q.question_keys.explanation}
+            </div>
+          )}
+          {q.difficulty_rationale && (
+            <div className="q-note">
+              <div className="section-title">Why {q.difficulty}</div>
+              {q.difficulty_rationale}
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }

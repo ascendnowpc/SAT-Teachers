@@ -480,7 +480,10 @@ function Finished({
   return (
     <div className="exam-done">
       <div className="exam-done-head">
-        <h2>That is the {levelLabel(session.level).toLowerCase()} test</h2>
+        {/* Not "that is the hard test". Which of the three tests a student was
+            put on is the teacher's decision about them, and reading it back at
+            the end tells them nothing they can do anything with. */}
+        <h2>Test submitted</h2>
         <p>
           {items.length} answered.{' '}
           {out === 0

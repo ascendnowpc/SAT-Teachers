@@ -1383,7 +1383,12 @@ td .cell-sub { display: block; margin-top: 2px; }
 /* --------------------------------------------- the live question pane --- */
 /* The same split the student has, in a card: what they are reading on the
    left, what they are choosing between on the right. */
-.live-q { border-color: var(--sky); }
+/* The panel is the question the lesson is on. It only wears the live border
+   while a question is actually open — once it is answered it is a record, and
+   a card that keeps shouting is a card the teacher stops reading. */
+.live-q.is-open { border-color: var(--sky); }
+.live-q .step-head { flex-wrap: wrap; }
+.live-q .step-head .muted { font-size: 12.5px; font-weight: 300; }
 .live-q .step-head { margin-bottom: 12px; }
 .live-q-body { display: grid; grid-template-columns: 1fr; gap: 18px; }
 @media (min-width: 900px) { .live-q-body { grid-template-columns: 1fr 1fr; } }
@@ -1463,4 +1468,27 @@ td .cell-sub { display: block; margin-top: 2px; }
 .combo-opt.chosen .lab::after { content: ' ✓'; }
 .combo-empty {
   padding: 10px 11px; font-size: 13.5px; font-weight: 300; color: var(--muted);
+}
+
+/* --------------------------------------------------- the bank as a table --- */
+/* The stem carries the chevron so the whole row reads as something that opens,
+   and the question itself unfolds in a row beneath rather than on a page of
+   its own — the teacher is comparing items, not visiting them. */
+table.q-table { min-width: 900px; }
+.chev-cell {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; margin-right: 8px; vertical-align: -3px; color: var(--muted);
+}
+.chev-cell svg { transition: transform .12s ease; }
+.chev-cell.on svg { transform: rotate(180deg); }
+.chev-cell.on { color: var(--ink-2); }
+
+tr.row-open > td {
+  padding: 0 0 14px;
+  background: var(--page);
+  border-bottom: 1px solid var(--border-strong);
+}
+tr.row-open .qsplit {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); margin: 0 14px;
 }
