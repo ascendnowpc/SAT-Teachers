@@ -1345,14 +1345,15 @@ td .cell-sub { display: block; margin-top: 2px; }
 .mode-pick { display: grid; gap: 10px; margin-bottom: 18px; }
 @media (min-width: 700px) { .mode-pick { grid-template-columns: 1fr 1fr; } }
 .mode-opt {
-  display: flex; flex-direction: column; gap: 3px; text-align: left;
-  padding: 13px 16px; border: 1px solid var(--border-strong); border-radius: var(--r);
+  padding: 10px 16px; border: 1px solid var(--border-strong); border-radius: var(--r);
   background: #fff; cursor: pointer; font: inherit;
+  font-size: 14px; font-weight: 500; color: var(--ink-2);
 }
 .mode-opt:hover { border-color: var(--navy-400); }
-.mode-opt.on { border-color: var(--sky-dark); background: var(--sky-wash); box-shadow: inset 0 0 0 1px var(--sky-dark); }
-.mode-opt .t { font-size: 14.5px; font-weight: 500; color: var(--ink); }
-.mode-opt .d { font-size: 12.5px; font-weight: 300; color: var(--muted); }
+.mode-opt.on {
+  border-color: var(--sky-dark); background: var(--sky-wash); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--sky-dark);
+}
 .mode-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ------------------------------------------------------- the link ------- */
@@ -1382,7 +1383,12 @@ td .cell-sub { display: block; margin-top: 2px; }
 /* --------------------------------------------- the live question pane --- */
 /* The same split the student has, in a card: what they are reading on the
    left, what they are choosing between on the right. */
-.live-q { border-color: var(--sky); }
+/* The panel is the question the lesson is on. It only wears the live border
+   while a question is actually open — once it is answered it is a record, and
+   a card that keeps shouting is a card the teacher stops reading. */
+.live-q.is-open { border-color: var(--sky); }
+.live-q .step-head { flex-wrap: wrap; }
+.live-q .step-head .muted { font-size: 12.5px; font-weight: 300; }
 .live-q .step-head { margin-bottom: 12px; }
 .live-q-body { display: grid; grid-template-columns: 1fr; gap: 18px; }
 @media (min-width: 900px) { .live-q-body { grid-template-columns: 1fr 1fr; } }
@@ -1415,3 +1421,74 @@ td .cell-sub { display: block; margin-top: 2px; }
   font-size: 12.5px; font-weight: 300; color: var(--ink-2); cursor: pointer;
 }
 .toggle input { accent-color: var(--sky-dark); }
+
+/* ------------------------------------------------------------ combobox --- */
+/* A dropdown you can type into: one control, not a search box stacked on a
+   select. The input carries the whole width and the chevron sits inside it, so
+   it reads as the select it replaces rather than as a text field. */
+.combo { position: relative; }
+.combo-field { position: relative; display: flex; align-items: center; }
+.combo-input { width: 100%; padding-right: 38px; }
+.combo-input::placeholder { color: var(--muted); }
+/* While it is open the placeholder is the current choice, so it has to read as
+   a value rather than as a prompt. */
+.combo.open .combo-input::placeholder { color: var(--ink-2); }
+
+.combo-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border: 0; border-radius: var(--r-sm); background: none; cursor: pointer;
+  color: var(--ink-2);
+}
+.combo-toggle:hover:not(:disabled) { background: var(--input-hover); }
+.combo-toggle:disabled { opacity: .5; cursor: not-allowed; }
+.combo-toggle svg { transition: transform .12s ease; }
+.combo.open .combo-toggle svg { transform: rotate(180deg); }
+
+.combo-list {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+  margin: 0; padding: 5px; list-style: none;
+  max-height: 260px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border-strong);
+  border-radius: var(--r); box-shadow: var(--shadow-lift);
+}
+.combo-opt {
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
+  padding: 8px 11px; border: 0; border-radius: var(--r-sm);
+  background: none; cursor: pointer; text-align: left; font: inherit;
+  font-size: 14px; color: var(--ink);
+}
+.combo-opt .lab { font-weight: 500; }
+.combo-opt .hint {
+  margin-left: auto; padding-left: 10px; flex-shrink: 0;
+  font-size: 12px; font-weight: 300; color: var(--muted);
+}
+.combo-opt.active { background: var(--navy-50); }
+.combo-opt.chosen { color: var(--sky-dark); }
+.combo-opt.chosen .lab::after { content: ' ✓'; }
+.combo-empty {
+  padding: 10px 11px; font-size: 13.5px; font-weight: 300; color: var(--muted);
+}
+
+/* --------------------------------------------------- the bank as a table --- */
+/* The stem carries the chevron so the whole row reads as something that opens,
+   and the question itself unfolds in a row beneath rather than on a page of
+   its own — the teacher is comparing items, not visiting them. */
+table.q-table { min-width: 900px; }
+.chev-cell {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; margin-right: 8px; vertical-align: -3px; color: var(--muted);
+}
+.chev-cell svg { transition: transform .12s ease; }
+.chev-cell.on svg { transform: rotate(180deg); }
+.chev-cell.on { color: var(--ink-2); }
+
+tr.row-open > td {
+  padding: 0 0 14px;
+  background: var(--page);
+  border-bottom: 1px solid var(--border-strong);
+}
+tr.row-open .qsplit {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); margin: 0 14px;
+}

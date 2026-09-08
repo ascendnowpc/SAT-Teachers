@@ -78,12 +78,31 @@ export function useLiveSession(sessionId: string, opts: { withAssessments: boole
     }
   }, [sessionId])
 
-  const isLive = session?.status === 'live'
+  // Scheduled counts as running, not just live: the teacher opens the console
+  // before the student opens the session, and the moment that flips is exactly
+  // the one they are sitting there waiting for.
+  const running = session?.status === 'live' || session?.status === 'scheduled'
   useEffect(() => {
-    if (!isLive) return
-    const t = setInterval(() => reloadRef.current(), 10_000)
+    if (!running) return
+    const t = setInterval(() => reloadRef.current(), 5_000)
     return () => clearInterval(t)
-  }, [isLive])
+  }, [running])
+
+  // Coming back to the tab is a moment the answer may already have landed, and
+  // waiting out the rest of the interval to find out is how a teacher ends up
+  // reading a board that is thirty seconds behind the student.
+  useEffect(() => {
+    if (!running) return
+    const onWake = () => {
+      if (document.visibilityState === 'visible') reloadRef.current()
+    }
+    window.addEventListener('focus', onWake)
+    document.addEventListener('visibilitychange', onWake)
+    return () => {
+      window.removeEventListener('focus', onWake)
+      document.removeEventListener('visibilitychange', onWake)
+    }
+  }, [running])
 
   return { session, items, loading, error, reload }
 }

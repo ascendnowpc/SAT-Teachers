@@ -70,13 +70,28 @@ export function useStudentSession(gateway: SessionGateway) {
   }, [realtimeId])
 
   // A link has nothing else watching for it, so it looks more often.
-  const every = realtimeId ? 10_000 : 4_000
-  const isLive = session?.status === 'live' || session?.status === 'scheduled'
+  const every = realtimeId ? 5_000 : 4_000
+  const running = session?.status === 'live' || session?.status === 'scheduled'
   useEffect(() => {
-    if (!isLive) return
+    if (!running) return
     const t = setInterval(() => reloadRef.current(), every)
     return () => clearInterval(t)
-  }, [isLive, every])
+  }, [running, every])
+
+  // A student who switched away — to the call, to a message — comes back to
+  // the question the teacher moved them to, not the one they left.
+  useEffect(() => {
+    if (!running) return
+    const onWake = () => {
+      if (document.visibilityState === 'visible') reloadRef.current()
+    }
+    window.addEventListener('focus', onWake)
+    document.addEventListener('visibilitychange', onWake)
+    return () => {
+      window.removeEventListener('focus', onWake)
+      document.removeEventListener('visibilitychange', onWake)
+    }
+  }, [running])
 
   return { session, items, loading, error, reload }
 }

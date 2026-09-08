@@ -29,6 +29,10 @@ import type {
 } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
+/** How the student's 1-3 confidence reads: short in a table, long on a button. */
+const CONFIDENCE = ['low', 'med', 'high']
+const CONFIDENCE_LONG = ['Not sure', 'Fairly sure', 'Certain']
+
 /**
  * The teacher's side of a session — which is now the whole session.
  *
@@ -67,6 +71,25 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
     await reload()
     setBusy(false)
   }
+
+  /**
+   * The question the lesson is on.
+   *
+   * Whatever is open; and when nothing is — between questions, or once the
+   * test is handed in — the last one they answered, so the panel does not
+   * vanish at the moment the teacher wants to read the result of it. This is
+   * the only place a question is shown in full, and its status is on it, so
+   * "what are they doing" and "how did it go" are one glance rather than two
+   * halves of the page.
+   */
+  const focus = useMemo(() => {
+    const live = items.find((i) => i.status === 'published')
+    if (live) return live
+    const done = items
+      .filter((i) => i.status === 'answered' || i.status === 'revealed')
+      .sort((a, b) => askOrder(a) - askOrder(b))
+    return done[done.length - 1] ?? null
+  }, [items])
 
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
 
@@ -174,9 +197,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
         />
       )}
 
-      {!over && open && <LiveQuestion item={open} session={session} busy={busy} onCall={call} />}
+      {focus && <FocusQuestion item={focus} busy={busy} onCall={call} />}
 
-      <Board items={items} busy={busy} onCall={call} />
+      <Board items={items} focusId={focus?.id ?? null} busy={busy} onCall={call} />
     </div>
   )
 }
@@ -194,8 +217,6 @@ function StudentLinkCard({ session }: { session: Session }) {
   const link = session.access_token ? studentLink(session.access_token) : null
   if (!link) return null
 
-  const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
-
   return (
     <div className="card card-pad link-card">
       <div className="section-title">Student link</div>
@@ -203,9 +224,6 @@ function StudentLinkCard({ session }: { session: Session }) {
         <code className="link-box">{link}</code>
         <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
       </div>
-      <p className="step-text muted">
-        Send this to {first}. It opens this session and nothing else — no account, no sign-in.
-      </p>
     </div>
   )
 }
@@ -263,27 +281,27 @@ function LevelControl({
               type="button"
               className={`level-btn ${session.level === l ? 'on' : ''}`}
               disabled={busy || session.level === l}
-              onClick={() => (hasOpenQuestion ? setAsking(l) : void move(l))}
+              // Always asked, not only when a question is open. Moving level
+              // throws away the rest of the test either way, and these three
+              // buttons sit under the teacher's hand for the whole lesson.
+              onClick={() => setAsking(l)}
             >
               {levelLabel(l)}
             </button>
           ))}
         </div>
       </div>
-      <p className="step-text muted">
-        The student can move themselves too. Either way the question on their screen is left
-        unanswered and the new test opens at its first question they have not already had.
-      </p>
 
       {asking && (
         <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="move-title">
           <div className="leave-box">
-            <h2 id="move-title">Move to the {levelLabel(asking).toLowerCase()} test?</h2>
+            <h2 id="move-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
-              The question on the student's screen is being timed and will be left unanswered, and
-              the rest of the {levelLabel(session.level).toLowerCase()} test goes away. They pick up
-              the {levelLabel(asking).toLowerCase()} test at its first question they have not
-              already answered.
+              {hasOpenQuestion
+                ? `The question on the student's screen is being timed and will be left unanswered.`
+                : `The rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`}{' '}
+              They pick up the {levelLabel(asking).toLowerCase()} test at its first question they
+              have not already answered.
             </p>
             <div className="leave-actions">
               <button
@@ -293,10 +311,10 @@ function LevelControl({
                 disabled={busy}
                 onClick={() => void move(asking)}
               >
-                Move to {levelLabel(asking).toLowerCase()}
+                Switch to {levelLabel(asking).toLowerCase()}
               </button>
               <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
-                Leave them on this question
+                Cancel
               </button>
             </div>
           </div>
@@ -306,31 +324,36 @@ function LevelControl({
   )
 }
 
-/* ---------------------------------------------------------------- live --- */
+/* --------------------------------------------------------------- focus --- */
 
 /**
- * The question the student is looking at, whole.
+ * The question the lesson is on, whole, with what has happened to it.
  *
- * The board says a question is open and gives its stem; that is enough to
- * follow along with when the student's screen is on the call, and nothing like
- * enough when it is not. A teacher talking a student through question nine
- * needs question nine — the passage, the stem and all four choices, laid out
- * the way the student has them.
+ * There used to be two of these and the teacher had to hold them together: a
+ * panel at the top showing the open question, and — once it was answered — a
+ * row and a card much further down carrying the result. The panel then
+ * disappeared at exactly the moment it had something worth saying, and the
+ * answer landed somewhere the teacher was not looking.
  *
- * And under it, the answer. Not a second kind of answer: it goes on the
- * student's item, is graded against the same key, stops the same clock and
- * opens the next question. The report cannot tell the two apart because there
- * is nothing to tell apart — this is the student's answer, typed by whoever
- * had a working keyboard.
+ * So there is one panel, it does not move, and it follows the lesson: the open
+ * question while there is one, the last answered question when there is not.
+ * Its header carries the status — on screen, answered, right, wrong — with the
+ * time and the confidence beside it, and the choices below are marked with
+ * what the student picked against the key. Everything the two places used to
+ * say between them is said here once.
+ *
+ * The answer goes on the student's item, is graded against the same key, stops
+ * the same clock and opens the next question. The report cannot tell a
+ * teacher-entered answer from the student's own because there is nothing to
+ * tell apart — it is the student's answer, typed by whoever had a keyboard
+ * that worked.
  */
-function LiveQuestion({
+function FocusQuestion({
   item,
-  session,
   busy,
   onCall,
 }: {
   item: SessionItem
-  session: Session
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
@@ -340,12 +363,16 @@ function LiveQuestion({
   const [answering, setAnswering] = useState(false)
 
   const question = item.questions
-  if (!question) return null
+  // The question did not come back with the item. Saying so beats an empty
+  // page: the teacher can still see where the student is and what happened.
+  if (!question) return <MissingQuestion item={item} />
 
+  const isOpen = item.status === 'published'
+  const a = item.session_item_assessments ?? null
   const options = [...(question.question_options ?? [])].sort(
-    (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
+    (x, y) => OPTION_LABELS.indexOf(x.label) - OPTION_LABELS.indexOf(y.label),
   )
-  const key = question.question_keys?.correct_option ?? null
+  const key = question.question_keys?.correct_option ?? item.revealed_correct_option ?? null
 
   function toggleStrike(label: OptionLabel) {
     setStruck((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]))
@@ -368,17 +395,23 @@ function LiveQuestion({
   }
 
   return (
-    <div className="card card-pad live-q">
+    <div className={`card card-pad live-q ${isOpen ? 'is-open' : ''}`}>
       <div className="step-head">
         <div className="section-title" style={{ marginBottom: 0 }}>
-          On screen now — question {askOrder(item)}
+          Question {askOrder(item)}
         </div>
         <DifficultyBadge level={question.difficulty} />
-        <span className="badge badge-sky">
-          <span className="dot" aria-hidden="true" /> Open
-        </span>
+        <ItemResult item={item} />
+        {item.selected_option && (
+          <span className={`pill-opt ${a ? (a.is_correct ? 'ok' : 'bad') : ''}`}>
+            {item.selected_option}
+          </span>
+        )}
         <span className="spring" />
-        <span className="muted">{levelLabel(session.level)} test</span>
+        {a?.elapsed_seconds != null && <span className="muted">{a.elapsed_seconds}s</span>}
+        {item.student_confidence != null && (
+          <span className="muted">{CONFIDENCE[item.student_confidence - 1]}</span>
+        )}
       </div>
 
       <div className="live-q-body">
@@ -398,26 +431,31 @@ function LiveQuestion({
           <div className="qsplit-choices">
             {options.map((o) => {
               const isKey = o.label === key
-              const isSel = selected === o.label
-              const isStruck = struck.includes(o.label)
+              // While the teacher is entering an answer the highlight is their
+              // pick; once it is in, it is the student's.
+              const isChosen = answering ? selected === o.label : item.selected_option === o.label
+              const isStruck = answering
+                ? struck.includes(o.label)
+                : item.eliminated_options.includes(o.label)
               return (
                 <div
                   key={o.id}
-                  className={`qch ${isKey ? 'is-key' : ''} ${isSel ? 'is-chosen' : ''} ${
+                  className={`qch ${isKey ? 'is-key' : ''} ${isChosen ? 'is-chosen' : ''} ${
                     isStruck ? 'is-struck' : ''
                   }`}
                 >
                   <span className="lab">{o.label}</span>
                   <span className="body">{o.body}</span>
+                  {!answering && isChosen && <span className="pick">Chose this</span>}
                   {isKey && <span className="tick">Correct</span>}
                   {answering && (
                     <span className="qch-controls">
                       <button
                         type="button"
-                        className={`chip-btn ${isSel ? 'on' : ''}`}
+                        className={`chip-btn ${selected === o.label ? 'on' : ''}`}
                         disabled={busy}
                         onClick={() => {
-                          setStruck((p) => p.filter((l) => l !== o.label))
+                          setStruck((prev) => prev.filter((l) => l !== o.label))
                           setSelected(o.label)
                         }}
                       >
@@ -425,10 +463,10 @@ function LiveQuestion({
                       </button>
                       <button
                         type="button"
-                        className={`chip-btn ${isStruck ? 'on' : ''}`}
+                        className={`chip-btn ${struck.includes(o.label) ? 'on' : ''}`}
                         disabled={busy}
                         onClick={() => toggleStrike(o.label)}
-                        aria-label={`${isStruck ? 'Restore' : 'Cross out'} option ${o.label}`}
+                        aria-label={`${struck.includes(o.label) ? 'Restore' : 'Cross out'} option ${o.label}`}
                       >
                         <s>{o.label}</s>
                       </button>
@@ -439,66 +477,123 @@ function LiveQuestion({
             })}
           </div>
 
-          {answering ? (
-            <div className="answer-for">
-              <div className="section-title">How sure were they?</div>
-              <div className="confidence">
-                {['Not sure', 'Fairly sure', 'Certain'].map((label, i) => (
+          {isOpen ? (
+            answering ? (
+              <div className="answer-for">
+                <div className="section-title">How sure were they?</div>
+                <div className="confidence">
+                  {CONFIDENCE_LONG.map((label, i) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
+                      onClick={() => setConfidence(i + 1)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="step-actions">
                   <button
-                    key={label}
                     type="button"
-                    className={`conf-btn ${confidence === i + 1 ? 'on' : ''}`}
-                    onClick={() => setConfidence(i + 1)}
+                    className="btn btn-primary btn-sm"
+                    disabled={busy || !selected}
+                    onClick={() => void submit()}
                   >
-                    {label}
+                    {selected ? `Submit ${selected} for them` : 'Pick what they said'}
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setAnswering(false)
+                      setSelected(null)
+                      setStruck([])
+                      setConfidence(null)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
+            ) : (
               <div className="step-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  disabled={busy || !selected}
-                  onClick={() => void submit()}
-                >
-                  {selected ? `Submit ${selected} for them` : 'Pick what they said'}
-                </button>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
                   disabled={busy}
-                  onClick={() => {
-                    setAnswering(false)
-                    setSelected(null)
-                    setStruck([])
-                    setConfidence(null)
-                  }}
+                  onClick={() => setAnswering(true)}
                 >
-                  Cancel
+                  Answer for the student
                 </button>
-                <span className="muted">
-                  This is the student's answer: same key, same clock, and it opens their next
-                  question.
-                </span>
               </div>
-            </div>
+            )
           ) : (
-            <div className="step-actions">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                disabled={busy}
-                onClick={() => setAnswering(true)}
-              >
-                Answer for the student
-              </button>
-              <span className="muted">
-                For when their screen is not working and they are telling you the answer.
-              </span>
-            </div>
+            <DiagnosisPicker item={item} busy={busy} onCall={onCall} />
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Why they missed it, in one tap.
+ *
+ * It sits wherever the question it is about is being read — under the focused
+ * question while the lesson is on it, and under its card in the history after.
+ * It is the teacher's judgement and it is what the report is built out of, so
+ * it is never more than one click from the question that prompted it.
+ */
+function DiagnosisPicker({
+  item,
+  busy,
+  onCall,
+}: {
+  item: SessionItem
+  busy: boolean
+  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+}) {
+  const a = item.session_item_assessments
+  if (!a) return null
+
+  const suggestion = suggestNext(a.is_correct, a.diagnosis)
+  const chips = DIAGNOSES.filter(
+    (d) => d.when === 'both' || (a.is_correct ? d.when === 'correct' : d.when === 'incorrect'),
+  )
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="section-title">Diagnosis</div>
+      <div className="chips">
+        {chips.map((d) => (
+          <button
+            key={d.value}
+            type="button"
+            className={`chip-btn ${a.diagnosis === d.value ? 'on' : ''}`}
+            disabled={busy}
+            onClick={() =>
+              void onCall('set_diagnosis', {
+                p_item: item.id,
+                p_diagnosis: a.diagnosis === d.value ? '' : (d.value as Diagnosis),
+                p_note: null,
+              })
+            }
+          >
+            {d.label}
+          </button>
+        ))}
+      </div>
+
+      {suggestion && (
+        <div className="suggestion">
+          <span>→</span>
+          <span>
+            <b>{diagnosisLabel(a.diagnosis)}.</b> {suggestion.text}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -569,11 +664,30 @@ function OpenEarly({
 /* --------------------------------------------------------------- board --- */
 
 interface LevelRun {
-  level: SessionLevel
+  /** Null for a question whose difficulty did not come back with it. */
+  level: SessionLevel | null
   items: SessionItem[]
   answered: number
   correct: number
-  unattempted: number
+  /** Put in front of the student, and left unanswered. Always shown. */
+  abandoned: number
+  /** Never reached them at all. Behind the switch. */
+  unseen: number
+}
+
+/**
+ * A question the student actually saw and did not answer.
+ *
+ * asked_no is stamped when a question is published, so a voided item that has
+ * one was on their screen and was abandoned — by a level switch, or by handing
+ * the test in. A voided item without one was never put in front of them.
+ *
+ * The distinction is the whole reason the numbers in the # column have gaps:
+ * ask 5 and ask 7 happened, they were just abandoned mid-question, and hiding
+ * them made the board look like it had lost two rows.
+ */
+function wasSeen(i: SessionItem): boolean {
+  return i.status !== 'staged' && (i.status !== 'voided' || i.asked_no !== null)
 }
 
 /**
@@ -591,45 +705,65 @@ interface LevelRun {
  * finding of their own when a test was abandoned two questions in, so they are
  * one click away rather than gone.
  */
+function run(level: SessionLevel | null, mine: SessionItem[]): LevelRun {
+  const done = mine.filter((i) => i.status === 'answered' || i.status === 'revealed')
+  return {
+    level,
+    items: [...mine].sort((a, b) => askOrder(a) - askOrder(b)),
+    answered: done.length,
+    correct: done.filter(
+      (i) => i.session_item_assessments?.is_correct ?? i.revealed_result === 'correct',
+    ).length,
+    abandoned: mine.filter((i) => i.status === 'voided' && i.asked_no !== null).length,
+    unseen: mine.filter((i) => !wasSeen(i)).length,
+  }
+}
+
 function groupByLevel(items: SessionItem[]): LevelRun[] {
   const runs: LevelRun[] = []
   for (const level of LEVELS) {
-    const mine = items
-      .filter((i) => i.questions?.difficulty === level)
-      .sort((a, b) => askOrder(a) - askOrder(b))
-    if (mine.length === 0) continue
-    const done = mine.filter((i) => i.status === 'answered' || i.status === 'revealed')
-    runs.push({
-      level,
-      items: mine,
-      answered: done.length,
-      correct: done.filter(
-        (i) => i.session_item_assessments?.is_correct ?? i.revealed_result === 'correct',
-      ).length,
-      unattempted: mine.filter((i) => i.status === 'voided' || i.status === 'staged').length,
-    })
+    const mine = items.filter((i) => i.questions?.difficulty === level)
+    if (mine.length > 0) runs.push(run(level, mine))
   }
+
+  // Anything whose difficulty did not come back — an embed that failed, a
+  // question a policy withheld — used to match none of the three levels and
+  // fall out of the board silently, which is the same disappearing act that
+  // hid a whole test before the board was grouped at all. A question the
+  // student was asked is on this screen even when we cannot say which test it
+  // belonged to.
+  const unsorted = items.filter(
+    (i) => !i.questions || !LEVELS.includes(i.questions.difficulty as SessionLevel),
+  )
+  if (unsorted.length > 0) runs.push(run(null, unsorted))
+
   return runs
 }
 
 function Board({
   items,
+  focusId,
   busy,
   onCall,
 }: {
   items: SessionItem[]
+  /** Shown in full above; it does not get a second card down here. */
+  focusId: string | null
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
   const [showUnattempted, setShowUnattempted] = useState(false)
   const runs = useMemo(() => groupByLevel(items), [items])
 
-  const everythingAnswered = useMemo(
+  // The history: every question answered before the one on screen, most
+  // recent first. The focused one is not in it — it is the panel above.
+  const history = useMemo(
     () =>
       items
         .filter((i) => i.status === 'answered' || i.status === 'revealed')
-        .sort((a, b) => askOrder(a) - askOrder(b)),
-    [items],
+        .filter((i) => i.id !== focusId)
+        .sort((a, b) => askOrder(b) - askOrder(a)),
+    [items, focusId],
   )
 
   if (runs.length === 0) {
@@ -637,17 +771,13 @@ function Board({
       <div className="board">
         <div className="empty">
           <h3>Nothing asked yet</h3>
-          <p>
-            The student opens this session themselves at its scheduled time — or you open it for
-            them with <b>Start the test</b>. Every answer lands here as it happens, with the time it
-            took and how sure they were.
-          </p>
+          <p>Answers land here as they happen.</p>
         </div>
       </div>
     )
   }
 
-  const totalUnattempted = runs.reduce((n, r) => n + r.unattempted, 0)
+  const totalUnseen = runs.reduce((n, r) => n + r.unseen, 0)
 
   return (
     <div>
@@ -656,14 +786,14 @@ function Board({
           {runs.length > 1 ? `${runs.length} tests sat` : 'The test'}
         </div>
         <span className="spring" />
-        {totalUnattempted > 0 && (
+        {totalUnseen > 0 && (
           <label className="toggle">
             <input
               type="checkbox"
               checked={showUnattempted}
               onChange={(e) => setShowUnattempted(e.target.checked)}
             />
-            Show the {totalUnattempted} not attempted
+            Show the {totalUnseen} never reached
           </label>
         )}
       </div>
@@ -672,38 +802,42 @@ function Board({
         <LevelBoard key={run.level} run={run} showUnattempted={showUnattempted} />
       ))}
 
-      {everythingAnswered
-        .slice()
-        .reverse()
-        .map((it) => (
-          <ItemDetail key={it.id} item={it} busy={busy} onCall={onCall} />
-        ))}
+      {history.map((it) => (
+        <ItemDetail key={it.id} item={it} busy={busy} onCall={onCall} />
+      ))}
     </div>
   )
 }
 
 function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: boolean }) {
-  const rows = showUnattempted
-    ? run.items
-    : run.items.filter((i) => i.status !== 'voided' && i.status !== 'staged')
+  // What the student saw is always here — including the question they were on
+  // when the level moved, which is why the # column skips a number. What never
+  // reached them is behind the switch.
+  const rows = showUnattempted ? run.items : run.items.filter(wasSeen)
 
   return (
     <section className="board" style={{ marginBottom: 16 }}>
       <div className="board-title">
-        <DifficultyBadge level={run.level} />
-        <strong>{levelLabel(run.level)} test</strong>
+        {run.level ? (
+          <>
+            <DifficultyBadge level={run.level} />
+            <strong>{levelLabel(run.level)} test</strong>
+          </>
+        ) : (
+          <strong>Level not recorded</strong>
+        )}
         <span className="muted">
           {run.answered} answered
           {run.answered > 0 && ` · ${run.correct} right`}
-          {run.unattempted > 0 && ` · ${run.unattempted} not attempted`}
+          {run.abandoned > 0 && ` · ${run.abandoned} left unanswered`}
+          {run.unseen > 0 && ` · ${run.unseen} never reached`}
         </span>
       </div>
 
       {rows.length === 0 ? (
         <p className="board-foot">
-          This test was opened and nothing on it was answered. The {run.unattempted} question
-          {run.unattempted === 1 ? '' : 's'} above was left unanswered when the level moved or the
-          test was handed in; the rest of the test was never put in front of the student.
+          Nothing from this test reached the student — {run.unseen} question
+          {run.unseen === 1 ? '' : 's'} were loaded and the level moved first.
         </p>
       ) : (
         <div className="board-scroll">
@@ -764,7 +898,7 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
                     </td>
                     <td className="num">
                       {it.student_confidence ? (
-                        ['low', 'med', 'high'][it.student_confidence - 1]
+                        CONFIDENCE[it.student_confidence - 1]
                       ) : (
                         <span className="dash">—</span>
                       )}
@@ -783,11 +917,38 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
   )
 }
 
+/**
+ * A question whose text did not arrive.
+ *
+ * It should not happen, and when it does the answer is not to render nothing:
+ * a question that silently vanishes from this screen is the bug the board was
+ * grouped by test to stop. The row is still real, so it is still shown.
+ */
+function MissingQuestion({ item }: { item: SessionItem }) {
+  return (
+    <div className="card card-pad" style={{ marginBottom: 14 }}>
+      <div className="step-head">
+        <span className="pill-opt">{item.asked_no ?? '—'}</span>
+        <ItemResult item={item} />
+        <span className="spring" />
+        <span className="muted">This question could not be loaded.</span>
+      </div>
+    </div>
+  )
+}
+
 function ItemResult({ item }: { item: SessionItem }) {
   if (item.status === 'published') return <span className="badge badge-sky">On screen</span>
   if (item.status === 'answered') return <span className="badge badge-neutral">Answered</span>
   if (item.status === 'staged') return <span className="badge badge-neutral">Queued</span>
-  if (item.status === 'voided') return <span className="badge badge-neutral">Not attempted</span>
+  if (item.status === 'voided')
+    // Two different things wear one word otherwise: a question the student was
+    // working on when the level moved, and one they never saw at all.
+    return item.asked_no !== null ? (
+      <span className="badge badge-neutral">Left unanswered</span>
+    ) : (
+      <span className="badge badge-neutral">Never reached</span>
+    )
   return item.revealed_result === 'correct' ? (
     <span className="badge badge-ok">Correct</span>
   ) : (
@@ -813,12 +974,8 @@ function ItemDetail({
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
   const a = item.session_item_assessments
-  const suggestion = a ? suggestNext(a.is_correct, a.diagnosis) : null
-  const chips = DIAGNOSES.filter(
-    (d) => d.when === 'both' || (a?.is_correct ? d.when === 'correct' : d.when === 'incorrect'),
-  )
   const question = item.questions
-  if (!question) return null
+  if (!question) return <MissingQuestion item={item} />
 
   return (
     <div className="card card-pad" style={{ marginBottom: 14 }}>
@@ -853,39 +1010,7 @@ function ItemDetail({
               </div>
             )}
 
-            {a && (
-              <div style={{ marginTop: 14 }}>
-                <div className="section-title">Diagnosis — one tap</div>
-                <div className="chips">
-                  {chips.map((d) => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      className={`chip-btn ${a.diagnosis === d.value ? 'on' : ''}`}
-                      disabled={busy}
-                      onClick={() =>
-                        void onCall('set_diagnosis', {
-                          p_item: item.id,
-                          p_diagnosis: a.diagnosis === d.value ? '' : (d.value as Diagnosis),
-                          p_note: null,
-                        })
-                      }
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-
-                {suggestion && (
-                  <div className="suggestion">
-                    <span>→</span>
-                    <span>
-                      <b>{diagnosisLabel(a.diagnosis)}.</b> {suggestion.text}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+            <DiagnosisPicker item={item} busy={busy} onCall={onCall} />
           </>
         }
       />

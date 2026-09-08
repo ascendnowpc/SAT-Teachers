@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
 import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
 import { studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
-import { defaultUtcSlot, formatUtc, utcInputToIso } from '../lib/time'
+import { defaultUtcSlot, utcInputToIso } from '../lib/time'
 import type { Profile, Session, Subject } from '../lib/types'
 
 /**
  * Booking a session, which is now also where a student comes from.
  *
  * There used to be a sign-up page standing in front of this one: a student did
- * not exist until they had chosen a password and confirmed an email, and this
- * screen's advice, when the list came back empty, was to go and ask them to.
- * That is a week of chasing for a lesson on Thursday.
- *
- * So a student is either one this teacher has already, picked by name or id, or
- * one typed in here — first name, last name, and the PC they sit under. The
- * second kind is written straight to the roster and has no account at all,
- * because they do not need one: what they get is a link.
+ * not exist until they had chosen a password and confirmed an email. So a
+ * student is either one this teacher has already, picked from the list, or one
+ * typed in here — first name, last name, and the PC they sit under. The second
+ * kind is written straight to the roster and has no account at all, because
+ * they do not need one: what they get is a link.
  */
 export function SessionNew() {
   const [students, setStudents] = useState<Profile[]>([])
@@ -28,7 +26,6 @@ export function SessionNew() {
   /** Which of the two kinds of student this session is for. */
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [studentId, setStudentId] = useState('')
-  const [search, setSearch] = useState('')
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
   const [pc, setPc] = useState('')
@@ -41,9 +38,9 @@ export function SessionNew() {
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  /** Set once the session exists. The link is the thing to do next, so the
-      screen stops being a form and becomes the link. */
-  const [created, setCreated] = useState<{ session: Session; student: string } | null>(null)
+  /** Set once the session exists. The link is the only thing left to do, so
+      the screen stops being a form and becomes the link. */
+  const [created, setCreated] = useState<Session | null>(null)
 
   useEffect(() => {
     let active = true
@@ -63,28 +60,26 @@ export function SessionNew() {
     }
   }, [])
 
-  // The roster grows, and a select of two hundred names is a scroll. The box
-  // above it narrows the options rather than replacing them, so picking still
-  // works the way a select works.
-  const matching = useMemo(() => {
-    const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    if (words.length === 0) return students
-    return students.filter((s) => {
-      const hay = `${s.full_name} ${s.display_id} ${s.pc ?? ''}`.toLowerCase()
-      return words.every((w) => hay.includes(w))
-    })
-  }, [students, search])
+  // The id and the PC go in the hint rather than the label, so the list reads
+  // as names and the two people called Sam are still told apart.
+  const options = useMemo<ComboboxOption[]>(
+    () =>
+      students.map((s) => ({
+        value: s.id,
+        label: s.full_name,
+        hint: [s.display_id, s.pc].filter(Boolean).join(' · '),
+      })),
+    [students],
+  )
 
-  // A student narrowed out of the list is a student who is no longer picked.
-  useEffect(() => {
-    if (studentId && !matching.some((s) => s.id === studentId)) setStudentId('')
-  }, [matching, studentId])
-
-  const namedNewStudent = first.trim() !== '' || last.trim() !== ''
+  // Both names, because the display id is built from them: three letters of
+  // the given name and the first of the surname. Without a surname
+  // build_display_id falls back to the fourth letter of the given name, so
+  // Amara Okonkwo would come out AMAR26 instead of AMAO26 — a code that no
+  // longer says who it belongs to. create_student refuses it too.
+  const namedNewStudent = first.trim() !== '' && last.trim() !== ''
   const canSubmit =
-    !busy &&
-    scheduledAt !== '' &&
-    (mode === 'existing' ? studentId !== '' : namedNewStudent)
+    !busy && scheduledAt !== '' && (mode === 'existing' ? studentId !== '' : namedNewStudent)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -131,7 +126,7 @@ export function SessionNew() {
       if (err) throw new Error(err.message)
       const made = row<Session>(data)
       if (!made) throw new Error('The session was created but could not be read back.')
-      setCreated({ session: made, student: student.full_name })
+      setCreated(made)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the session.')
     } finally {
@@ -139,21 +134,7 @@ export function SessionNew() {
     }
   }
 
-  /** Back to an empty form, keeping the time and duration the teacher just set —
-      a second session is usually the same slot pattern with a different name. */
-  function bookAnother() {
-    setCreated(null)
-    setError(null)
-    setStudentId('')
-    setSearch('')
-    setFirst('')
-    setLast('')
-    setPc('')
-    setTitle('')
-    setScheduledAt(defaultUtcSlot())
-  }
-
-  if (created) return <Created created={created} onAnother={bookAnother} />
+  if (created) return <Created session={created} />
 
   return (
     <div className="page">
@@ -162,13 +143,7 @@ export function SessionNew() {
       </Link>
 
       <div className="page-head">
-        <div>
-          <h1>New session</h1>
-          <p className="sub">
-            A student and a time. You get a link at the end of it — send that to the student and
-            they are in, with no account and nothing to sign into.
-          </p>
-        </div>
+        <h1>New session</h1>
       </div>
 
       <form onSubmit={onSubmit} noValidate>
@@ -183,62 +158,28 @@ export function SessionNew() {
               className={`mode-opt ${mode === 'existing' ? 'on' : ''}`}
               onClick={() => setMode('existing')}
             >
-              <span className="t">A student you have</span>
-              <span className="d">Pick them by name, id or PC.</span>
+              A student you have
             </button>
             <button
               type="button"
               className={`mode-opt ${mode === 'new' ? 'on' : ''}`}
               onClick={() => setMode('new')}
             >
-              <span className="t">Someone new</span>
-              <span className="d">Type their details. They are added as you go.</span>
+              Someone new
             </button>
           </div>
 
           {mode === 'existing' ? (
-            <>
-              <Field label="Find a student" hint="Name, id or PC. Leave it empty to see them all.">
-                <Input
-                  type="search"
-                  value={search}
-                  placeholder="Amara, AMAO26-3, Priya Rao…"
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="Student"
-                required
-                hint={
-                  loadingStudents
-                    ? 'Loading students…'
-                    : `${matching.length} of ${students.length} students`
-                }
-              >
-                <Select value={studentId} onChange={(e) => setStudentId(e.target.value)} required>
-                  <option value="">Select a student</option>
-                  {matching.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name} — {s.display_id}
-                      {s.pc ? ` · ${s.pc}` : ''}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
-              {!loadingStudents && students.length === 0 && (
-                <Notice kind="info">
-                  No students on the roster yet. Switch to <b>Someone new</b> and type theirs in —
-                  it takes three fields and no sign-up.
-                </Notice>
-              )}
-              {!loadingStudents && students.length > 0 && matching.length === 0 && (
-                <Notice kind="info">
-                  Nobody matches “{search}”. Clear the box, or switch to <b>Someone new</b>.
-                </Notice>
-              )}
-            </>
+            <Field label="Student" required>
+              <Combobox
+                options={options}
+                value={studentId}
+                onChange={setStudentId}
+                disabled={loadingStudents}
+                placeholder={loadingStudents ? 'Loading…' : 'Type a name, id or PC'}
+                emptyText="No student matches"
+              />
+            </Field>
           ) : (
             <>
               <div className="grid-2">
@@ -250,7 +191,10 @@ export function SessionNew() {
                     autoComplete="off"
                   />
                 </Field>
-                <Field label="Last name">
+                {/* Required: the display id takes its fourth letter from the
+                    surname, and without one it takes a letter of the given
+                    name instead and stops identifying anybody. */}
+                <Field label="Last name" required>
                   <Input
                     value={last}
                     onChange={(e) => setLast(e.target.value)}
@@ -259,7 +203,7 @@ export function SessionNew() {
                   />
                 </Field>
               </div>
-              <Field label="PC" hint="Whoever this student sits under. Optional, and editable later.">
+              <Field label="PC">
                 <Input
                   value={pc}
                   onChange={(e) => setPc(e.target.value)}
@@ -267,11 +211,6 @@ export function SessionNew() {
                   autoComplete="off"
                 />
               </Field>
-              <Notice kind="info">
-                They are added to the roster with their own id — the same shape a teacher's is — when you
-                create the session. No
-                email, no password — they open the session from the link you send them.
-              </Notice>
             </>
           )}
         </div>
@@ -280,11 +219,7 @@ export function SessionNew() {
           <div className="section-title">What</div>
 
           <div className="grid-2">
-            <Field
-              label="Subject"
-              required
-              hint="Maths has no tests yet — a session in it would have nothing to open."
-            >
+            <Field label="Subject" required>
               <Select value={subject} onChange={(e) => setSubject(e.target.value as Subject)}>
                 {SUBJECTS.map((s) => (
                   // Only English has the three tests. Offering a subject the
@@ -298,7 +233,7 @@ export function SessionNew() {
               </Select>
             </Field>
 
-            <Field label="Title" hint="Optional — shown on the sessions list.">
+            <Field label="Title">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -312,11 +247,7 @@ export function SessionNew() {
           <div className="section-title">When and where</div>
 
           <div className="grid-2">
-            <Field
-              label="Date and time (UTC)"
-              required
-              hint="All session times are UTC, for everyone."
-            >
+            <Field label="Date and time (UTC)" required>
               <Input
                 type="datetime-local"
                 value={scheduledAt}
@@ -336,10 +267,7 @@ export function SessionNew() {
             </Field>
           </div>
 
-          <Field
-            label="Meeting link"
-            hint="Optional. Paste the Zoom link if you are going through it together on a call."
-          >
+          <Field label="Meeting link">
             <Input
               type="url"
               value={meetingUrl}
@@ -363,68 +291,35 @@ export function SessionNew() {
 }
 
 /**
- * What a teacher does next, which is send the link.
+ * The link, and nothing else.
  *
- * So the screen after creating a session is the link, large, with the one
- * button that matters beside it. Dropping the teacher straight into the console
- * would have hidden the only thing standing between the student and the test.
+ * There is one thing to do once the session exists — send it — so this screen
+ * is that one thing. Buttons off to the console and back to the list were
+ * competing with the only action that matters, and the sidebar already goes
+ * everywhere they went.
  */
-function Created({
-  created,
-  onAnother,
-}: {
-  created: { session: Session; student: string }
-  onAnother: () => void
-}) {
-  const { session, student } = created
+function Created({ session }: { session: Session }) {
   const link = session.access_token ? studentLink(session.access_token) : null
 
   return (
     <div className="page">
       <div className="page-head">
-        <div>
-          <h1>Session created</h1>
-          <p className="sub">
-            {student} · {formatUtc(session.scheduled_at)} · {session.duration_mins} min
-          </p>
-        </div>
+        <h1>Session created</h1>
       </div>
 
       <div className="card card-pad next-step">
-        <div className="section-title">Send this to {student.split(' ')[0]}</div>
-        <p className="step-text">
-          Opening it puts them straight into this session. There is nothing to sign into and no
-          account to make — the link is the whole of it, and it works on a phone.
-        </p>
-
+        <div className="section-title">Student link</div>
         {link ? (
-          <>
-            <div className="link-row">
-              <code className="link-box">{link}</code>
-              <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
-            </div>
-            <p className="step-text muted">
-              Keep it to them: anyone holding this link can sit this session.
-            </p>
-          </>
+          <div className="link-row">
+            <code className="link-box">{link}</code>
+            <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
+          </div>
         ) : (
           <Notice kind="error">
             The session was created but its link did not come back. Open it from the sessions list
             and copy the link there.
           </Notice>
         )}
-
-        <div className="step-actions">
-          <Link className="btn btn-navy" to={`/sessions/${session.id}`}>
-            Open the session
-          </Link>
-          <Link className="btn btn-ghost" to="/sessions">
-            All sessions
-          </Link>
-          <button type="button" className="btn btn-ghost" onClick={onAnother}>
-            Book another
-          </button>
-        </div>
       </div>
     </div>
   )
