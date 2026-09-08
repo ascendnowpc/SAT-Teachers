@@ -6,10 +6,13 @@
 --  0032–0034 opened three doors that were shut before, and each of them is a
 --  door into a student's test. What has to hold:
 --
---  0032 — a student is a roster row
+--  0032 / 0036 — a student is a roster row
 --    * a teacher can add one, and it gets a display id off the same builder
 --    * a student cannot add one
 --    * it has no auth user, and never needed one
+--    * both names are required, because the id's fourth letter is the
+--      surname's initial and a first name alone silently changes what that
+--      letter means
 --
 --  0033 — the session is a link
 --    * every session has a token, and no two share one
@@ -90,6 +93,17 @@ begin
     (case when roster.display_id ~ '^AMAO[0-9]{2}-[0-9]+$' then 'PASS' else 'FAIL' end)::text;
   return query select '1 roster'::text,'and the PC as written'::text,'Priya Rao'::text,coalesce(roster.pc,'(null)'),
     (case when roster.pc='Priya Rao' then 'PASS' else 'FAIL' end)::text;
+  -- A first name alone would build AMAR26 rather than AMAO26 — a code whose
+  -- fourth letter no longer means the surname.
+  begin perform create_student('Amara', '', null); txt := 'created';
+  exception when others then txt := 'refused'; end;
+  return query select '1 roster'::text,'a first name alone is refused'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  begin perform create_student('', 'Okonkwo', null); txt := 'created';
+  exception when others then txt := 'refused'; end;
+  return query select '1 roster'::text,'and so is a surname alone'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   select count(*) into n from auth.users where id = roster.id;
