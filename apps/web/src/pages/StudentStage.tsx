@@ -6,6 +6,7 @@ import { Notice, Passage } from '../components/ui'
 import { useStudentSession } from '../hooks/useStudentSession'
 import type { SessionGateway } from '../lib/gateway'
 import { clock, openState } from '../lib/countdown'
+import { askNumbers } from '../lib/report'
 import { formatUtcLong } from '../lib/time'
 import {
   OPTION_LABELS,
@@ -30,7 +31,10 @@ import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/typ
  * it can be pressed from either side now: here, because the student is the one
  * at the keyboard, and on the console, because sometimes the student's screen
  * is not reaching anybody. Moving up loads the next test and opens its first
- * question; the one on screen is left unanswered, which the confirmation says.
+ * question; the one on screen is set aside, which the confirmation says. Set
+ * aside is not unanswered — switching tests is a decision that this question
+ * was not the one to spend the lesson on — so it is not counted or numbered
+ * anywhere against the student.
  *
  * The screen takes a gateway rather than a session id, which is what lets the
  * same code serve a signed-in student and one who arrived on a link with no
@@ -294,7 +298,7 @@ function LevelSwitch({
 }: {
   session: Session
   gateway: SessionGateway
-  /** A question is open and would be left unanswered by the move. */
+  /** A question is open and would be set aside by the move. */
   abandons: boolean
   onChanged: () => Promise<void>
 }) {
@@ -347,7 +351,7 @@ function LevelSwitch({
             <h2 id="switch-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
               {abandons
-                ? 'The question on your screen will be left unanswered, and the rest of the '
+                ? 'The question on your screen is set aside — it is not counted against you — and the rest of the '
                 : 'The rest of the '}
               {levelLabel(session.level).toLowerCase()} test goes away. You pick up the{' '}
               {levelLabel(asking).toLowerCase()} test at its first question you have not already
@@ -472,6 +476,9 @@ function Finished({
   items: SessionItem[]
   onChanged: () => Promise<void>
 }) {
+  // 1, 2, 3 over the questions they actually worked on — a question set aside
+  // by a test switch is not one of them and takes no number.
+  const numbers = useMemo(() => askNumbers(items), [items])
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
@@ -501,7 +508,7 @@ function Finished({
           <article className="done-card" key={it.id}>
             <QuestionView
               question={it.questions}
-              number={String(it.asked_no ?? it.sequence_no)}
+              number={numbers.get(it.id) === undefined ? '—' : String(numbers.get(it.id))}
               showKey={it.status === 'revealed'}
               correct={it.revealed_correct_option}
               chosen={it.selected_option}

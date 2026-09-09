@@ -32,6 +32,7 @@ function session(
     level_size: 20,
     opened_early_at: null,
     question_count: 0,
+    answered_count: 0,
     started_at: null,
     ended_at: null,
     teacher_notes: null,

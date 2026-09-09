@@ -224,7 +224,7 @@ export function Sessions() {
                   <SortHead label="Session" k="title" sort={sort} onSort={toggleSort} />
                   <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
-                  <th>Questions</th>
+                  <th>Answered</th>
                   <th aria-label="Actions" />
                 </tr>
               </thead>
@@ -317,7 +317,12 @@ function SessionRow({
       <td>
         <StatusBadge status={s.status} />
       </td>
-      <td className="num">{s.question_count > 0 ? s.question_count : <span className="dash">—</span>}</td>
+      {/* What the student answered, not what the session loaded. A session
+          loads a whole test at a time and loads another one when the level
+          moves, so question_count reads 27 for a lesson of six questions. */}
+      <td className="num">
+        {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
+      </td>
       <td className="row-actions">
         {isTeacher && token && <CopyButton value={studentLink(token)} label="Student link" />}
         <Link className="btn btn-ghost btn-sm" to={to} onClick={(e) => e.stopPropagation()}>

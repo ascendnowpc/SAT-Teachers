@@ -17,7 +17,7 @@ import {
   suggestNext,
 } from '../lib/constants'
 import { clock, workedFor } from '../lib/countdown'
-import { askOrder } from '../lib/report'
+import { askNumbers, askOrder } from '../lib/report'
 import { studentLink } from '../lib/sessions'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -125,6 +125,10 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
 
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
 
+  // 1, 2, 3 over the questions actually worked on. A question set aside by a
+  // level switch takes no number, so nothing on this screen counts it.
+  const numbers = useMemo(() => askNumbers(items), [items])
+
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
@@ -215,7 +219,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
               type="button"
               className="btn btn-navy btn-sm"
               disabled={busy}
-              title="Hands the test in: anything unanswered is left unattempted."
+              title="Hands the test in: anything still open is left unattempted."
               onClick={() => void call('teacher_finish_session', { p_session: sessionId })}
             >
               End session
@@ -248,10 +252,18 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           the last one they answered to the top of a finished session reads as
           "this is where we are" when the answer is "nowhere, it is over". The
           board and the cards below hold all of it, that one included. */}
-      {!over && focus && <FocusQuestion item={focus} busy={busy} onCall={call} />}
+      {!over && focus && (
+        <FocusQuestion
+          item={focus}
+          number={numbers.get(focus.id) ?? null}
+          busy={busy}
+          onCall={call}
+        />
+      )}
 
       <Board
         items={items}
+        numbers={numbers}
         focusId={over ? null : (focus?.id ?? null)}
         busy={busy}
         onCall={call}
@@ -354,7 +366,7 @@ function LevelControl({
             <h2 id="move-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
               {hasOpenQuestion
-                ? `The question on the student's screen is being timed and will be left unanswered.`
+                ? `The question on the student's screen is set aside — it is not counted as wrong — and the rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`
                 : `The rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`}{' '}
               They pick up the {levelLabel(asking).toLowerCase()} test at its first question they
               have not already answered.
@@ -406,10 +418,13 @@ function LevelControl({
  */
 function FocusQuestion({
   item,
+  number,
   busy,
   onCall,
 }: {
   item: SessionItem
+  /** Null for a question that was set aside rather than worked on. */
+  number: number | null
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
@@ -421,7 +436,7 @@ function FocusQuestion({
   const question = item.questions
   // The question did not come back with the item. Saying so beats an empty
   // page: the teacher can still see where the student is and what happened.
-  if (!question) return <MissingQuestion item={item} />
+  if (!question) return <MissingQuestion item={item} number={number} />
 
   const isOpen = item.status === 'published'
   const a = item.session_item_assessments ?? null
@@ -454,7 +469,7 @@ function FocusQuestion({
     <div className={`card card-pad live-q ${isOpen ? 'is-open' : ''}`}>
       <div className="step-head">
         <div className="section-title" style={{ marginBottom: 0 }}>
-          Question {askOrder(item)}
+          Question {number ?? '—'}
         </div>
         <DifficultyBadge level={question.difficulty} />
         <ItemResult item={item} />
@@ -742,8 +757,8 @@ interface LevelRun {
   items: SessionItem[]
   answered: number
   correct: number
-  /** Put in front of the student, and left unanswered. Always shown. */
-  abandoned: number
+  /** Put in front of the student, and set aside rather than answered. */
+  skipped: number
   /** Never reached them at all. Behind the switch. */
   unseen: number
 }
@@ -752,12 +767,14 @@ interface LevelRun {
  * A question the student actually saw and did not answer.
  *
  * asked_no is stamped when a question is published, so a voided item that has
- * one was on their screen and was abandoned — by a level switch, or by handing
+ * one was on their screen and was set aside — by a level switch, or by handing
  * the test in. A voided item without one was never put in front of them.
  *
- * The distinction is the whole reason the numbers in the # column have gaps:
- * ask 5 and ask 7 happened, they were just abandoned mid-question, and hiding
- * them made the board look like it had lost two rows.
+ * Set aside is not the same as failed, and the board must not read as if it
+ * were: a level switch is a decision that this question was not the one to
+ * spend the lesson on, not an answer the student got wrong or ducked. So the
+ * row stays — the numbers in the # column have gaps otherwise, and ask 5 and
+ * ask 7 did happen — but it is marked "Skipped", never "left unanswered".
  */
 function wasSeen(i: SessionItem): boolean {
   return i.status !== 'staged' && (i.status !== 'voided' || i.asked_no !== null)
@@ -787,7 +804,7 @@ function run(level: SessionLevel | null, mine: SessionItem[]): LevelRun {
     correct: done.filter(
       (i) => i.session_item_assessments?.is_correct ?? i.revealed_result === 'correct',
     ).length,
-    abandoned: mine.filter((i) => i.status === 'voided' && i.asked_no !== null).length,
+    skipped: mine.filter((i) => i.status === 'voided' && i.asked_no !== null).length,
     unseen: mine.filter((i) => !wasSeen(i)).length,
   }
 }
@@ -815,11 +832,14 @@ function groupByLevel(items: SessionItem[]): LevelRun[] {
 
 function Board({
   items,
+  numbers,
   focusId,
   busy,
   onCall,
 }: {
   items: SessionItem[]
+  /** Display number per item id; absent for the ones set aside. */
+  numbers: Map<string, number>
   /** Shown in full above; it does not get a second card down here. */
   focusId: string | null
   busy: boolean
@@ -872,20 +892,40 @@ function Board({
       </div>
 
       {runs.map((run) => (
-        <LevelBoard key={run.level} run={run} showUnattempted={showUnattempted} />
+        <LevelBoard
+          key={run.level}
+          run={run}
+          numbers={numbers}
+          showUnattempted={showUnattempted}
+        />
       ))}
 
       {history.map((it) => (
-        <ItemDetail key={it.id} item={it} busy={busy} onCall={onCall} />
+        <ItemDetail
+          key={it.id}
+          item={it}
+          number={numbers.get(it.id) ?? null}
+          busy={busy}
+          onCall={onCall}
+        />
       ))}
     </div>
   )
 }
 
-function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: boolean }) {
+function LevelBoard({
+  run,
+  numbers,
+  showUnattempted,
+}: {
+  run: LevelRun
+  numbers: Map<string, number>
+  showUnattempted: boolean
+}) {
   // What the student saw is always here — including the question they were on
-  // when the level moved, which is why the # column skips a number. What never
-  // reached them is behind the switch.
+  // when the level moved, which carries no number in the # column because it
+  // was set aside rather than worked on. What never reached them is behind the
+  // switch.
   const rows = showUnattempted ? run.items : run.items.filter(wasSeen)
 
   return (
@@ -902,7 +942,7 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
         <span className="muted">
           {run.answered} answered
           {run.answered > 0 && ` · ${run.correct} right`}
-          {run.abandoned > 0 && ` · ${run.abandoned} left unanswered`}
+          {run.skipped > 0 && ` · ${run.skipped} skipped`}
           {run.unseen > 0 && ` · ${run.unseen} never reached`}
         </span>
       </div>
@@ -935,7 +975,9 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
                 const key = it.questions?.question_keys?.correct_option ?? it.revealed_correct_option
                 return (
                   <tr key={it.id} className={isLiveRow ? 'live-row' : undefined}>
-                    <td className="num">{it.asked_no ?? <span className="dash">—</span>}</td>
+                    <td className="num">
+                      {numbers.get(it.id) ?? <span className="dash">—</span>}
+                    </td>
                     <td style={{ maxWidth: 300 }}>{it.questions?.stem}</td>
                     <td className="cell-sub">
                       {skillLabel(it.questions?.skill ?? null) ??
@@ -999,11 +1041,11 @@ function LevelBoard({ run, showUnattempted }: { run: LevelRun; showUnattempted: 
  * a question that silently vanishes from this screen is the bug the board was
  * grouped by test to stop. The row is still real, so it is still shown.
  */
-function MissingQuestion({ item }: { item: SessionItem }) {
+function MissingQuestion({ item, number }: { item: SessionItem; number: number | null }) {
   return (
     <div className="card card-pad" style={{ marginBottom: 14 }}>
       <div className="step-head">
-        <span className="pill-opt">{item.asked_no ?? '—'}</span>
+        <span className="pill-opt">{number ?? '—'}</span>
         <ItemResult item={item} />
         <span className="spring" />
         <span className="muted">This question could not be loaded.</span>
@@ -1023,9 +1065,11 @@ function ItemResult({ item }: { item: SessionItem }) {
   if (item.status === 'staged') return <span className="badge badge-neutral">Queued</span>
   if (item.status === 'voided')
     // Two different things wear one word otherwise: a question the student was
-    // working on when the level moved, and one they never saw at all.
+    // working on when the level moved, and one they never saw at all. Neither
+    // is "unanswered" in the sense that counts against them — the first was
+    // set aside by a switch, and the switch is usually the point.
     return item.asked_no !== null ? (
-      <span className="badge badge-neutral">Left unanswered</span>
+      <span className="badge badge-neutral">Skipped</span>
     ) : (
       <span className="badge badge-neutral">Never reached</span>
     )
@@ -1046,22 +1090,25 @@ function ItemResult({ item }: { item: SessionItem }) {
  */
 function ItemDetail({
   item,
+  number,
   busy,
   onCall,
 }: {
   item: SessionItem
+  /** Null for a question that was set aside rather than worked on. */
+  number: number | null
   busy: boolean
   onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
 }) {
   const a = item.session_item_assessments
   const question = item.questions
-  if (!question) return <MissingQuestion item={item} />
+  if (!question) return <MissingQuestion item={item} number={number} />
 
   return (
     <div className="card card-pad" style={{ marginBottom: 14 }}>
       <QuestionView
         question={question}
-        number={String(askOrder(item))}
+        number={number === null ? '—' : String(number)}
         chosen={item.selected_option}
         correct={question.question_keys?.correct_option ?? item.revealed_correct_option}
         header={

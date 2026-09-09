@@ -98,11 +98,35 @@ export function askOrder(i: SessionItem): number {
   return i.asked_no ?? i.sequence_no
 }
 
+/**
+ * The number each question wears on screen, counting only the ones worked on.
+ *
+ * asked_no is stamped on every publish, including the question that was on
+ * screen when the level moved. Numbering by it meant a question set aside by a
+ * switch still spent a number, and the board read 02, 04, 05 — a gap that
+ * looks like a lost question and counts a question nobody meant to sit against
+ * the student's total. A switch is a decision that this question was not the
+ * one for the lesson, so it takes no number at all: the questions the student
+ * actually worked on run 1, 2, 3 in the order they were asked, and a set-aside
+ * one gets no number (the callers show a dash).
+ */
+export function askNumbers(items: SessionItem[]): Map<string, number> {
+  const numbers = new Map<string, number>()
+  items
+    .filter((i) => i.status !== 'staged' && i.status !== 'voided')
+    .sort((a, b) => askOrder(a) - askOrder(b))
+    .forEach((i, idx) => numbers.set(i.id, idx + 1))
+  return numbers
+}
+
 export function buildReport(items: SessionItem[]): Report {
+  // The same numbers the screens show, so "question 3" in a report, a
+  // transcript and the board are all the same question.
+  const numbers = askNumbers(items)
   const attempts: Attempt[] = items
     .filter((i) => i.status === 'answered' || i.status === 'revealed')
     .sort((a, b) => askOrder(a) - askOrder(b))
-    .map((i) => {
+    .map((i, idx) => {
       const a = i.session_item_assessments ?? null
       const seconds = a?.elapsed_seconds ?? null
       const target = i.questions?.target_seconds ?? null
@@ -110,7 +134,7 @@ export function buildReport(items: SessionItem[]): Report {
       const ratio = seconds !== null && target ? seconds / target : null
       return {
         itemId: i.id,
-        sequence: askOrder(i),
+        sequence: numbers.get(i.id) ?? idx + 1,
         stem: i.questions?.stem ?? '',
         section: i.questions?.section ?? null,
         skill: i.questions?.skill ?? null,
