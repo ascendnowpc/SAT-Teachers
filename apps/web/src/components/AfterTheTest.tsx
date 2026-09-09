@@ -9,6 +9,8 @@ import {
   readRecording,
   type ContextExtractionRow,
 } from '../lib/contextExtraction'
+import { transcriptDocx } from '../lib/docx'
+import { parseTranscript } from '../lib/transcript'
 import { row, rows as toRows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, Session, SessionItem, SessionReportRow, SessionTranscript } from '../lib/types'
@@ -81,8 +83,6 @@ export function AfterTheTest({
   const submitted = report?.form_submitted_at ?? null
   const generated = report?.generated_at ?? null
   const started = rowsComplete(gridRows)
-  const total = extraction?.body.questions.length ?? 0
-  const covered = extraction?.body.questions.filter((q) => q.covered).length ?? 0
   // A transcript row is replaced rather than added to, so one created after the
   // reading is a different recording than the one that was read.
   const stale = Boolean(
@@ -155,6 +155,24 @@ export function AfterTheTest({
     [session, items, transcript],
   )
 
+  const turns = useMemo(() => parseTranscript(transcript?.body ?? '').lines, [transcript])
+
+  /** The transcript as a Word file, named after the student and the lesson. */
+  function downloadTranscript() {
+    if (!transcript?.body) return
+    const who = session?.student?.full_name ?? 'student'
+    const when = (session?.scheduled_at ?? '').slice(0, 10)
+    const title = `Lesson transcript — ${who}${when ? ` — ${when}` : ''}`
+    const url = URL.createObjectURL(transcriptDocx(title, transcript.body))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${title.replace(/[^\w — -]+/g, '')}.docx`
+    link.click()
+    // Revoked on the next tick rather than immediately: Safari has not started
+    // the download by the time click() returns.
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
   if (loading) return null
 
   /* ------------------------------------------- the form is not in yet --- */
@@ -199,22 +217,45 @@ export function AfterTheTest({
       <div className="section-title step-sub">Comments on the session</div>
       <p className="step-text">{report?.teacher_reflection}</p>
 
-      <div className="section-title step-sub">Fathom transcript</div>
-      <p className="step-text muted">
-        {transcript?.filename ?? 'Pasted in'} · {transcript?.body.length ?? 0} characters
-      </p>
-
-      <div className="section-title step-sub">The recording</div>
-      {extraction && !stale ? (
-        <p className="step-text muted">
-          Read by {extraction.model} on {formatUtc(extraction.created_at)} · {covered} of {total}{' '}
-          questions covered
-          {extraction.drops.length > 0 && ` · ${extraction.drops.length} unquotable claims dropped`}
-        </p>
+      {/* The transcript itself, not a character count. A teacher checking a
+          report against the lesson needs the words in front of them, and the
+          record they keep of a lesson is a document — so it is both, on the
+          page and in a file they can save. */}
+      <div className="step-head step-sub">
+        <div className="section-title" style={{ marginBottom: 0 }}>
+          Fathom transcript
+        </div>
+        <span className="spring" />
+        {transcript?.body && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={downloadTranscript}>
+            Download as Word
+          </button>
+        )}
+      </div>
+      {transcript?.body ? (
+        <details className="transcript-read">
+          <summary>
+            {transcript.filename ?? 'Pasted in'} · {turns.length}{' '}
+            {turns.length === 1 ? 'turn' : 'turns'}
+            {turns.length > 0 && ` · ${formatClock(turns[turns.length - 1].at)} long`}
+          </summary>
+          <div className="transcript-body">
+            {turns.length === 0 ? (
+              <pre>{transcript.body}</pre>
+            ) : (
+              turns.map((line, k) => (
+                <p key={k} className="transcript-turn">
+                  <span className="who">
+                    {formatClock(line.at)} · {line.speaker}
+                  </span>
+                  {line.text}
+                </p>
+              ))
+            )}
+          </div>
+        </details>
       ) : (
-        <p className="step-text muted">
-          Not read yet. Generating the report reads it — this takes a minute or so.
-        </p>
+        <p className="step-text muted">Nothing pasted in yet.</p>
       )}
 
       {stale && (

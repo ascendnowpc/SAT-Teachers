@@ -769,15 +769,25 @@ interface LevelRun {
  * asked_no is stamped when a question is published, so a voided item that has
  * one was on their screen and was set aside — by a level switch, or by handing
  * the test in. A voided item without one was never put in front of them.
- *
- * Set aside is not the same as failed, and the board must not read as if it
- * were: a level switch is a decision that this question was not the one to
- * spend the lesson on, not an answer the student got wrong or ducked. So the
- * row stays — the numbers in the # column have gaps otherwise, and ask 5 and
- * ask 7 did happen — but it is marked "Skipped", never "left unanswered".
  */
 function wasSeen(i: SessionItem): boolean {
   return i.status !== 'staged' && (i.status !== 'voided' || i.asked_no !== null)
+}
+
+/**
+ * A question with an answer on it, plus the one on screen right now.
+ *
+ * This is what the board shows. A row with no answer has a dash in every
+ * column that matters — no choice, no time, no confidence, no result — and
+ * enough of them in a row turns the board into a list of things that did not
+ * happen. The skipped and the never-reached are still counted in the heading
+ * above the table and are one click away; they are not worth a row each.
+ *
+ * The question currently on screen has no answer either and is still here,
+ * because during the lesson it is the only row anyone is looking at.
+ */
+function wasAnswered(i: SessionItem): boolean {
+  return i.status === 'answered' || i.status === 'revealed' || i.status === 'published'
 }
 
 /**
@@ -870,7 +880,13 @@ function Board({
     )
   }
 
-  const totalUnseen = runs.reduce((n, r) => n + r.unseen, 0)
+  // Everything with no answer on it: set aside by a level switch, never
+  // reached, or still queued. One switch covers all three — a teacher looking
+  // for "what did he not get to" is not asking three different questions.
+  const totalUnanswered = runs.reduce(
+    (n, r) => n + r.items.filter((i) => !wasAnswered(i)).length,
+    0,
+  )
 
   return (
     <div>
@@ -879,14 +895,14 @@ function Board({
           {runs.length > 1 ? `${runs.length} tests sat` : 'The test'}
         </div>
         <span className="spring" />
-        {totalUnseen > 0 && (
+        {totalUnanswered > 0 && (
           <label className="toggle">
             <input
               type="checkbox"
               checked={showUnattempted}
               onChange={(e) => setShowUnattempted(e.target.checked)}
             />
-            Show the {totalUnseen} never reached
+            Show the {totalUnanswered} not answered
           </label>
         )}
       </div>
@@ -922,11 +938,10 @@ function LevelBoard({
   numbers: Map<string, number>
   showUnattempted: boolean
 }) {
-  // What the student saw is always here — including the question they were on
-  // when the level moved, which carries no number in the # column because it
-  // was set aside rather than worked on. What never reached them is behind the
-  // switch.
-  const rows = showUnattempted ? run.items : run.items.filter(wasSeen)
+  // Answered questions, and the one on screen. Everything the student did not
+  // answer — set aside by a level switch, or never reached at all — is behind
+  // the switch above the board.
+  const rows = showUnattempted ? run.items : run.items.filter(wasAnswered)
 
   return (
     <section className="board" style={{ marginBottom: 16 }}>
@@ -949,8 +964,8 @@ function LevelBoard({
 
       {rows.length === 0 ? (
         <p className="board-foot">
-          Nothing from this test reached the student — {run.unseen} question
-          {run.unseen === 1 ? '' : 's'} were loaded and the level moved first.
+          Nothing from this test was answered — {run.items.length} question
+          {run.items.length === 1 ? ' was' : 's were'} loaded and the level moved first.
         </p>
       ) : (
         <div className="board-scroll">
