@@ -1,3 +1,4 @@
+import { askNumbers, askOrder } from './asked.ts'
 import { DIAGNOSES, sectionLabel, skillLabel } from './constants'
 import type { Diagnosis, SessionItem } from './types'
 
@@ -21,7 +22,8 @@ export interface Attempt {
   stem: string
   section: string | null
   skill: string | null
-  difficulty: string
+  /** Null when the question came back without one — never guessed. */
+  difficulty: string | null
   correct: boolean
   chose: string | null
   answer: string | null
@@ -86,38 +88,9 @@ function byWeakness(a: Band, b: Band): number {
   return b.total - a.total
 }
 
-/**
- * The order the lesson actually ran in.
- *
- * A session that moves levels does not ask its questions in the order they sit
- * in — the easy test's first six, then the medium test's twenty — so the report
- * follows asked_no where there is one. Within a single level the two numbers
- * are equal, so this is the plain ordering there.
- */
-export function askOrder(i: SessionItem): number {
-  return i.asked_no ?? i.sequence_no
-}
-
-/**
- * The number each question wears on screen, counting only the ones worked on.
- *
- * asked_no is stamped on every publish, including the question that was on
- * screen when the level moved. Numbering by it meant a question set aside by a
- * switch still spent a number, and the board read 02, 04, 05 — a gap that
- * looks like a lost question and counts a question nobody meant to sit against
- * the student's total. A switch is a decision that this question was not the
- * one for the lesson, so it takes no number at all: the questions the student
- * actually worked on run 1, 2, 3 in the order they were asked, and a set-aside
- * one gets no number (the callers show a dash).
- */
-export function askNumbers(items: SessionItem[]): Map<string, number> {
-  const numbers = new Map<string, number>()
-  items
-    .filter((i) => i.status !== 'staged' && i.status !== 'voided')
-    .sort((a, b) => askOrder(a) - askOrder(b))
-    .forEach((i, idx) => numbers.set(i.id, idx + 1))
-  return numbers
-}
+// The numbering the screens use, re-exported so a caller that already has the
+// report does not have to know where it comes from.
+export { askNumbers, askOrder }
 
 export function buildReport(items: SessionItem[]): Report {
   // The same numbers the screens show, so "question 3" in a report, a
@@ -138,7 +111,7 @@ export function buildReport(items: SessionItem[]): Report {
         stem: i.questions?.stem ?? '',
         section: i.questions?.section ?? null,
         skill: i.questions?.skill ?? null,
-        difficulty: i.questions?.difficulty ?? 'medium',
+        difficulty: i.questions?.difficulty ?? null,
         correct,
         chose: i.selected_option,
         answer: i.revealed_correct_option,

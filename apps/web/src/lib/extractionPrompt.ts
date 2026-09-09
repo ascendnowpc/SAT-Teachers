@@ -1,5 +1,5 @@
 import type { QuestionWindow } from './extraction.ts'
-import { linesIn, type Transcript } from './transcript.ts'
+import { linesIn, type Transcript, type TranscriptLine } from './transcript.ts'
 
 /**
  * What the model is asked, and how the recording is packed for it.
@@ -189,9 +189,15 @@ So judge who is speaking from what is said:
 
 When your judgement disagrees with the label, still record what you judge. That disagreement is recorded and shown to the teacher, so a wrong label is caught rather than believed.
 
-THE MARGIN
+THE MARGIN, AND THE REVIEW
 
-Each window is a little wider than the question itself, because feedback arrives late. The teacher's verdict on a question often lands while the student is already reading the next one, and in a lesson where the test was taken in silence first, the whole discussion happens afterwards. Lines from the margin are marked with a ~ and you may use them. Lines from further away are not there to use.
+Each window is a little wider than the question itself, because feedback arrives late. The teacher's verdict on a question often lands while the student is already reading the next one. Lines from the margin are marked with a ~ and you may use them.
+
+Where the lesson was a silent paper followed by a review, a question also carries a second stretch of transcript: the part where the teacher went back over it by name — "Third one, please", "12th one". Those lines are marked with a » and are shown under their own heading. They are about this question and you may use them exactly as you use the rest. On that shape of lesson they will be the only place anything was said about it.
+
+A » stretch is cut at the turn, and a teacher who says "Third one, please. Third is correct. Fourth one." leaves one turn for two questions — so the same lines can appear under both. Use the part that is actually about the question you are answering for, and quote only that part.
+
+Lines from further away than these are not there to use.
 
 TWO SHAPES OF LESSON
 
@@ -255,13 +261,21 @@ function renderWindow(
   roles: PromptInput['roles'],
   answer: PromptInput['answers'][number] | undefined,
 ): string {
-  const lines = linesIn(transcript, window.shown)
-  const body = lines
-    .map((l) => {
-      const margin = l.at < window.own.from || l.at >= window.own.to ? '~' : ' '
-      return `${margin}@${clock(l.at)} [${roles[l.speaker] ?? 'other'}: ${l.speaker}] ${l.text}`
-    })
-    .join('\n')
+  const render = (lines: TranscriptLine[], mark: (l: TranscriptLine) => string) =>
+    lines
+      .map((l) => `${mark(l)}@${clock(l.at)} [${roles[l.speaker] ?? 'other'}: ${l.speaker}] ${l.text}`)
+      .join('\n')
+
+  const onScreen = render(linesIn(transcript, window.shown), (l) =>
+    l.at < window.own.from || l.at >= window.own.to ? '~' : ' ',
+  )
+
+  // The review is a second, separate stretch of the recording, so it is shown
+  // as one rather than spliced into the first: half an hour of silence sits
+  // between them and running them together would read as one conversation.
+  const reviewed = window.review
+    ? render(linesIn(transcript, window.review), () => '»')
+    : ''
 
   const head = [
     `itemId: ${window.itemId}`,
@@ -272,7 +286,17 @@ function renderWindow(
     .filter(Boolean)
     .join(' · ')
 
-  return `--- ${head} ---\n${body || '(nobody speaks in this window)'}`
+  const parts = [
+    `--- ${head} ---`,
+    onScreen || '(nobody speaks while this question is on screen)',
+  ]
+  if (reviewed) {
+    parts.push(
+      `  when the lesson went back over question ${window.sequence} by name (lines marked »):`,
+      reviewed,
+    )
+  }
+  return parts.join('\n')
 }
 
 /** The teacher's form, verbatim, as context rather than as findings. */

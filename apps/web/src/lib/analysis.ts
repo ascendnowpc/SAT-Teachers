@@ -423,8 +423,18 @@ export interface Alignment {
  * every time. Rather than make the teacher hunt for it by eye, try the
  * plausible offsets and keep the one that leaves the fewest questions with
  * nobody talking about them. Ties go to the earlier offset, because a late
- * offset can always fake coverage by sweeping the tail of the call into the
- * last question's window.
+ * offset can always fake coverage by pushing questions past the end of the
+ * recording, where there is nothing left to disagree with them.
+ *
+ * The last question is not scored. Its window runs to the end of the recording,
+ * so it contains somebody talking at *every* offset — which is right for
+ * cutting a window and useless for choosing between them. On a lesson where the
+ * questions were minutes apart and the call ran an hour, that free point was
+ * the only thing separating the offsets: every one of them scored it, the tie
+ * went to the first, and the reading came back aligned to the start of the
+ * recording rather than to the lesson. A report then said one question of
+ * fifteen had been discussed, because the whole review had landed in that one
+ * open-ended window.
  */
 export function suggestOffset(
   transcript: Transcript,
@@ -432,13 +442,17 @@ export function suggestOffset(
   itemIds: string[],
   roles: Record<string, Role>,
 ): number {
+  // With one question there is nothing else to go on, so it is scored; with
+  // more, the open-ended last one is left out.
+  const scored = itemIds.length > 1 ? itemIds.slice(0, -1) : itemIds
+
   let best = 0
   let bestScore = -1
 
   for (let offset = 0; offset <= Math.min(1200, transcript.duration); offset += 15) {
     const windows = windowsAt(offset)
     let score = 0
-    for (const id of itemIds) {
+    for (const id of scored) {
       const w = windows.get(id)
       if (!w) continue
       if (linesIn(transcript, w).some((l) => roles[l.speaker] === 'student')) score += 1

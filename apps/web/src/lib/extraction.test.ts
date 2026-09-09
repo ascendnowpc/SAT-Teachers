@@ -326,6 +326,100 @@ describe('validateExtraction — the margin', () => {
   })
 })
 
+describe('validateExtraction — the review pass', () => {
+  /**
+   * The other shape of lesson: the paper is taken in silence and the teacher
+   * walks the answers at the end. Question 1's own window is the silence, and
+   * everything said about it is fifty minutes later — so without the review
+   * window there is nothing to find, which is exactly what a report showing one
+   * question of fifteen discussed was telling us.
+   */
+  const reviewed = questionWindows(
+    [{ itemId: 'item-1', sequence: 1, window: { from: 140, to: 300 } }],
+    new Map([[1, { from: 3400, to: 3600 }]]),
+  )
+
+  it('finds a quote from where the lesson went back over the question', () => {
+    const out = validateExtraction(
+      oneQuestion({
+        ...blank,
+        itemId: 'item-1',
+        teacherFeedback: [
+          {
+            kind: 'correction',
+            text: 'Named the count of wrong answers back to the student.',
+            quote: 'You got six wrong in the 23 questions that we did',
+            speaker: 'teacher',
+          },
+        ],
+      }),
+      { ...input, windows: reviewed },
+    )
+
+    const f = out.extraction.questions[0].teacherFeedback[0]
+    expect(f.evidence.at).toBe(3530)
+    expect(f.evidence.fromReview).toBe(true)
+    // The review is the more specific of the two reaches, so it is the one the
+    // report is told about rather than both.
+    expect(f.evidence.fromMargin).toBe(false)
+  })
+
+  it('leaves a quote from the question’s own window unmarked', () => {
+    const out = validateExtraction(
+      oneQuestion({
+        ...blank,
+        itemId: 'item-1',
+        studentReasoning: {
+          text: 'Went to the options before reading the passage.',
+          quote: 'I just jumped to the answer section',
+          speaker: 'student',
+        },
+      }),
+      { ...input, windows: reviewed },
+    )
+
+    const r = out.extraction.questions[0].studentReasoning
+    expect(r?.evidence.fromReview).toBe(false)
+    expect(r?.evidence.fromMargin).toBe(false)
+  })
+
+  it('counts a question as covered on the strength of the review alone', () => {
+    // Nothing is said in item-1's own window here; the review is the only place
+    // this question exists in the recording.
+    const late = questionWindows(
+      [{ itemId: 'item-1', sequence: 1, window: { from: 1500, to: 1600 } }],
+      new Map([[1, { from: 3400, to: 3600 }]]),
+    )
+    const out = validateExtraction(
+      oneQuestion({ ...blank, itemId: 'item-1', covered: true }),
+      { ...input, windows: late },
+    )
+    expect(out.extraction.questions[0].covered).toBe(true)
+  })
+
+  it('still refuses a quote that is in neither window', () => {
+    const out = validateExtraction(
+      oneQuestion({
+        ...blank,
+        itemId: 'item-1',
+        teacherFeedback: [
+          {
+            kind: 'strategy',
+            text: 'Taught the extreme-language rule.',
+            // Said at 13:25 — outside item-1's window and outside the review.
+            quote: 'whenever extreme language is used, it is wrong',
+            speaker: 'teacher',
+          },
+        ],
+      }),
+      { ...input, windows: reviewed },
+    )
+
+    expect(out.extraction.questions[0].teacherFeedback).toHaveLength(0)
+    expect(out.drops[0].reason).toBe('quote-not-found')
+  })
+})
+
 describe('validateExtraction — the allowlist', () => {
   it('drops a question the session does not have', () => {
     const out = validateExtraction(oneQuestion({ ...blank, itemId: 'item-99' }), input)
