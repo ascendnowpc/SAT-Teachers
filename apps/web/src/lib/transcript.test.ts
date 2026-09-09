@@ -255,6 +255,16 @@ describe('reviewCues', () => {
     expect(reviewCues(t)[0].at).toBe(49 * 60)
   })
 
+  /** Nothing walks a paper from question 2 to question 22. */
+  it('will not join two numbers that are half a paper apart', () => {
+    const jumpy = parseTranscript(
+      `@53:55 - Malya Rastogi\nAnd then the second task happened, so there is a chronology.\n` +
+        `@54:48 - Malya Rastogi\n22, please.\n` +
+        `@58:49 - Sara Rohit\nOkay, 23.`,
+    )
+    expect(reviewCues(jumpy)).toEqual([])
+  })
+
   it('has nothing to say about a lesson worked question by question', () => {
     const worked = parseTranscript(
       `@1:00 - Malya Rastogi\nSo what do you think is happening here?\n` +
@@ -289,6 +299,22 @@ describe('reviewWindows', () => {
    * does not have. They are dropped — not folded onto the last question, which
    * is what made one report say fifteen questions were discussed as one.
    */
+  /**
+   * The 7 August lesson has no review pass — it is worked question by question.
+   * What it does have is a teacher numbering questions as she reaches them
+   * ("19th one please", "22, please") and a student asking how many she got
+   * wrong out of 23. Read as a review, those three handed the closing summary
+   * to question 23, fifty minutes from where question 23 actually was.
+   */
+  it('does not read a lesson that merely counts its questions as a review', () => {
+    const worked = parseTranscript(
+      `@50:00 - Malya Rastogi\n19th one please, take your time.\n` +
+        `@54:48 - Malya Rastogi\n22, please.\n` +
+        `@58:42 - Sara Rohit\nSo how many did I get wrong out of 23?`,
+    )
+    expect(reviewWindows(worked, 23).size).toBe(0)
+  })
+
   it('drops a number the session does not have a question for', () => {
     const windows = reviewWindows(t, 15)
     expect(windows.has(13)).toBe(true)

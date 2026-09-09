@@ -154,6 +154,27 @@ describe('suggestOffset', () => {
    * aligned to zero. Which is what a report showing one question of fifteen
    * discussed was actually telling us.
    */
+  /**
+   * A margin either side of every window means a whole band of offsets covers
+   * every question equally, and taking the first of the band put the 7 August
+   * recording 67 seconds early — enough to move a quote onto the question
+   * before. The student's first word is what settles it.
+   */
+  it('breaks a tie on where the student starts talking', () => {
+    const t = parseTranscript(
+      `@0:30 - Malya Rastogi\nRight, let me share the module.\n` +
+        `@1:00 - Malya Rastogi\nThink out loud as you go, tell me your approach.\n` +
+        `@3:00 - Sara Rohit\nOkay, I'm gonna say B, dominant, because of inherit their mother's rank.\n` +
+        `@5:00 - Sara Rohit\nThis next one, it can't be rely on, because that's the inverse.`,
+    )
+    const two = [
+      { id: 'a', startedAt: '2026-08-07T10:00:00Z' },
+      { id: 'b', startedAt: '2026-08-07T10:02:00Z' },
+    ]
+    const at = (offset: number) => windowsFor(two, t.duration, offset)
+    expect(suggestOffset(t, at, ['a', 'b'], ROLES)).toBe(180)
+  })
+
   it('does not let the tail of the call carry the last question', () => {
     const long = parseTranscript(
       `@0:30 - Malya Rastogi\nRight, let me get the module up.\n` +
@@ -165,10 +186,10 @@ describe('suggestOffset', () => {
       { id: 'b', startedAt: '2026-08-07T10:00:30Z' },
     ]
     const at = (offset: number) => windowsFor(items, long.duration, offset)
-    // 5:00 is where the student first speaks, and the earliest offset whose
-    // first window reaches it is 4:45 — a real turn inside the first question
-    // rather than the hour that follows the last one.
-    expect(suggestOffset(long, at, ['a', 'b'], ROLES)).toBe(285)
+    // 5:00 is where the student first speaks, so that is where the lesson
+    // starts — a real turn inside the first question rather than the hour that
+    // follows the last one.
+    expect(suggestOffset(long, at, ['a', 'b'], ROLES)).toBe(300)
   })
 })
 
