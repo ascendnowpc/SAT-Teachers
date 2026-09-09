@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReport, formatDuration, paceLabel } from './report'
+import { askNumbers, buildReport, formatDuration, paceLabel } from './report'
 import type { SessionItem } from './types'
 
 /** Only the fields the report reads; the rest of SessionItem is irrelevant here. */
@@ -189,5 +189,32 @@ describe('paceLabel', () => {
   it('says nothing without a target to compare against', () => {
     expect(paceLabel(60, null)).toBeNull()
     expect(paceLabel(null, 75)).toBeNull()
+  })
+})
+
+describe('askNumbers', () => {
+  it('numbers only the questions the student worked on', () => {
+    // Asked 1, 2, 3; the second was on screen when the level moved.
+    const numbers = askNumbers([
+      item({ seq: 1, asked: 1 }),
+      item({ seq: 2, asked: 2, status: 'voided' }),
+      item({ seq: 3, asked: 3 }),
+    ])
+    expect(numbers.get('i1')).toBe(1)
+    expect(numbers.get('i3')).toBe(2)
+    // Set aside by the switch: no number at all, so nothing counts it.
+    expect(numbers.has('i2')).toBe(false)
+  })
+
+  it('leaves loaded-but-unreached questions out too', () => {
+    const numbers = askNumbers([item({ seq: 1, asked: 1 }), item({ seq: 2, status: 'staged' })])
+    expect(numbers.get('i1')).toBe(1)
+    expect(numbers.has('i2')).toBe(false)
+  })
+
+  it('follows the order questions were asked in, not where they sit', () => {
+    const numbers = askNumbers([item({ seq: 1, asked: 2 }), item({ seq: 3, asked: 1 })])
+    expect(numbers.get('i3')).toBe(1)
+    expect(numbers.get('i1')).toBe(2)
   })
 })

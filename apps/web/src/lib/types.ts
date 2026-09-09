@@ -92,6 +92,8 @@ export interface Session {
   opened_early_at: string | null
   /** Everything this session has put in front of the student, across levels. Maintained by trigger. */
   question_count: number
+  /** What the student actually answered. Staged and set-aside questions are not in it. */
+  answered_count: number
   started_at: string | null
   ended_at: string | null
   teacher_notes: string | null
