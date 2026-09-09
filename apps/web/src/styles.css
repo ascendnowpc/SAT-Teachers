@@ -689,6 +689,11 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .stat .l { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
 .stat .n { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
 
+/* Wider than the rest of the app. The report is the one page that is a
+   document rather than a screen — a seven-column grid, tables of every
+   question, quotes beside the teacher's own writing — and at the standard
+   1080px the grid's last column was pushed off the edge of its card. */
+.report { max-width: 1400px; }
 .report .card { margin-bottom: 16px; }
 .report-note p { font-size: 14.5px; line-height: 1.65; color: var(--ink-2); }
 .report-cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
@@ -815,11 +820,23 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .skill-detail li.ok { color: var(--easy-fg); }
 .skill-detail li.bad { color: var(--danger); }
 
-/* The recording's column. Seven columns need more room than six, and the
-   quotes inside it are already a paragraph each, so the whole table is given
-   the width rather than the last cell being squeezed into it. */
-.grid-table.with-recording { min-width: 1240px; }
-.grid-table td.said { width: 26%; }
+/* The recording's column.
+   Seven columns at their natural widths came to a little more than the card,
+   so the table scrolled by about the width of one column — and a last column
+   sliced off at the card's edge does not read as "scroll me", it reads as a
+   column that has gone missing. Fixed proportions instead: the table fills the
+   card exactly at any width down to 900px, and only genuinely narrow screens
+   scroll, where the cut edge is obviously a cut edge. */
+.grid-table.with-recording { min-width: 900px; table-layout: fixed; }
+.grid-table.with-recording thead th { white-space: normal; }
+.grid-table.with-recording thead th:nth-child(1) { width: 11%; }
+.grid-table.with-recording thead th:nth-child(2) { width: 12%; }
+.grid-table.with-recording thead th:nth-child(3) { width: 12%; }
+.grid-table.with-recording thead th:nth-child(4) { width: 16%; }
+.grid-table.with-recording thead th:nth-child(5) { width: 16%; }
+.grid-table.with-recording thead th:nth-child(6) { width: 13%; }
+.grid-table.with-recording thead th:nth-child(7) { width: 20%; }
+.grid-table.with-recording td { overflow-wrap: break-word; }
 .grid-table td.said .claim { margin: 0 0 12px; }
 .grid-table td.said .claim:last-child { margin-bottom: 0; }
 .grid-table td.said .claim-text { font-size: 12.5px; }
@@ -959,6 +976,28 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .qtalk-line .who {
   display: inline-block; min-width: 96px; font-size: 11.5px; font-weight: 600;
   color: var(--sky-dark); text-transform: uppercase; letter-spacing: .03em;
+}
+
+/* The transcript, read back on the console. Folded away because it is an hour
+   of speech and the page has work on it, but present — a character count is
+   not something a teacher can check a report against. */
+.transcript-read { margin-top: 6px; }
+.transcript-read summary {
+  cursor: pointer; list-style: none; font-size: 13px; color: var(--muted);
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+.transcript-read summary::-webkit-details-marker { display: none; }
+.transcript-read summary:hover { background: var(--page); }
+.transcript-read[open] summary { border-radius: var(--r-sm) var(--r-sm) 0 0; }
+.transcript-body {
+  max-height: 420px; overflow-y: auto; padding: 12px 14px;
+  border: 1px solid var(--border); border-top: 0; border-radius: 0 0 var(--r-sm) var(--r-sm);
+}
+.transcript-body pre { margin: 0; white-space: pre-wrap; font-size: 12.5px; line-height: 1.6; }
+.transcript-turn { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.transcript-turn .who {
+  display: block; font-size: 11.5px; font-weight: 600; color: var(--sky-dark);
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px;
 }
 
 /* Who is who in the recording. Getting this wrong attributes the teacher's
