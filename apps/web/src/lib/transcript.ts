@@ -166,6 +166,14 @@ const A_UNIT =
  */
 const COUNTED_QUESTIONS = /^\s*questions?\b/i
 
+/**
+ * "How many did I get wrong out of 23" is a total, not question 23.
+ *
+ * Read off what comes before the number rather than after it — the one place a
+ * count and a cue are told apart by the left-hand side.
+ */
+const A_TOTAL = /\b(?:out\s+of|of)\s*$/i
+
 /** Nothing on a paper is question 61, so a bigger number is something else. */
 const MAX_MENTION = 60
 
@@ -183,6 +191,19 @@ export const REVIEW_GAP_SECONDS = 300
  * Two numbers in a row is a coincidence; eight is a teacher going down a list.
  */
 export const MIN_REVIEW_CUES = 3
+
+/**
+ * How far a review may jump between one question and the next.
+ *
+ * A teacher walking a paper goes 17, 18, 19, skipping the few they did not
+ * reach — on the 17 July recording the largest step is four. Nothing walks from
+ * question 2 to question 22. Without this, the 7 August lesson, which has no
+ * review pass in it at all, produced one out of three unrelated numbers: "the
+ * second task happened" inside a grammar explanation, a real "22, please", and
+ * "how many did I get wrong out of 23". That handed question 2 a window fifty
+ * minutes away from question 2.
+ */
+export const MAX_REVIEW_STEP = 6
 
 /** A moment where someone names a question by its number. */
 export interface ReviewCue {
@@ -231,6 +252,8 @@ export function mentionsIn(text: string): { sequence: number; anchored: boolean 
     // "I missed 5 questions" is a count, not a cue — but only a bare number can
     // be one, because "the seventh question" is precisely a cue.
     if (bare && COUNTED_QUESTIONS.test(rest)) continue
+    // "six wrong out of 23" is the size of the paper, not the last question.
+    if (bare && A_TOTAL.test(text.slice(0, at))) continue
     // "One second, I gotta send it" is the one ordinal that is also an ordinary
     // noun, and on a call it is nearly always the noun. So it only counts when
     // something anchors it — "Second one", "the second", "question 2".
@@ -273,6 +296,8 @@ export function reviewCues(transcript: Transcript): ReviewCue[] {
       // Strictly forward: a teacher re-reading "17, 17, 18" says the same
       // number twice and the second one is not a new question.
       if (c.sequence <= last.sequence) continue
+      // …and forward by a step a person could actually take down a paper.
+      if (c.sequence - last.sequence > MAX_REVIEW_STEP) continue
       run.push({ sequence: c.sequence, at: c.at })
     }
     // Ties go to the later run: an introduction that happens to count to three
@@ -300,6 +325,14 @@ export function reviewCues(transcript: Transcript): ReviewCue[] {
 export function reviewWindows(transcript: Transcript, count: number): Map<number, AlignWindow> {
   const cues = reviewCues(transcript)
   const out = new Map<number, AlignWindow>()
+
+  // A review pass walks the paper, so it names a good share of it — the 17 July
+  // recording numbers twenty-one of its questions aloud. Three numbers scattered
+  // through an hour is a teacher saying "19th one, please" as she goes, and on
+  // the 7 August lesson reading that as a review handed the closing summary to
+  // question 23. Below the threshold there is no review pass and the on-screen
+  // windows are the whole answer, which for that shape of lesson they are.
+  if (cues.length < Math.max(MIN_REVIEW_CUES, Math.ceil(count / 3))) return out
 
   for (let i = 0; i < cues.length; i += 1) {
     const cue = cues[i]

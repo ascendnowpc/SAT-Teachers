@@ -446,8 +446,14 @@ export function suggestOffset(
   // more, the open-ended last one is left out.
   const scored = itemIds.length > 1 ? itemIds.slice(0, -1) : itemIds
 
+  // Where the student first says anything. The greeting is the teacher and
+  // whoever else is on the call; the lesson starts when the student does, and
+  // that is what DEFAULT_OFFSET_SECONDS is a stand-in for.
+  const opening = transcript.lines.find((l) => roles[l.speaker] === 'student')?.at ?? null
+
   let best = 0
   let bestScore = -1
+  let bestGap = Number.MAX_SAFE_INTEGER
 
   for (let offset = 0; offset <= Math.min(1200, transcript.duration); offset += 15) {
     const windows = windowsAt(offset)
@@ -457,8 +463,16 @@ export function suggestOffset(
       if (!w) continue
       if (linesIn(transcript, w).some((l) => roles[l.speaker] === 'student')) score += 1
     }
-    if (score > bestScore) {
+
+    // The margin either side of a window means a whole band of offsets can cover
+    // every question, and taking the first of the band put the 7 August lesson
+    // 67 seconds early — enough to shift a quote onto the question before. So a
+    // tie goes to the offset nearest the student's first word rather than to
+    // whichever was tried first.
+    const gap = opening === null ? 0 : Math.abs(offset - opening)
+    if (score > bestScore || (score === bestScore && gap < bestGap)) {
       bestScore = score
+      bestGap = gap
       best = offset
     }
   }
