@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
+import { crypto as stdCrypto } from 'jsr:@std/crypto@1/crypto'
+import { encodeHex } from 'jsr:@std/encoding@1/hex'
 
 import {
   questionWindows,
@@ -55,10 +57,18 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-/** md5 of the transcript, so a reading cannot outlive the recording it read. */
+/**
+ * md5 of the transcript, so a reading cannot outlive the recording it read.
+ *
+ * It has to be md5 and it has to be this string: 0031 compares it against
+ * Postgres's own md5() over the same body, and a reading whose digest does not
+ * match is treated as stale. Which is why this is @std/crypto rather than the
+ * platform's — Deno's WebCrypto implements the SHA family and nothing else, so
+ * crypto.subtle.digest('MD5') threw NotSupportedError and every reading died
+ * on the last line before it was stored.
+ */
 async function md5(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('MD5', new TextEncoder().encode(text))
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return encodeHex(await stdCrypto.subtle.digest('MD5', new TextEncoder().encode(text)))
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -137,6 +147,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!report.data?.form_submitted_at) {
     return json({ error: 'the diagnostic form has not been submitted yet' }, 400)
   }
+
+  // Before the model runs, not after: the digest is the last thing the store
+  // needs and was the first thing to fail, which spent a Gemini call to find
+  // out. Same reason the reader is resolved at the top.
+  const transcriptMd5 = await md5(transcriptBody)
 
   const transcript = parseTranscript(transcriptBody)
   if (transcript.lines.length === 0) {
@@ -240,7 +255,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     session_id: sessionId,
     body: result.extraction,
     drops: result.drops,
-    transcript_md5: await md5(transcriptBody),
+    transcript_md5: transcriptMd5,
     model: reader.model,
     offset_seconds: offset,
   })
