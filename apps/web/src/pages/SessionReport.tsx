@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EvaluationGrid } from '../components/EvaluationGrid'
-import {
-  ClaimLine,
-  DomainFindings,
-  QuestionFindings,
-  SessionFindings,
-} from '../components/RecordingFindings'
+import { DomainFindings, QuestionFindings, hasFindings } from '../components/RecordingFindings'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
-import { diagnosisLabel, sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import {
+  diagnosisLabel,
+  difficultyLabel,
+  sectionLabel,
+  skillLabel,
+  subjectLabel,
+} from '../lib/constants'
 import {
   DOMAIN_ORDER,
   buildGrid,
@@ -20,10 +21,9 @@ import {
   timeManagement,
 } from '../lib/grid'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
-import { FEEDBACK_LABELS } from '../lib/extraction'
 import { rowsFrom } from '../lib/diagnostic'
 import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from '../lib/report'
-import { buildReportDoc, disagreements, taughtInSession } from '../lib/reportDoc'
+import { buildReportDoc, disagreements, type DomainSection } from '../lib/reportDoc'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow } from '../lib/types'
@@ -61,20 +61,6 @@ export function SessionReport() {
   }, [loadWritten])
 
   const grid = useMemo(() => buildGrid(report, notes), [report, notes])
-  // How much the recording actually contributed, counted rather than claimed —
-  // "where was the AI used" has to be answerable from the page itself.
-  const found = useMemo(() => {
-    const body = extraction?.body
-    if (!body) return null
-    const q = body.questions
-    return {
-      feedback: q.reduce((n, x) => n + x.teacherFeedback.length, 0),
-      reasoning: q.filter((x) => x.studentReasoning).length,
-      misunderstandings: q.filter((x) => x.misunderstanding).length,
-      vocabulary: q.filter((x) => x.vocabularyGap).length,
-      domain: body.session.domainEvidence.length,
-    }
-  }, [extraction])
 
   // The document: the teacher's form, the recording's findings and the computed
   // numbers, joined but never merged. It is assembled at read time from the
@@ -89,11 +75,35 @@ export function SessionReport() {
       }),
     [notes, meta, report, extraction],
   )
-  const taught = useMemo(() => taughtInSession(doc), [doc])
   const conflicts = useMemo(() => disagreements(doc), [doc])
   const pace = useMemo(() => timeManagement(report), [report])
-  const confidence = useMemo(() => confidenceAverage(items), [items])
+  // Over the questions the student actually worked, not over every row: a
+  // question set aside by a level switch was never asked and never rated, and
+  // counting it makes the engagement row read as thinner than it was.
+  const confidence = useMemo(
+    () => confidenceAverage(items.filter((i) => i.status === 'answered' || i.status === 'revealed')),
+    [items],
+  )
   const priority = meta?.practice_priority ?? recommendedPriority(report)
+
+  // The domain evidence, by domain, for the grid's last column.
+  const byDomain = useMemo(() => {
+    const map = new Map<string, DomainSection['evidence']>()
+    for (const d of doc.domains) map.set(d.domain, d.evidence)
+    return map
+  }, [doc])
+
+  // The questions the recording could actually quote something on. A heading
+  // and "nothing could be quoted" repeated fifteen times is not a report; the
+  // ones with nothing are named together underneath instead.
+  const said = useMemo(() => doc.questions.filter(hasFindings), [doc])
+  const unsaid = useMemo(() => doc.questions.filter((q) => !hasFindings(q)), [doc])
+
+  // The level is a property of the paper, not of the question, and a session
+  // usually runs at one. Repeating "medium" down twenty rows says nothing; the
+  // column earns its place only on a session that moved level mid-lesson.
+  const levels = useMemo(() => [...new Set(report.attempts.map((a) => a.difficulty))], [report])
+  const oneLevel = levels.length === 1 && levels[0] !== null ? levels[0] : null
 
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
@@ -164,11 +174,15 @@ export function SessionReport() {
           </div>
 
           <div className="card card-pad">
-            <div className="section-title">Teacher evaluation grid</div>
+            <div className="section-title">
+              Each domain: the form{extraction && ', and what the recording shows'}
+            </div>
             <p className="step-text muted">
-              Filled in on the diagnostic form and reproduced here word for word.
+              The four rows of the diagnostic form, reproduced word for word.
+              {extraction &&
+                ' The last column is the recording, and every line in it carries the words it came from.'}
             </p>
-            <EvaluationGrid rows={grid} />
+            <EvaluationGrid rows={grid} evidence={extraction ? byDomain : undefined} />
           </div>
 
           {doc.reflection && (
@@ -178,131 +192,24 @@ export function SessionReport() {
             </div>
           )}
 
-          {/* Whether the recording was read, said plainly and near the top. A
-              report whose AI sections are simply absent reads as a report with
-              no AI in it, which is exactly how this one was read. */}
-          {extraction ? (
-            <div className="card card-pad">
-              <div className="section-title">What the recording added</div>
-              <p className="step-text">
-                The transcript was read by {extraction.model} on{' '}
-                {formatUtc(extraction.created_at)}. It covered {doc.coverage.covered} of{' '}
-                {doc.coverage.total} questions and found {found?.feedback ?? 0} pieces of teaching,{' '}
-                {found?.reasoning ?? 0} explanations from the student, {found?.misunderstandings ?? 0}{' '}
-                misunderstandings and {found?.vocabulary ?? 0} words they did not know, plus{' '}
-                {found?.domain ?? 0} findings against the four domains. Every one of them is below
-                with the words it came from — nothing that could not be quoted was kept.
-              </p>
-            </div>
-          ) : (
+          {!extraction && (
             <Notice kind="info">
-              The recording has not been read for this session, so everything below is the
-              teacher’s own writing and the numbers from the answers. Generate the report again
-              from the session console to have the transcript read.
+              The recording has not been read for this session, so everything here is the teacher’s
+              own writing and the numbers from the answers. Generate the report again from the
+              session console to have the transcript read.
             </Notice>
           )}
 
-          {extraction && (
-            <>
-              <SessionFindings doc={doc} />
-
-              {conflicts.length > 0 && (
-                <div className="card card-pad">
-                  <div className="section-title">Worth a second look before this goes out</div>
-                  <p className="step-text muted">
-                    The recording sits awkwardly against what was written on the form here. One of
-                    the two needs correcting, and only the teacher can say which.
-                  </p>
-                  <DomainFindings evidence={conflicts} />
-                </div>
-              )}
-
-              {taught.length > 0 && (
-                <div className="card card-pad">
-                  <div className="section-title">Taught in this lesson</div>
-                  <p className="step-text muted">
-                    The strategies and words that came up, and the questions they came up on.
-                  </p>
-                  {taught.map(({ feedback, questions }, k) => (
-                    <div key={k}>
-                      <ClaimLine
-                        claim={feedback}
-                        label={`${FEEDBACK_LABELS[feedback.kind]} · ${questions
-                          .map((q) => `Q${q}`)
-                          .join(', ')}`}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Always shown. The teacher's four rows are the report whether or
-              not the recording was read; hiding them behind the reading is how
-              a teacher came to submit a form and then not find a word of it in
-              their own report. */}
-          <div className="card card-pad">
-            <div className="section-title">
-              Each domain: what was written{extraction && ', and what was said'}
+          {conflicts.length > 0 && (
+            <div className="card card-pad">
+              <div className="section-title">Worth a second look before this goes out</div>
+              <p className="step-text muted">
+                The recording sits awkwardly against what was written on the form here. One of the
+                two needs correcting, and only the teacher can say which.
+              </p>
+              <DomainFindings evidence={conflicts} />
             </div>
-            {doc.domains.map((d) => (
-              <div key={d.domain} className="question-findings">
-                <div className="question-head">
-                  <b>{d.label}</b>
-                  {d.teacher.performance && (
-                    <span
-                      className={
-                        d.teacher.performance === 'tick' ? 'badge badge-ok' : 'badge badge-bad'
-                      }
-                    >
-                      {d.teacher.performance === 'tick' ? 'Tick' : 'Cross'}
-                    </span>
-                  )}
-                  {d.measured && (
-                    <span className="muted">
-                      {d.measured.correct} of {d.measured.total} correct
-                    </span>
-                  )}
-                </div>
-
-                <div className={extraction ? 'two-columns' : ''}>
-                  <div>
-                    <h4>What the teacher wrote</h4>
-                    {d.teacher.performanceNote && (
-                      <p className="step-text">
-                        <b>On the mark.</b> {d.teacher.performanceNote}
-                      </p>
-                    )}
-                    {d.teacher.strengths && (
-                      <p className="step-text">
-                        <b>Strengths.</b> {d.teacher.strengths}
-                      </p>
-                    )}
-                    {d.teacher.gaps && (
-                      <p className="step-text">
-                        <b>Gaps.</b> {d.teacher.gaps}
-                      </p>
-                    )}
-                    {d.teacher.targets && (
-                      <p className="step-text">
-                        <b>Next steps.</b> {d.teacher.targets}
-                      </p>
-                    )}
-                    {!d.teacher.strengths && !d.teacher.gaps && !d.teacher.targets && (
-                      <p className="step-text muted">Nothing written for this domain.</p>
-                    )}
-                  </div>
-                  {extraction && (
-                    <div>
-                      <h4>What the recording shows</h4>
-                      <DomainFindings evidence={d.evidence} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
 
           <div className="card card-pad summary-card">
             <div className="section-title">Overall diagnostic summary</div>
@@ -331,7 +238,20 @@ export function SessionReport() {
 
               <dt>Engagement / confidence</dt>
               <dd>
-                <b>{confidence === null ? '—' : `${confidence.toFixed(1)} of 3`}</b>
+                {/* A dash on its own left a teacher unable to tell a missing
+                    number from a broken feature. The row is measured from the
+                    "how sure are you?" the student answers beside each
+                    question, and where they were never asked it says so. */}
+                <b>
+                  {confidence.average === null
+                    ? 'Not rated'
+                    : `${confidence.average.toFixed(1)} of 3`}
+                </b>
+                <span className="said">
+                  {confidence.average === null
+                    ? 'the student was not asked how sure they felt on any question'
+                    : `across ${confidence.rated} of ${confidence.total} questions`}
+                </span>
                 {meta?.engagement && <span className="said">{meta.engagement}</span>}
               </dd>
 
@@ -396,7 +316,11 @@ export function SessionReport() {
 
           {report.misses.length > 0 && (
             <div className="card card-pad">
-              <div className="section-title">Every miss, with the evidence</div>
+              <div className="section-title">Every miss, and why</div>
+              <p className="step-text muted">
+                What the question was is on the paper; what is worth reading here is why this one
+                went wrong. The question is named by its number and its level.
+              </p>
               <div className="miss-list">
                 {report.misses.map((a) => (
                   <MissRow key={a.itemId} attempt={a} />
@@ -409,24 +333,51 @@ export function SessionReport() {
             <div className="card card-pad">
               <div className="section-title">What was said about each question</div>
               <p className="step-text muted">
-                {doc.coverage.covered} of {doc.coverage.total} questions were discussed in the
-                recording. Every finding below carries the words it came from.
+                The recording reached {doc.coverage.covered} of {doc.coverage.total} questions, and
+                there is something to show on {said.length} of them. Those are below. A finding
+                marked as coming from the end-of-lesson review was said when the teacher went back
+                over the paper by number rather than while the question was on screen.
               </p>
-              {doc.questions.map((q) => (
+              {said.map((q) => (
                 <QuestionFindings key={q.itemId} question={q} />
               ))}
+              {said.length === 0 && (
+                <p className="step-text muted">
+                  Nothing in the recording could be quoted against a particular question. Either the
+                  lesson did not go through the paper question by question, or the recording is not
+                  lined up with it — the offset control on the write-up page is where that is fixed.
+                </p>
+              )}
+              {unsaid.length > 0 && said.length > 0 && (
+                <p className="step-text muted unsaid">
+                  Nothing was said, and nothing was written, about{' '}
+                  {unsaid.map((q) => `Q${q.sequence}`).join(', ')}.
+                </p>
+              )}
             </div>
           )}
 
           <div className="card card-pad">
             <div className="section-title">Question by question</div>
+            {/* A session is normally sat at one level, and a Level column that
+                reads "medium" twenty times is a column that says nothing. Where
+                the paper was one level it is stated once, here; where the
+                session moved level mid-lesson the column comes back, because
+                then it is the interesting thing on the row. */}
+            <p className="step-text muted">
+              {oneLevel
+                ? `Every question was from the ${difficultyLabel(oneLevel).toLowerCase()} paper.`
+                : levels.length > 1
+                  ? 'The session moved level part way through, so each question carries its own.'
+                  : 'The level did not come back with these questions.'}
+            </p>
             <div className="table-wrap">
               <table className="board-table">
                 <thead>
                   <tr>
                     <th>#</th>
                     <th>Skill</th>
-                    <th>Level</th>
+                    {!oneLevel && <th>Level</th>}
                     <th>Answer</th>
                     <th>Time</th>
                     <th>Pace</th>
@@ -438,7 +389,7 @@ export function SessionReport() {
                     <tr key={a.itemId}>
                       <td>{a.sequence}</td>
                       <td>{skillLabel(a.skill) ?? sectionLabel(a.section) ?? '—'}</td>
-                      <td>{a.difficulty}</td>
+                      {!oneLevel && <td>{difficultyLabel(a.difficulty)}</td>}
                       <td>
                         {a.correct ? (
                           <span className="ans ok">
@@ -504,26 +455,47 @@ function BandCard({ title, bands }: { title: string; bands: Band[] }) {
   )
 }
 
+/**
+ * One wrong answer: which question, how hard it was, and why it went wrong.
+ *
+ * The stem used to head this and it was the least useful line on the page — the
+ * parent has the paper, the teacher was in the room, and a paragraph of
+ * question text buried the one thing neither of them already knew. What is left
+ * is what the row is for: the number, the level, the skill, what was chosen
+ * against the key, and then the two accounts of why — the teacher's diagnosis
+ * and the student's own words.
+ */
 function MissRow({ attempt: a }: { attempt: Attempt }) {
+  const why = diagnosisLabel(a.diagnosis)
+
   return (
     <div className="miss">
       <div className="miss-head">
         <span className="badge badge-neutral">Q{a.sequence}</span>
+        {a.difficulty && <span className="badge">{difficultyLabel(a.difficulty)}</span>}
         {a.skill && <span className="badge badge-sky">{skillLabel(a.skill)}</span>}
         <span className="badge badge-bad">
           {a.chose} → {a.answer}
         </span>
-        <span className="muted">{formatDuration(a.seconds)}</span>
+        <span className="muted">
+          {formatDuration(a.seconds)}
+          {a.rushed && ' · rushed'}
+          {a.laboured && ' · laboured'}
+        </span>
       </div>
-      <p className="miss-stem">{a.stem}</p>
-      {a.studentReasoning && (
-        <p className="miss-quote">
-          <span className="who">Student</span> {a.studentReasoning}
-        </p>
+      {why ? (
+        <p className="miss-why">{why}</p>
+      ) : (
+        <p className="miss-why unset">No diagnosis was recorded for this one.</p>
       )}
       {a.teacherNote && (
         <p className="miss-quote teacher">
           <span className="who">Teacher</span> {a.teacherNote}
+        </p>
+      )}
+      {a.studentReasoning && (
+        <p className="miss-quote">
+          <span className="who">Student</span> {a.studentReasoning}
         </p>
       )}
     </div>

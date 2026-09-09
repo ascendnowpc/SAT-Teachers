@@ -202,12 +202,24 @@ describe('timeManagement', () => {
 
 describe('confidenceAverage', () => {
   it('averages what the student reported', () => {
-    expect(confidenceAverage([{ student_confidence: 3 }, { student_confidence: 1 }])).toBe(2)
+    expect(confidenceAverage([{ student_confidence: 3 }, { student_confidence: 1 }])).toEqual({
+      average: 2,
+      rated: 2,
+      total: 2,
+    })
   })
   it('ignores the questions where they said nothing', () => {
-    expect(confidenceAverage([{ student_confidence: 3 }, { student_confidence: null }])).toBe(3)
+    expect(confidenceAverage([{ student_confidence: 3 }, { student_confidence: null }])).toEqual({
+      average: 3,
+      rated: 1,
+      total: 2,
+    })
   })
   it('has no average when nobody said anything', () => {
-    expect(confidenceAverage([{ student_confidence: null }])).toBeNull()
+    expect(confidenceAverage([{ student_confidence: null }])).toEqual({
+      average: null,
+      rated: 0,
+      total: 1,
+    })
   })
 })

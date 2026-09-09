@@ -15,8 +15,10 @@ the session ends
    │       four domain rows, their comments, the Fathom transcript
    │
    ├─ 2  the teacher presses Generate report, which reads the recording first
-   │       └─ the transcript is cut into one window per question — arithmetic,
-   │          from first_viewed_at plus one offset. No model is asked which
+   │       └─ the transcript is cut into a window per question — arithmetic,
+   │          from first_viewed_at plus one offset, and where the lesson was a
+   │          silent paper, a second window cut from the numbers the teacher
+   │          says out loud. No model is asked which
    │          part of the call is about which question.
    │       └─ a model reads each window and records what it shows
    │       └─ every claim without a verbatim quote is DROPPED, server-side
@@ -52,7 +54,7 @@ split:
 
 | Layer | Who | Why |
 | --- | --- | --- |
-| Which turns belong to Q7 | Deterministic, always | `first_viewed_at` + one offset already answers it. Asking a model is asking for a guess with a citation attached. |
+| Which turns belong to Q7 | Deterministic, always | `first_viewed_at` + one offset answers it, and where the paper was taken in silence the teacher's own *"the seventh"* answers the rest. Asking a model is asking for a guess with a citation attached. |
 | Numbers, accuracy, pace | Deterministic | Computed from the answer rows. |
 | Reading a window | **Model** | Where two transcripts kills a rule system and does not touch a model. |
 | Verdicts and markers | Deterministic, kept running | The floor. It works with no key, no network and no bill. |
@@ -113,7 +115,35 @@ the reach is visible rather than silent.
 In the second shape the teacher goes down the list stating verdicts aloud — *"19 is wrong … 23 yeah
 this is good 24 yeah this is wrong 25 this is incorrect"* — which is per-question teacher feedback
 of exactly the kind the report wants, sitting an hour away from when the question was on screen.
-The prompt names both shapes.
+
+Naming both shapes in the prompt was not enough, and the first real run said so: a fifteen-question
+session came back with **one** question discussed. Two things did that, and both are now fixed.
+
+- **The last question swallowed the review.** Every question's window runs to the next question's
+  start, and the last one's runs to the end of the recording — so on this shape of lesson the entire
+  twenty-minute review landed in one window. It also meant `suggestOffset` scored a free point at
+  every offset, every offset tied, the tie went to the first, and the reading came back aligned to
+  zero. The offset search now leaves the open-ended last window out of the score.
+- **The review is cut from the numbering, not the clock.** `reviewWindows` in `transcript.ts` reads
+  the numbers the teacher says out loud — *"Third one, please"*, *"12th one"*, *"18 is also right"* —
+  and gives each question a second window running from where it was named to where the next one was.
+  A question is shown both windows; anything cited from the review is marked `fromReview` and the
+  report says so on the line.
+
+The detection is arithmetic, not a model asked where question four is. What keeps it honest:
+
+| Rule | Why |
+| --- | --- |
+| The run is strictly increasing | A review walks the paper forwards; *"17, 17, 18"* is one question said twice |
+| Consecutive cues within `REVIEW_GAP_SECONDS` (300s) | *"the first session is going to be a diagnostic session"* at 4:26 and *"First one"* at 49:00 are the same word, and forty-five minutes of silence is what tells them apart |
+| The run opens on an **anchored** cue — an ordinal, `question N`, or `12th` | A bare `18` can extend a review but never start one, so a phone number in the greeting cannot |
+| At least `MIN_REVIEW_CUES` (3) | Two numbers in a row is a coincidence; eight is a teacher going down a list |
+| Numbers the session has no question for are dropped | A 27-question paper against a 15-question session names numbers that are not this session's |
+| `minutes`, `seconds`, `sites`, a decimal, a clock time — not a question | *"Let's start 21 minutes"*, *"by 2.10"*, *"35 sites"* |
+
+Two questions named in one turn — *"Third one, please. Third is correct. Fourth one."* — share that
+turn, because Fathom gives it one timestamp and that is the truth about the recording. Every claim
+still has to quote the part it rests on.
 
 ### 4. The most quotable thing in the hour is the last thing said
 
@@ -146,8 +176,9 @@ The model can be wrong. Everything that would make that dangerous is checked in
 | A domain is one of the four on the form | `unknown-item` |
 | The claim says something | `empty-text` |
 
-A claim that fails is **dropped, not repaired**. `at`, `fromMargin` and `relabelled` are recomputed
-from the line the quote was found in, so a model that reports them wrongly cannot make the report
+A claim that fails is **dropped, not repaired**. `at`, `fromMargin`, `fromReview` and `relabelled`
+are recomputed from the line the quote was found in, so a model that reports them wrongly cannot
+make the report
 wrong. Drops are stored and the drop rate is shown to the teacher: a rising one is a broken prompt,
 and there is nowhere else it would be visible.
 

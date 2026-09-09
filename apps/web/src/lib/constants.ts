@@ -22,6 +22,19 @@ export function levelLabel(level: SessionLevel): string {
   return DIFFICULTIES.find((d) => d.value === level)?.label ?? level
 }
 
+/**
+ * A question's level, for a report, where it may be missing.
+ *
+ * The report used to default a missing difficulty to 'medium', which put a
+ * level on the page that nobody had set and made a question whose row failed to
+ * load indistinguishable from a medium one. A level that is not known is shown
+ * as not known.
+ */
+export function difficultyLabel(difficulty: string | null): string {
+  if (!difficulty) return '—'
+  return DIFFICULTIES.find((d) => d.value === difficulty)?.label ?? difficulty
+}
+
 /** The level above this one, or null at the top. */
 export function nextLevel(level: SessionLevel): SessionLevel | null {
   return LEVELS[LEVELS.indexOf(level) + 1] ?? null

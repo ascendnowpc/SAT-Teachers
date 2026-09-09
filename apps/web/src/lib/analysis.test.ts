@@ -144,6 +144,32 @@ describe('suggestOffset', () => {
     expect(offset).toBeGreaterThan(0)
     expect(offset).toBeLessThanOrEqual(T.duration)
   })
+
+  /**
+   * The last question's window runs to the end of the recording, so before the
+   * score was capped that question counted as covered whatever the offset was.
+   * On a lesson where the questions were minutes apart and the recording ran an
+   * hour, that free point was the only thing separating the offsets — every one
+   * of them scored 1, the tie went to the first, and the reading came back
+   * aligned to zero. Which is what a report showing one question of fifteen
+   * discussed was actually telling us.
+   */
+  it('does not let the tail of the call carry the last question', () => {
+    const long = parseTranscript(
+      `@0:30 - Malya Rastogi\nRight, let me get the module up.\n` +
+        `@5:00 - Sara Rohit\nOkay, I'm ready to start.\n` +
+        `@55:00 - Sara Rohit\nI think it's D, because the passage is about the claim.`,
+    )
+    const items = [
+      { id: 'a', startedAt: '2026-08-07T10:00:00Z' },
+      { id: 'b', startedAt: '2026-08-07T10:00:30Z' },
+    ]
+    const at = (offset: number) => windowsFor(items, long.duration, offset)
+    // 5:00 is where the student first speaks, and the earliest offset whose
+    // first window reaches it is 4:45 — a real turn inside the first question
+    // rather than the hour that follows the last one.
+    expect(suggestOffset(long, at, ['a', 'b'], ROLES)).toBe(285)
+  })
 })
 
 describe('analyseSession', () => {

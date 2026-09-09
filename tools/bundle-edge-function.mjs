@@ -11,7 +11,7 @@
  *
  *   node tools/bundle-edge-function.mjs [outdir]
  *
- * Writes index.ts plus its four dependencies side by side, with the entrypoint's
+ * Writes index.ts plus its dependencies side by side, with the entrypoint's
  * `../../../apps/web/src/lib/x.ts` rewritten to `./x.ts`. The library files
  * already import each other as `./x.ts`, so they are copied unchanged.
  *
@@ -26,7 +26,13 @@ const FUNCTION = join(ROOT, 'supabase/functions/extract_session_context/index.ts
 const LIB = join(ROOT, 'apps/web/src/lib')
 
 /** Everything the entrypoint pulls in, and everything those pull in. */
-const DEPENDENCIES = ['extraction.ts', 'extractionPrompt.ts', 'gemini.ts', 'transcript.ts']
+const DEPENDENCIES = [
+  'asked.ts',
+  'extraction.ts',
+  'extractionPrompt.ts',
+  'gemini.ts',
+  'transcript.ts',
+]
 
 const out = resolve(process.argv[2] ?? join(ROOT, 'dist/edge/extract_session_context'))
 mkdirSync(out, { recursive: true })

@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { crypto as stdCrypto } from 'jsr:@std/crypto@1/crypto'
 import { encodeHex } from 'jsr:@std/encoding@1/hex'
 
+import { askNumbers } from '../../../apps/web/src/lib/asked.ts'
 import {
   questionWindows,
   validateExtraction,
@@ -10,7 +11,7 @@ import {
 } from '../../../apps/web/src/lib/extraction.ts'
 import { EXTRACTION_SCHEMA, buildPrompt, SYSTEM_PROMPT } from '../../../apps/web/src/lib/extractionPrompt.ts'
 import { readerFrom, type Reader } from '../../../apps/web/src/lib/gemini.ts'
-import { parseTranscript, windowsFor } from '../../../apps/web/src/lib/transcript.ts'
+import { parseTranscript, reviewWindows, windowsFor } from '../../../apps/web/src/lib/transcript.ts'
 
 /**
  * Reading a session's recording, server-side.
@@ -161,14 +162,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ------------------------------------------------------------ the windows --
   // Alignment is arithmetic and stays arithmetic. The model is never asked
   // which part of the call is about which question; it is handed the answer.
-  const answered = (items.data ?? []).filter(
-    (i) => i.status === 'answered' || i.status === 'revealed',
-  )
-  if (answered.length === 0) return json({ error: 'no answered questions in this session' }, 400)
+  // The report's own numbering, not asked_no. They are not the same once a
+  // question has been set aside — the report prints Q4 for the item asked_no
+  // calls 5 — and telling the model "question 5 on the paper" about the
+  // question the report heads Q4 files every quote it finds under the wrong
+  // question.
+  const numbers = askNumbers(items.data ?? [])
 
-  const ordered = answered
-    .map((i) => ({ ...i, sequence: i.asked_no ?? i.sequence_no }))
+  const ordered = (items.data ?? [])
+    .filter((i) => i.status === 'answered' || i.status === 'revealed')
+    .map((i) => ({ ...i, sequence: numbers.get(i.id) ?? 0 }))
+    .filter((i) => i.sequence > 0)
     .sort((a, b) => a.sequence - b.sequence)
+
+  if (ordered.length === 0) return json({ error: 'no answered questions in this session' }, 400)
 
   const aligned = windowsFor(
     ordered.map((i) => ({ id: i.id, startedAt: i.first_viewed_at })),
@@ -176,8 +183,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     offset,
   )
 
+  // Where the lesson went back over the paper by number. On a lesson worked
+  // question by question there is no such pass and this is empty; on one where
+  // the paper was taken in silence it is the only place anything was said about
+  // any question, and without it the whole review lands on whichever question
+  // happened to be last.
+  const reviewed = reviewWindows(transcript, numbers.size)
+
   const windows = questionWindows(
     ordered.map((i) => ({ itemId: i.id, sequence: i.sequence, window: aligned.get(i.id) ?? null })),
+    reviewed,
   )
   if (windows.length === 0) {
     return json({ error: 'no question has a timestamp to align against' }, 400)

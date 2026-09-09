@@ -718,7 +718,10 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .miss { border-left: 2px solid var(--border-strong); padding-left: 14px; }
 .miss-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 7px; }
 .miss-head .muted { color: var(--muted); font-size: 12.5px; }
-.miss-stem { font-size: 14px; font-weight: 500; margin-bottom: 7px; }
+/* Why it went wrong is the line the row exists for, so it is the one set in
+   the body colour; the two accounts under it are quotes and read as quotes. */
+.miss-why { font-size: 14px; font-weight: 500; margin-bottom: 7px; }
+.miss-why.unset { font-weight: 400; color: var(--faint); }
 .miss-quote { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 4px; }
 .miss-quote .who {
   display: inline-block; min-width: 58px; font-size: 11.5px; font-weight: 600;
@@ -811,6 +814,21 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .skill-detail { list-style: none; margin: 7px 0 0; padding: 0; font-size: 11.5px; color: var(--muted); }
 .skill-detail li.ok { color: var(--easy-fg); }
 .skill-detail li.bad { color: var(--danger); }
+
+/* The recording's column. Seven columns need more room than six, and the
+   quotes inside it are already a paragraph each, so the whole table is given
+   the width rather than the last cell being squeezed into it. */
+.grid-table.with-recording { min-width: 1240px; }
+.grid-table td.said { width: 26%; }
+.grid-table td.said .claim { margin: 0 0 12px; }
+.grid-table td.said .claim:last-child { margin-bottom: 0; }
+.grid-table td.said .claim-text { font-size: 12.5px; }
+.grid-table td.said .claim-quote { font-size: 12px; padding: 7px 10px; }
+.grid-table td.said .claim-quote cite { font-size: 11px; }
+
+/* The questions the recording had nothing to say about, named once at the end
+   rather than given a heading and an apology each. */
+.unsaid { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 
 /* ------------------------------------------------ the grid, as a form ----- */
 /* The same six columns the report prints, with the three the teacher owns
@@ -1105,6 +1123,18 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   .report .grid-table thead th:nth-child(6) { width: 16% }
   .report .grid-table .dom { width: auto; font-size: 10px; }
   .report .grid-table ul.tight { padding-left: 12px; }
+
+  /* Seven columns on A4. The recording's column carries quotes and needs the
+     most room of the three prose ones, so the teacher's two give some back
+     rather than the quotes being shaved to nothing. */
+  .report .grid-table.with-recording thead th:nth-child(1) { width: 10% }
+  .report .grid-table.with-recording thead th:nth-child(2) { width: 12% }
+  .report .grid-table.with-recording thead th:nth-child(3) { width: 11% }
+  .report .grid-table.with-recording thead th:nth-child(4) { width: 17% }
+  .report .grid-table.with-recording thead th:nth-child(5) { width: 17% }
+  .report .grid-table.with-recording thead th:nth-child(6) { width: 13% }
+  .report .grid-table.with-recording thead th:nth-child(7) { width: 20% }
+  .report .grid-table td.said { width: auto; }
 
   /* A row is kept whole; a card is not. The grid alone is taller than a sheet,
      and refusing to break it pushed the whole thing to page two and left page

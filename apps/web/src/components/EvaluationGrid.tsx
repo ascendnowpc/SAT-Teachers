@@ -1,7 +1,16 @@
+import type { DomainEvidence } from '../lib/extraction'
 import type { GridRow, Performance } from '../lib/grid'
+import { ClaimLine } from './RecordingFindings'
 
 /**
- * The teacher evaluation grid, in the six columns the paper form uses.
+ * The teacher evaluation grid — the whole per-domain report, in one table.
+ *
+ * The paper form has six columns and the report used to print them twice: once
+ * as this grid and again, underneath, as four prose blocks headed "what the
+ * teacher wrote". Same words, same order, two places — which reads to a parent
+ * as two people agreeing rather than one person writing once. So there is one
+ * table now, and the recording gets the seventh column rather than a section of
+ * its own.
  *
  * Student Performance is counted from the answers and marked by the teacher,
  * and both are shown: the count is what happened and the mark is what they made
@@ -9,11 +18,23 @@ import type { GridRow, Performance } from '../lib/grid'
  * teacher's own — reproduced as they typed them, never replaced by the form's
  * printed wording. A blank written column is left blank rather than filled with
  * a hedge: an empty cell says "not observed", which is a real thing to say.
+ *
+ * The last column is the one thing on the page the teacher did not write, and
+ * it is kept apart from theirs for exactly that reason: every line in it
+ * carries the words it came from, and a reader can always tell which of the two
+ * they are reading.
  */
-export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
+export function EvaluationGrid({
+  rows,
+  evidence,
+}: {
+  rows: GridRow[]
+  /** What the recording shows per domain. Omitted when it has not been read. */
+  evidence?: Map<string, DomainEvidence[]>
+}) {
   return (
     <div className="table-wrap">
-      <table className="grid-table">
+      <table className={evidence ? 'grid-table with-recording' : 'grid-table'}>
         <thead>
           <tr>
             <th>Domain</th>
@@ -22,6 +43,7 @@ export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
             <th>Strengths observed</th>
             <th>Gaps observed</th>
             <th>Next steps / Targets</th>
+            {evidence && <th>What the recording shows</th>}
           </tr>
         </thead>
         <tbody>
@@ -67,6 +89,17 @@ export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
                   <span className="unobserved">the form’s own wording — not edited</span>
                 )}
               </td>
+              {evidence && (
+                <td className="said">
+                  {(evidence.get(r.domain) ?? []).length === 0 ? (
+                    <span className="unobserved">Nothing in the recording speaks to this domain.</span>
+                  ) : (
+                    (evidence.get(r.domain) ?? []).map((e, k) => (
+                      <ClaimLine key={k} claim={e} label={RELATION[e.relation]} />
+                    ))
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -74,6 +107,19 @@ export function EvaluationGrid({ rows }: { rows: GridRow[] }) {
     </div>
   )
 }
+
+/**
+ * The relation labels, shortened for a cell.
+ *
+ * The long forms in extraction.ts are written for a paragraph; in a column this
+ * narrow they wrap to three lines and push the quote off the page. The meaning
+ * is the same one and the badge is next to the quote either way.
+ */
+const RELATION = {
+  supports: 'Backs the form',
+  complicates: 'Sits awkwardly',
+  adds: 'Not on the form',
+} as const
 
 function PerformanceMark({
   performance,

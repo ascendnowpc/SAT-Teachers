@@ -53,6 +53,16 @@ export interface QuestionWindow {
   own: AlignWindow
   /** `own`, widened by {@link MARGIN_SECONDS} either side. */
   shown: AlignWindow
+  /**
+   * Where the lesson went back over this question by name, if it did.
+   *
+   * Null on a lesson worked question by question. On the other shape — the
+   * paper taken in silence and walked at the end — this is the only place the
+   * discussion of a question exists, because its own window covers the silence.
+   * Cut from the numbering the teacher says out loud, by `reviewWindows` in
+   * ./transcript.ts.
+   */
+  review: AlignWindow | null
 }
 
 export function widen(window: AlignWindow, margin = MARGIN_SECONDS): AlignWindow {
@@ -61,10 +71,35 @@ export function widen(window: AlignWindow, margin = MARGIN_SECONDS): AlignWindow
 
 export function questionWindows(
   items: { itemId: string; sequence: number; window: AlignWindow | null }[],
+  /** Review windows by question number, from {@link reviewWindows}. */
+  review?: Map<number, AlignWindow>,
 ): QuestionWindow[] {
   return items
     .filter((i): i is { itemId: string; sequence: number; window: AlignWindow } => i.window !== null)
-    .map((i) => ({ itemId: i.itemId, sequence: i.sequence, own: i.window, shown: widen(i.window) }))
+    .map((i) => ({
+      itemId: i.itemId,
+      sequence: i.sequence,
+      own: i.window,
+      shown: widen(i.window),
+      review: review?.get(i.sequence) ?? null,
+    }))
+}
+
+/**
+ * Every line a question's claims may be drawn from: its own window, the margin
+ * either side, and the stretch of the review that named it.
+ *
+ * Deduplicated and in the order they were said, because the two can overlap on
+ * a lesson that discusses a question twice, and a quote that appeared under one
+ * question and again under the same one is not two findings.
+ */
+export function linesFor(transcript: Transcript, window: QuestionWindow): TranscriptLine[] {
+  const shown = linesIn(transcript, window.shown)
+  if (!window.review) return shown
+  const seen = new Set(shown)
+  return [...shown, ...linesIn(transcript, window.review).filter((l) => !seen.has(l))].sort(
+    (a, b) => a.at - b.at,
+  )
 }
 
 // -------------------------------------------------------------- evidence --
@@ -98,6 +133,15 @@ export interface Evidence {
   relabelled: boolean
   /** True when the quote came from the margin rather than the question's own window. */
   fromMargin: boolean
+  /**
+   * True when the quote came from the end-of-lesson review rather than from the
+   * question's own place in the recording.
+   *
+   * Said out loud for the same reason `fromMargin` is: it is a documented reach
+   * rather than a hidden one. On a lesson where the paper was taken in silence
+   * this is where every finding comes from, and the report says so.
+   */
+  fromReview: boolean
 }
 
 /** A single thing the model claims about the recording, with its evidence. */
@@ -394,6 +438,7 @@ function checkClaim<R extends RawClaim, T extends Claim>(
   claim: R,
   lines: TranscriptLine[],
   own: AlignWindow,
+  review: AlignWindow | null,
   fathomRole: (speaker: string) => Evidence['speaker'],
   where: string,
   drops: Drop[],
@@ -425,6 +470,10 @@ function checkClaim<R extends RawClaim, T extends Claim>(
   // Everything the model said about the claim is kept except the three fields
   // it is not the authority on; those are replaced by what the transcript says.
   const { quote, speaker: _s, text: _t, ...rest } = claim
+  // A line can sit in both the review and the margin of the question's own
+  // window. The review is the more specific of the two and the one a reader
+  // needs told, so it wins rather than both being flagged.
+  const fromReview = review !== null && line.at >= review.from && line.at < review.to
   return {
     ...rest,
     text,
@@ -433,7 +482,8 @@ function checkClaim<R extends RawClaim, T extends Claim>(
       at: line.at,
       speaker,
       relabelled: speaker !== labelled,
-      fromMargin: line.at < own.from || line.at >= own.to,
+      fromMargin: !fromReview && (line.at < own.from || line.at >= own.to),
+      fromReview,
     },
   } as unknown as T
 }
@@ -483,10 +533,18 @@ export function validateExtraction(
     }
     seen.add(q.itemId)
 
-    const lines = linesIn(input.transcript, window.shown)
+    const lines = linesFor(input.transcript, window)
     const at = (c: RawClaim | null, field: string) =>
       c
-        ? checkClaim<RawClaim, Claim>(c, lines, window.own, role, `Q${window.sequence}.${field}`, drops)
+        ? checkClaim<RawClaim, Claim>(
+            c,
+            lines,
+            window.own,
+            window.review,
+            role,
+            `Q${window.sequence}.${field}`,
+            drops,
+          )
         : null
 
     const feedback = (q.teacherFeedback ?? [])
@@ -495,6 +553,7 @@ export function validateExtraction(
           f,
           lines,
           window.own,
+          window.review,
           role,
           `Q${window.sequence}.teacherFeedback`,
           drops,
@@ -516,7 +575,9 @@ export function validateExtraction(
 
   const s = raw.session ?? ({} as RawExtraction['session'])
   const sessionClaim = (c: RawClaim | null | undefined, field: string) =>
-    c ? checkClaim<RawClaim, Claim>(c, all, sessionWindow, role, `session.${field}`, drops) : null
+    c
+      ? checkClaim<RawClaim, Claim>(c, all, sessionWindow, null, role, `session.${field}`, drops)
+      : null
 
   const domainEvidence = (s.domainEvidence ?? [])
     .filter((d) => {
@@ -529,6 +590,7 @@ export function validateExtraction(
         d,
         all,
         sessionWindow,
+        null,
         role,
         `session.${d.domain}`,
         drops,

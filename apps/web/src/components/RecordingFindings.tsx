@@ -1,5 +1,5 @@
 import { FEEDBACK_LABELS, RELATION_LABELS, type Claim, type DomainEvidence } from '../lib/extraction'
-import type { QuestionSection, ReportDoc } from '../lib/reportDoc'
+import type { QuestionSection } from '../lib/reportDoc'
 
 /**
  * What the recording says, on the report.
@@ -43,6 +43,7 @@ export function ClaimLine({ claim, label }: { claim: Claim; label?: string }) {
           {' '}
           — {claim.evidence.speaker} at {clock(claim.evidence.at)}
           {claim.evidence.fromMargin && ' · said either side of this question'}
+          {claim.evidence.fromReview && ' · from the end-of-lesson review'}
           {claim.evidence.relabelled && ' · attributed by what was said, not by the transcript label'}
         </cite>
       </blockquote>
@@ -50,7 +51,33 @@ export function ClaimLine({ claim, label }: { claim: Claim; label?: string }) {
   )
 }
 
-/** One question: the answer row, then what was said about it. */
+/**
+ * Whether there is anything to show for this question.
+ *
+ * The recording's findings, and also the note the teacher typed against the
+ * question during the lesson — that is something said about it too, and
+ * filtering on the recording alone dropped it off the page entirely on a
+ * question the recording happened to miss.
+ */
+export function hasFindings(question: QuestionSection): boolean {
+  const r = question.reading
+  return Boolean(
+    question.teacherNote ||
+      r?.studentReasoning ||
+      r?.misunderstanding ||
+      r?.vocabularyGap ||
+      (r?.teacherFeedback.length ?? 0) > 0,
+  )
+}
+
+/**
+ * One question: the answer row, then what was said about it.
+ *
+ * A question with nothing quotable behind it is not printed as a heading and an
+ * apology. The section says how many questions the recording reached and lists
+ * those; the rest are named in one line at the end, which is the same
+ * information in a form a parent can read.
+ */
 export function QuestionFindings({ question }: { question: QuestionSection }) {
   const r = question.reading
 
@@ -77,28 +104,13 @@ export function QuestionFindings({ question }: { question: QuestionSection }) {
         </p>
       )}
 
-      {!r?.covered ? (
-        <p className="muted step-text">Not discussed in the recording.</p>
-      ) : (
-        <>
-          {r.studentReasoning && <ClaimLine claim={r.studentReasoning} label="How they got there" />}
-          {r.misunderstanding && <ClaimLine claim={r.misunderstanding} label="What went wrong" />}
-          {r.vocabularyGap && <ClaimLine claim={r.vocabularyGap} label="Word they did not know" />}
+      {r?.studentReasoning && <ClaimLine claim={r.studentReasoning} label="How they got there" />}
+      {r?.misunderstanding && <ClaimLine claim={r.misunderstanding} label="What went wrong" />}
+      {r?.vocabularyGap && <ClaimLine claim={r.vocabularyGap} label="Word they did not know" />}
 
-          {r.teacherFeedback.map((f, k) => (
-            <ClaimLine key={k} claim={f} label={FEEDBACK_LABELS[f.kind]} />
-          ))}
-
-          {r.teacherFeedback.length === 0 &&
-            !r.studentReasoning &&
-            !r.misunderstanding &&
-            !r.vocabularyGap && (
-              <p className="muted step-text">
-                Talked about, but nothing in it could be quoted as a finding.
-              </p>
-            )}
-        </>
-      )}
+      {(r?.teacherFeedback ?? []).map((f, k) => (
+        <ClaimLine key={k} claim={f} label={FEEDBACK_LABELS[f.kind]} />
+      ))}
     </div>
   )
 }
@@ -122,29 +134,5 @@ export function DomainFindings({ evidence }: { evidence: DomainEvidence[] }) {
         <ClaimLine key={k} claim={e} label={RELATION_LABELS[e.relation]} />
       ))}
     </>
-  )
-}
-
-/** The teacher's own closing words in the lesson, quoted. */
-export function SessionFindings({ doc }: { doc: ReportDoc }) {
-  const { closingVerdict, teacherStatedScore, studentSelfReport } = doc
-
-  if (!closingVerdict && !teacherStatedScore && !studentSelfReport) return null
-
-  return (
-    <div className="card card-pad">
-      <div className="section-title">What was said at the end of the lesson</div>
-      {closingVerdict && <ClaimLine claim={closingVerdict} label="Your summing-up" />}
-      {studentSelfReport && <ClaimLine claim={studentSelfReport} label="What the student said" />}
-      {teacherStatedScore && (
-        <>
-          <ClaimLine claim={teacherStatedScore} label="Score said out loud" />
-          <p className="muted step-text">
-            Recorded because the student heard it. The report’s own figures are counted from the
-            answer rows above, not from this.
-          </p>
-        </>
-      )}
-    </div>
   )
 }

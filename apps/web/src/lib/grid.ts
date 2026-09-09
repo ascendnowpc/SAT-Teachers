@@ -201,11 +201,25 @@ export function timeManagement(report: Report): {
   return { verdict: delta < 0 ? 'fast' : 'slow', deltaSeconds: delta }
 }
 
-/** Engagement, in the one number the session actually measures. */
-export function confidenceAverage(
-  items: { student_confidence: number | null }[],
-): number | null {
+/**
+ * Engagement, in the one number the session actually measures.
+ *
+ * `rated` is what the average was taken over, and it is returned rather than
+ * thrown away because a blank engagement row is otherwise unreadable. A student
+ * who was never asked how sure they felt and a student whose answers averaged
+ * nothing are different facts, and the report printed a dash for both — leaving
+ * a teacher to wonder whether the number was missing or the feature was broken.
+ * Nothing here can invent the rating; it can say it was not asked for.
+ */
+export function confidenceAverage(items: { student_confidence: number | null }[]): {
+  average: number | null
+  rated: number
+  total: number
+} {
   const given = items.map((i) => i.student_confidence).filter((c): c is number => c !== null)
-  if (given.length === 0) return null
-  return given.reduce((a, b) => a + b, 0) / given.length
+  return {
+    average: given.length === 0 ? null : given.reduce((a, b) => a + b, 0) / given.length,
+    rated: given.length,
+    total: items.length,
+  }
 }

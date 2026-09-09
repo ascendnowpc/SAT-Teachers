@@ -31,6 +31,7 @@ function claim(text: string, over: Partial<Claim['evidence']> = {}): Claim {
       speaker: 'student',
       relabelled: false,
       fromMargin: false,
+      fromReview: false,
       ...over,
     },
   }
@@ -44,7 +45,14 @@ function feedback(
   return {
     kind,
     text,
-    evidence: { quote, at: 300, speaker: 'teacher', relabelled: false, fromMargin: false },
+    evidence: {
+      quote,
+      at: 300,
+      speaker: 'teacher',
+      relabelled: false,
+      fromMargin: false,
+      fromReview: false,
+    },
   }
 }
 
@@ -262,6 +270,7 @@ describe('relabelledClaims', () => {
                   // student's name. It is the teacher's.
                   relabelled: true,
                   fromMargin: false,
+                  fromReview: false,
                 },
               },
             ],
