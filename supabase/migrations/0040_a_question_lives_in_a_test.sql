@@ -113,15 +113,26 @@ comment on function public.create_question_in_set(
 --      sorted the bank into three levels. 0029 left them in place on the
 --      reasoning that a session which had already sat on one must still
 --      render. That reasoning is kept here and is the one exception to this
---      whole block: ANYTHING A SESSION EVER ASKED IS NOT DELETED.
+--      whole block: ANYTHING A STUDENT WAS ACTUALLY ASKED IS NOT DELETED.
 --      session_items points at questions without a cascade (0005) and a
 --      student's report is built out of those rows, so deleting one would not
 --      tidy a report, it would tear a question out of it.
 --
---      On any database carrying the 7 August recording (0012) that keeps
---      exactly one of the twenty-six: Q01 is the first question of that
---      session. It stays, and it stays retired — no session can draw it, and
---      nothing counts it as stock — and the twenty-five go.
+--      Asked is not the same as loaded, and the difference is most of them.
+--      Since 0027 a session loads a whole test at a time, so a lesson that ran
+--      six questions carries every other question of that test as a 'staged'
+--      row: never published, invisible to the student under the RLS from 0005,
+--      counted by neither the report nor the sessions list (0039). 0027 itself
+--      deletes staged leftovers on every level switch, on exactly this
+--      reasoning — "they were never in front of the student, they carry
+--      nothing". So a staged row is not history and does not preserve
+--      anything: it is deleted with the question it points at.
+--
+--      What survives is what a student answered. On the live bank that is
+--      three of the twenty-six — ENG-DIAG-T4-M2-Q01, which opens the 7 August
+--      recording (0012) and three sessions since, and two in-class items a
+--      student worked on 1 September. They stay, and they stay retired: no
+--      session can draw them and nothing counts them as stock.
 --
 --    * the question this migration is named after, and anything else saved
 --      before create_question_in_set existed and never filed.
@@ -135,6 +146,7 @@ do $$
 declare
   v_gone int;
   v_kept int;
+  v_staged int;
   v_sets text;
 begin
   -- What the cascade is about to take out of each set, while it is still there
@@ -151,9 +163,22 @@ begin
                 where qi2.question_id = qi.question_id
                   and qs2.level is not null and qs2.is_active)
          and not exists (
-               select 1 from session_items si where si.question_id = qi.question_id)
+               select 1 from session_items si
+                where si.question_id = qi.question_id and si.status <> 'staged')
        group by qs.title
     ) losing;
+
+  -- The staged rows first, so the questions under them become deletable. A
+  -- staged item was loaded and never published; deleting it changes nothing
+  -- the student saw, nothing the report reads, and nothing the sessions list
+  -- shows — answered_count (0039) has never counted them.
+  delete from session_items si
+   where si.status = 'staged'
+     and not exists (
+           select 1 from question_set_items qi
+             join question_sets qs on qs.id = qi.set_id
+            where qi.question_id = si.question_id and qs.level is not null and qs.is_active);
+  get diagnostics v_staged = row_count;
 
   delete from questions q
    where not exists (
@@ -164,8 +189,8 @@ begin
            select 1 from session_items si where si.question_id = q.id);
   get diagnostics v_gone = row_count;
 
-  -- What is left over was asked in a real session. It stays readable, and it
-  -- is marked for what it is so nothing counts it as stock.
+  -- What is left over is a question a student actually answered. It stays
+  -- readable, and it is marked for what it is so nothing counts it as stock.
   update questions q
      set status = 'retired'
    where q.status <> 'retired'
@@ -175,7 +200,7 @@ begin
             where qi.question_id = q.id and qs.level is not null and qs.is_active);
   get diagnostics v_kept = row_count;
 
-  raise notice 'deleted % question(s) that no test held; retired % that a session had already asked', v_gone, v_kept;
+  raise notice 'released % staged row(s) that were never published; deleted % question(s) that no test held; retired % that a student had answered', v_staged, v_gone, v_kept;
   if v_sets is not null then
     raise notice 'sets that shrank: %', v_sets;
   end if;
