@@ -2,8 +2,17 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select, Textarea } from '../components/ui'
-import { DIFFICULTIES, OPTION_LABELS, SECTIONS, SUBJECTS, skillsFor } from '../lib/constants'
-import { row, supabase } from '../lib/supabase'
+import {
+  DIFFICULTIES,
+  LEVELS,
+  OPTION_LABELS,
+  SECTIONS,
+  SUBJECTS,
+  levelLabel,
+  skillsFor,
+  subjectLabel,
+} from '../lib/constants'
+import { row, rows, supabase } from '../lib/supabase'
 import type { Difficulty, OptionLabel, Question, QuestionSet, Subject } from '../lib/types'
 
 /**
@@ -14,9 +23,18 @@ import type { Difficulty, OptionLabel, Question, QuestionSet, Subject } from '..
  * — one call, one transaction, so an item never ends up with options that no
  * longer match its key.
  *
- * A new question can be filed into a test on the way past, including a test
- * that does not exist yet, because "write a question" and "put it somewhere"
- * are one thought and making them two screens loses the second half.
+ * A NEW QUESTION IS ALWAYS WRITTEN INTO A TEST. The bank page used to carry an
+ * Add question button of its own, which opened this form with nothing to file
+ * the result into: the question was created, counted in the headline, and
+ * shown on no screen in the product, because every screen that shows a
+ * question shows it inside the test that holds it. Reaching this form without
+ * a test is now the one thing it will not do — it offers the tests instead.
+ *
+ * Which test it is decides the subject and the level, so neither is asked for.
+ * That is 0026's rule (an item in the easy test is easy), and it is what stops
+ * the bank's counts and the tests from ever disagreeing again.
+ * `create_question_in_set` writes the question and files it in one
+ * transaction, so a failure on the way leaves nothing behind.
  */
 export function QuestionNew() {
   const { id } = useParams<{ id: string }>()
@@ -38,18 +56,38 @@ export function QuestionNew() {
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
 
-  // Writing into a paper: /questions/new?paper=<id> comes from that paper's
-  // own Add question button, and the question is filed there on save.
+  // The test this question lives in. On the way in it is /questions/new?paper=
+  // <id>, from that test's own Add question button; on an edit it is looked up
+  // from the question. Either way it is where the subject and the level come
+  // from, and without one there is nothing to write into.
   const [params] = useSearchParams()
   const paperId = params.get('paper')
-  const [paper, setPaper] = useState<QuestionSet | null>(null)
+  const [home, setHome] = useState<QuestionSet | null>(null)
+  const [homeLoading, setHomeLoading] = useState(true)
+
+  // Only for the screen shown when this form is reached with no test: the
+  // tests themselves, so the answer to "where does it go" is one click.
+  const [tests, setTests] = useState<QuestionSet[]>([])
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(editing)
 
+  // A test is one of the live level tests or it is not a test: filing into a
+  // deactivated paper puts a question somewhere no session reads from, which
+  // is the same dead end by a longer road.
+  const runnable = useCallback(
+    (s: QuestionSet | null): s is QuestionSet => Boolean(s && s.level && s.is_active),
+    [],
+  )
+
   useEffect(() => {
-    if (!paperId) return
+    // Editing reads the test off the question; the effect below does that.
+    if (editing) return
+    if (!paperId) {
+      setHomeLoading(false)
+      return
+    }
     void supabase
       .from('question_sets')
       .select('*')
@@ -57,10 +95,52 @@ export function QuestionNew() {
       .maybeSingle()
       .then(({ data }) => {
         const found = row<QuestionSet>(data)
-        setPaper(found)
-        if (found) setSubject(found.subject)
+        if (runnable(found)) {
+          setHome(found)
+          setSubject(found.subject)
+          if (found.level) setDifficulty(found.level)
+        }
+        setHomeLoading(false)
       })
-  }, [paperId])
+  }, [editing, paperId, runnable])
+
+  // Which test holds the question being edited. The level is its test's, here
+  // too — an item in the easy test is easy — so an edit cannot move a question
+  // out of step with the test it is printed in.
+  useEffect(() => {
+    if (!editing || !id) return
+    void supabase
+      .from('question_set_items')
+      .select('question_sets(*)')
+      .eq('question_id', id)
+      .then(({ data }) => {
+        const held = rows<{ question_sets: QuestionSet | null }>(data)
+          .map((r) => r.question_sets)
+          .find(runnable)
+        if (held) setHome(held)
+        setHomeLoading(false)
+      })
+  }, [editing, id, runnable])
+
+  // The chooser's list, loaded only when there is a choice to offer.
+  useEffect(() => {
+    if (editing || paperId) return
+    void supabase
+      .from('question_sets')
+      .select('*')
+      .not('level', 'is', null)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        setTests(
+          [...rows<QuestionSet>(data)].sort(
+            (a, b) =>
+              SUBJECTS.findIndex((x) => x.value === a.subject) -
+                SUBJECTS.findIndex((x) => x.value === b.subject) ||
+              LEVELS.indexOf(a.level ?? 'easy') - LEVELS.indexOf(b.level ?? 'easy'),
+          ),
+        )
+      })
+  }, [editing, paperId])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -112,7 +192,14 @@ export function QuestionNew() {
     setUploading(false)
   }
 
-  const sectionChoices = useMemo(() => SECTIONS[subject], [subject])
+  // The test decides both, wherever there is one, and the form shows them
+  // rather than asking: reading them off `home` at the point of use means a
+  // slow load of the question and a slow load of its test cannot race to
+  // decide what gets saved.
+  const effectiveSubject: Subject = home ? home.subject : subject
+  const effectiveDifficulty: Difficulty = home?.level ?? difficulty
+
+  const sectionChoices = useMemo(() => SECTIONS[effectiveSubject], [effectiveSubject])
   const skillChoices = useMemo(() => skillsFor(section || null), [section])
 
   function setOption(label: OptionLabel, value: string) {
@@ -139,14 +226,17 @@ export function QuestionNew() {
       return
     }
 
+    if (!editing && !home) {
+      setError('Open the test this question belongs to and add it there.')
+      return
+    }
+
     setBusy(true)
     try {
-      const args = {
-        p_subject: subject,
+      const shared = {
         p_section: section,
         p_passage: passage,
         p_stem: stem.trim(),
-        p_difficulty: difficulty,
         p_difficulty_rationale: rationale,
         p_options: filled.map((l) => ({ label: l, body: options[l].trim() })),
         p_correct: correct,
@@ -156,30 +246,20 @@ export function QuestionNew() {
         p_image_url: imageUrl,
       }
 
-      const { data, error: rpcError } = editing
-        ? await supabase.rpc('update_question', { p_question: id, ...args })
-        : await supabase.rpc('create_question', args)
+      // Writing and filing are one call (0040), so a question cannot be
+      // created and then fail to land in the test — which is how the bank
+      // came to count a question no screen could show.
+      const { error: rpcError } = editing
+        ? await supabase.rpc('update_question', {
+            p_question: id,
+            p_subject: effectiveSubject,
+            p_difficulty: effectiveDifficulty,
+            ...shared,
+          })
+        : await supabase.rpc('create_question_in_set', { p_set: home!.id, ...shared })
       if (rpcError) throw new Error(rpcError.message)
 
-      const questionId = data as string
-
-      if (!editing && paperId) {
-        // Onto the end of the paper, wherever its numbering has got to.
-        const last = await supabase
-          .from('question_set_items')
-          .select('position')
-          .eq('set_id', paperId)
-          .order('position', { ascending: false })
-          .limit(1)
-        const next = ((last.data?.[0] as { position: number } | undefined)?.position ?? 0) + 1
-
-        const added = await supabase
-          .from('question_set_items')
-          .insert({ set_id: paperId, question_id: questionId, position: next })
-        if (added.error) throw new Error(added.error.message)
-      }
-
-      navigate(paperId ? `/tests/${paperId}` : `/questions?added=${questionId}`)
+      navigate(home ? `/tests/${home.id}` : '/questions')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the question.')
     } finally {
@@ -187,19 +267,61 @@ export function QuestionNew() {
     }
   }
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading || homeLoading) return <div className="page">Loading…</div>
+
+  // A new question with no test to go in. Not an error the teacher made — the
+  // bank page used to offer exactly this — so it is answered rather than
+  // refused: here are the tests, pick the one it belongs to.
+  if (!editing && !home) {
+    return (
+      <div className="page">
+        <Link className="back-link" to="/questions">
+          <IconBack /> Question bank
+        </Link>
+
+        <div className="page-head">
+          <div>
+            <h1>New question</h1>
+            <p className="sub">
+              A question is written inside the test that holds it. Pick the test and the form opens
+              on it.
+            </p>
+          </div>
+        </div>
+
+        <div className="card card-pad">
+          {tests.length === 0 ? (
+            <div className="empty">
+              <h3>No tests loaded</h3>
+              <p>The content migrations have not been run against this database.</p>
+            </div>
+          ) : (
+            <div className="pick-test">
+              {tests.map((t) => (
+                <Link key={t.id} className="btn" to={`/questions/new?paper=${t.id}`}>
+                  {t.title}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
-      <Link className="back-link" to={paperId ? `/tests/${paperId}` : '/questions'}>
-        <IconBack /> {paper ? paper.title : 'Question bank'}
+      <Link className="back-link" to={home ? `/tests/${home.id}` : '/questions'}>
+        <IconBack /> {home ? home.title : 'Question bank'}
       </Link>
 
       <div className="page-head">
         <div>
           <h1>{editing ? 'Edit question' : 'New question'}</h1>
           <p className="sub">
-            {paper ? `It goes on the end of ${paper.title}.` : 'The answer key is visible to teachers only.'}
+            {editing
+              ? 'The answer key is visible to teachers only.'
+              : `It goes on the end of ${home!.title}.`}
           </p>
         </div>
       </div>
@@ -211,14 +333,22 @@ export function QuestionNew() {
           <div className="section-title">Classification</div>
 
           <div className="grid-2">
-            <Field label="Subject" required>
-              <Select value={subject} onChange={(e) => onSubjectChange(e.target.value as Subject)}>
-                {SUBJECTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
+            <Field
+              label="Subject"
+              required
+              hint={home ? `From ${home.title}.` : undefined}
+            >
+              {home ? (
+                <Input readOnly value={subjectLabel(home.subject)} />
+              ) : (
+                <Select value={subject} onChange={(e) => onSubjectChange(e.target.value as Subject)}>
+                  {SUBJECTS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </Field>
 
             <Field label="Section">
@@ -254,17 +384,29 @@ export function QuestionNew() {
             </Select>
           </Field>
 
-          <Field label="Difficulty" required>
-            <Select
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-            >
-              {DIFFICULTIES.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </Select>
+          <Field
+            label="Difficulty"
+            required
+            hint={
+              home
+                ? `An item in the ${levelLabel(home.level!).toLowerCase()} test is ${home.level}. Move it to another test to change this.`
+                : undefined
+            }
+          >
+            {home ? (
+              <Input readOnly value={levelLabel(home.level!)} />
+            ) : (
+              <Select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+              >
+                {DIFFICULTIES.map((d) => (
+                  <option key={d.value} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Field>
 
           <Field
@@ -387,7 +529,7 @@ export function QuestionNew() {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => navigate('/questions')}
+            onClick={() => navigate(home ? `/tests/${home.id}` : '/questions')}
             disabled={busy}
           >
             Cancel

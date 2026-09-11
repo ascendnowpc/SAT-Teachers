@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
 import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
-import { SUBJECTS } from '../lib/constants'
+import { LEVELS, SUBJECTS } from '../lib/constants'
 import { studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, Session, Subject } from '../lib/types'
+import type { Profile, QuestionSet, Session, Subject } from '../lib/types'
 
 /**
  * Booking a session, which is now also where a student comes from.
@@ -36,11 +36,56 @@ export function SessionNew() {
   const [duration, setDuration] = useState(60)
   const [meetingUrl, setMeetingUrl] = useState('')
 
+  /**
+   * The subjects a session can actually be booked in: the ones whose three
+   * level tests all hold questions.
+   *
+   * This used to be the literal string 'english', which was true while English
+   * was the only subject with tests. Mathematics has the three tests now and
+   * they are empty, so the honest version of the same guard reads the bank —
+   * a subject is offered the day its tests are filled, and no deploy is needed
+   * to notice.
+   */
+  const [runnable, setRunnable] = useState<Subject[]>([])
+  const [bankRead, setBankRead] = useState(false)
+
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /** Set once the session exists. The link is the only thing left to do, so
       the screen stops being a form and becomes the link. */
   const [created, setCreated] = useState<Session | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void supabase
+      .from('question_sets')
+      .select('subject, level, question_set_items(count)')
+      .not('level', 'is', null)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (!active) return
+        const tests = rows<QuestionSet>(data)
+        setRunnable(
+          SUBJECTS.map((s) => s.value).filter((subj) =>
+            // Every level, and none of them empty: a session starts on easy
+            // and is moved up, so a subject missing one of the three is a
+            // dead end the teacher would hear about from the student.
+            LEVELS.every((level) =>
+              tests.some(
+                (t) =>
+                  t.subject === subj &&
+                  t.level === level &&
+                  (t.question_set_items?.[0]?.count ?? 0) > 0,
+              ),
+            ),
+          ),
+        )
+        setBankRead(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -106,6 +151,11 @@ export function SessionNew() {
         setStudents((prev) => [...prev, student as Profile])
       }
       if (!student) throw new Error('Pick a student for this session.')
+      if (bankRead && !runnable.includes(subject)) {
+        throw new Error(
+          `There are no ${subject} questions yet. Fill that subject's three tests in the question bank first.`,
+        )
+      }
 
       const { data, error: err } = await supabase
         .from('sessions')
@@ -222,12 +272,16 @@ export function SessionNew() {
             <Field label="Subject" required>
               <Select value={subject} onChange={(e) => setSubject(e.target.value as Subject)}>
                 {SUBJECTS.map((s) => (
-                  // Only English has the three tests. Offering a subject the
-                  // student could not start is a dead end the teacher would
-                  // only find out about from the student.
-                  <option key={s.value} value={s.value} disabled={s.value !== 'english'}>
+                  // A subject whose tests are not filled cannot be started, so
+                  // it is shown and refused rather than hidden: the teacher can
+                  // see that maths is coming and why it is not yet here.
+                  <option
+                    key={s.value}
+                    value={s.value}
+                    disabled={bankRead && !runnable.includes(s.value)}
+                  >
                     {s.label}
-                    {s.value === 'english' ? '' : ' — no tests yet'}
+                    {bankRead && !runnable.includes(s.value) ? ' — no questions yet' : ''}
                   </option>
                 ))}
               </Select>

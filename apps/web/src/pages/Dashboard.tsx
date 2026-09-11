@@ -29,18 +29,23 @@ export function Dashboard() {
       })
 
     if (isTeacher) {
-      // Only what a session can actually ask. Retired items are still in the
-      // bank and still readable — they are just not stock, and counting them
-      // made the bank look half again as deep as it is, which is the one thing
-      // this number is read to find out.
+      // Only what a session can actually ask, counted where it can be asked
+      // from: the level tests. This used to tally the questions table by
+      // difficulty, which counts a question saved outside every test — and
+      // that is how the bank came to report a twenty-first medium question
+      // that no screen in the product would show. A number nothing can open
+      // is worse than no number.
       void supabase
-        .from('questions')
-        .select('difficulty')
-        .eq('status', 'published')
+        .from('question_sets')
+        .select('level, question_set_items(count)')
+        .not('level', 'is', null)
+        .eq('is_active', true)
         .then(({ data }) => {
           if (!active || !data) return
           const tally: Record<Difficulty, number> = { easy: 0, medium: 0, hard: 0 }
-          for (const row of data as { difficulty: Difficulty }[]) tally[row.difficulty] += 1
+          for (const t of data as { level: Difficulty; question_set_items: { count: number }[] }[]) {
+            tally[t.level] += t.question_set_items?.[0]?.count ?? 0
+          }
           setCounts(tally)
         })
     }
@@ -128,8 +133,8 @@ export function Dashboard() {
               maxWidth: '54ch',
             }}
           >
-            Each question carries a section and a difficulty, so you can pull exactly the level you
-            need mid-lesson without hunting for it.
+            Every question lives in one of the level tests, and its level is that test's — so the
+            numbers above are the papers your students actually sit.
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Link className="btn btn-primary" to="/questions/new">
