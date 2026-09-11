@@ -21,6 +21,8 @@ npm run dev                                    # http://localhost:5173
 | **Login** | Email + password, for teachers |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
+| **Maths, empty** | Mathematics has its three tests too, waiting for questions. A subject is bookable once they are filled |
+| **Where it goes** | A question is written *inside* a test, in one call, and takes that test's subject and level |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
@@ -34,7 +36,7 @@ npm run dev                                    # http://localhost:5173
 | **Speed** | Every answer is timed from first view to submit, and measured against a per-question target |
 | **Report** | Score, per-skill and per-section breakdown, pace, and every miss with what both people said |
 | **Transcript** | Drop in the Fathom recording; it lines up against the questions and is read back as findings |
-| **Loaded bank** | 86 items with passages, keys, sections and difficulty; 60 of them in the three tests |
+| **Loaded bank** | 60 items with passages, keys, sections and difficulty, and every one of them in a test |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 
 ## English is three tests
@@ -58,12 +60,16 @@ the sentence a teacher reads when deciding whether to move a student up.
 The item numbers are each test's own and are not contiguous — the medium test runs 1, 2, 3, 6, 7,
 … — because renumbering them would make a teacher's "look at 19" mean two different questions.
 
-The bank also still holds the in-class *Reading and Writing – 25Q* diagnostic (`0008`) and one
-Test 4 item the level document does not use. They are under **All questions**, they are not in any
-test, and no session can run them. The in-class paper came with an answer key and **seven of its
-printed answers disagreed with their own passage**; the bank carries the answer the text supports
-instead, listed item by item in
-[`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md).
+The bank used to hold twenty-six items besides: the in-class *Reading and Writing – 25Q*
+diagnostic (`0008`) and one Test 4 item the level document does not use. `0029` retired them,
+because an item no session can ask is not stock and totalling it with the sixty made the bank look
+half again as deep as it is. `0040` deletes them, with one exception it makes on purpose —
+`ENG-DIAG-T4-M2-Q01` is the first question of the 7 August recorded session (`0012`), and
+`session_items` points at questions without a cascade, so deleting it would not tidy a report, it
+would tear a question out of one. It stays, and it stays retired. Read on the in-class paper's
+answer key, which came with **seven printed answers that disagreed with their own passage**, in
+[`docs/reference/english-diagnostic-key-review.md`](docs/reference/english-diagnostic-key-review.md)
+— the review stands even though the items are gone.
 
 ### Reading one as a paper
 
@@ -97,7 +103,22 @@ null — and any teacher may correct it.
 
 ## Writing and correcting a question
 
-`/questions/new` writes one; `/questions/:id/edit` corrects one — the same form, and
+**A question is written into a test, or it is not written.** `/questions/new?paper=<id>` is the
+only way in; reaching `/questions/new` without one lists the tests instead of opening the form.
+`create_question_in_set` writes the question, its options, its key *and* its place in the test in
+a single transaction (`0040`), so there is no window in which a question exists and is filed
+nowhere. The test decides the subject and the level, so neither is asked for: an item in the easy
+test is easy, which is the rule `0026` set and the one thing that keeps the bank's counts and the
+tests from disagreeing.
+
+They did disagree. The bank page read *61 questions in use · 21 medium* while the medium test
+held twenty, because writing and filing were two calls and the bank page's own **Add question**
+button had no test to file into — it made a question that was counted in the headline and
+displayed on no screen in the product. Every count on the bank page and the dashboard is now
+summed from the tests themselves, so a number that moves has a row you can open; anything the
+bank still holds outside a test is named at the top of the page rather than folded into a total.
+
+`/questions/:id/edit` corrects one — the same form, and
 `update_question` mirrors `create_question`: one call, one transaction. Options are replaced
 wholesale rather than diffed, because the key points at a *label* and a diff could leave it
 pointing at an option that had moved underneath it. RLS decides whose questions may be rewritten:
@@ -122,9 +143,16 @@ the bank was loaded from, and any test a teacher assembled by hand under the old
 and their items are still there, so a report of a session that ran off one still resolves; what
 they are not is runnable, because a session runs a level.
 
-Adding a question to a level is the same form as writing any other: **Add question** on an open
-test arrives at `/questions/new?paper=<id>` and files it onto the end. Every question carries an
-**Edit** link, so a typo is fixed where you found it.
+**Add question** on an open test — or on its row in the bank — arrives at
+`/questions/new?paper=<id>` and files it onto the end. Every question carries an **Edit** link, so
+a typo is fixed where you found it, and an edit cannot move a question out of step with the test
+it is printed in: the level shown is the test's and is read-only.
+
+**Mathematics has its three tests as of `0040`**, and they are empty. Nothing else was needed to
+make them work — `load_session_level` has looked a test up by the session's subject as well as its
+level since `0027` — so the day the first maths question is written, a maths session runs it. Until
+then the New session form refuses the subject, and it refuses it by reading the bank rather than by
+naming English in the code, so filling the tests is the whole of what it takes.
 
 ## Identity codes
 
@@ -485,9 +513,10 @@ student is in. Every row must read PASS.
 `rls_contract.sql` and `session_flow.sql` are written for a scratch database — they reset the
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
-`level_session.sql`, `opening_early.sql` and `session_link.sql` leave the counters alone and are
-safe against a real one; `level_session.sql` and `session_link.sql` need the three tests loaded
-(`0026`). `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
+`level_session.sql`, `opening_early.sql`, `authoring.sql` and `session_link.sql` leave the counters
+alone and are safe against a real one; `level_session.sql` and `session_link.sql` need the three
+tests loaded (`0026`), and `authoring.sql`'s filing section needs the mathematics easy test
+(`0040`) — without it those rows read SKIP rather than FAIL. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
 add a roster student and a student cannot; a session's token is unique, opens only its own
 session, and never returns the key or the token itself; a link cannot answer another session's
 question; and only a session's own teacher can open it, answer in it or end it.

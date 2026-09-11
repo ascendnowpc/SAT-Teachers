@@ -10,9 +10,20 @@
 --      one go, replacing the options rather than adding to them
 --    * a student cannot rewrite a question
 --
+--  And what 0040 has to hold, which is the rule the bank is counted on:
+--
+--    * create_question_in_set files the question in the test, at the end
+--    * its level is the test's, whatever the caller thinks
+--    * a set that is not a live level test is refused
+--    * and a refused call leaves NO question behind — which is the whole
+--      reason the function exists, because the two-call version left one
+--      counted in the bank and shown on no screen
+--
 --  Every row must read PASS. Cleans up after itself, and touches only the rows
 --  it created — deliberately not the bank's own questions, which a test has no
---  business editing on a database with real content on it.
+--  business editing on a database with real content on it. The 0040 section
+--  writes into the mathematics easy test and removes what it wrote, so it
+--  needs that migration run; without it those rows read SKIP.
 -- ============================================================================
 
 create or replace function public.__authoring_check()
@@ -21,7 +32,7 @@ language plpgsql as $fn$
 declare
   t_id uuid := gen_random_uuid();
   s_id uuid := gen_random_uuid();
-  q uuid; txt text; n int;
+  q uuid; q2 uuid; m_set uuid; m_dead uuid; txt text; n int;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -76,6 +87,66 @@ begin
   end;
   return query select '2 edit'::text,'a question cannot be edited down to one option'::text,
     'refused'::text, txt, (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  -- ------------------------------------------------ 0040: filing is writing --
+  select id into m_set from question_sets
+   where source_ref = 'MATH-LEVEL-EASY' and is_active and level = 'easy';
+
+  if m_set is null then
+    return query select '4 filing'::text,'the mathematics easy test is loaded'::text,
+      'present'::text,'missing'::text,'SKIP'::text;
+  else
+    select coalesce(max(position), 0) into n from question_set_items where set_id = m_set;
+
+    q2 := create_question_in_set(m_set, null, null, 'Filed on the way in?',
+          null, '[{"label":"A","body":"one"},{"label":"B","body":"two"}]'::jsonb,
+          'A'::answer_option, 'because', null, null, null);
+
+    select coalesce(position::text,'not filed') into txt
+      from question_set_items where set_id = m_set and question_id = q2;
+    return query select '4 filing'::text,'the question lands at the end of the test'::text,
+      (n+1)::text, txt, (case when txt=(n+1)::text then 'PASS' else 'FAIL' end)::text;
+
+    -- Nothing asked for a level. The test is the easy one, so the item is easy.
+    select difficulty::text || ' / ' || subject into txt from questions where id = q2;
+    return query select '4 filing'::text,'level and subject are the test''s'::text,
+      'easy / mathematics'::text, txt,
+      (case when txt='easy / mathematics' then 'PASS' else 'FAIL' end)::text;
+
+    delete from questions where id = q2;
+  end if;
+
+  -- A set that no session can run is not somewhere a question can go, and the
+  -- refusal takes the question with it rather than leaving it in the bank.
+  insert into question_sets (created_by, title, subject, kind, level, is_active)
+  values (t_id, 'Not a live test', 'english', 'test', 'easy', false)
+  returning id into m_dead;
+
+  begin
+    perform create_question_in_set(m_dead, null, null, 'Written into nowhere?',
+          null, '[{"label":"A","body":"one"},{"label":"B","body":"two"}]'::jsonb,
+          'A'::answer_option, null, null, null, null);
+    txt := 'accepted';
+  exception when others then txt := 'refused';
+  end;
+  return query select '4 filing'::text,'a set that is not a live level test is refused'::text,
+    'refused'::text, txt, (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  select count(*) into n from questions where stem = 'Written into nowhere?';
+  return query select '4 filing'::text,'and the refusal leaves no question behind'::text,
+    '0'::text, n::text, (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+  begin
+    perform create_question_in_set(gen_random_uuid(), null, null, 'No such test?',
+          null, '[{"label":"A","body":"one"},{"label":"B","body":"two"}]'::jsonb,
+          'A'::answer_option, null, null, null, null);
+    txt := 'accepted';
+  exception when others then txt := 'refused';
+  end;
+  return query select '4 filing'::text,'a set that does not exist is refused'::text,
+    'refused'::text, txt, (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  delete from question_sets where id = m_dead;
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);

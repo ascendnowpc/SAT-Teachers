@@ -64,6 +64,11 @@ export function Paper() {
 
   const groups = useMemo(() => buildPaper(questions), [questions])
 
+  // Only a live level test can be written into (0040), so only a live level
+  // test offers it. The deactivated source papers are archives: a button here
+  // would open a form that refuses.
+  const writable = Boolean(set?.level && set.is_active)
+
   if (loading) return <div className="page">Loading…</div>
   if (error) {
     return (
@@ -113,9 +118,11 @@ export function Paper() {
         <button type="button" className="btn" onClick={() => window.print()}>
           Print
         </button>
-        <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
-          Add question
-        </Link>
+        {writable && (
+          <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+            Add question
+          </Link>
+        )}
       </div>
 
       <article className="paper">
@@ -127,9 +134,11 @@ export function Paper() {
         {groups.length === 0 ? (
           <div className="empty">
             <h3>Nothing in this test yet</h3>
-            <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
-              Write the first question
-            </Link>
+            {writable && (
+              <Link className="btn btn-primary" to={`/questions/new?paper=${id}`}>
+                Write the first question
+              </Link>
+            )}
           </div>
         ) : (
           groups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)

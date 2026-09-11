@@ -143,6 +143,12 @@ button { font-family: inherit; }
   outline: none; background: #fff; border-color: var(--sky);
   box-shadow: 0 0 0 3px rgba(41,171,226,.16);
 }
+/* A field whose value is decided elsewhere — the subject and the level of a
+   question, which are its test's. Readable and selectable, so it is a stated
+   fact rather than a control that has been switched off. */
+.input[readonly] { color: var(--muted); cursor: default; }
+.input[readonly]:hover { background: var(--input); }
+.input[readonly]:focus { background: var(--input); border-color: transparent; box-shadow: none; }
 .select {
   appearance: none; cursor: pointer; padding-right: 36px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%237f8db4' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -1561,3 +1567,8 @@ tr.row-open .qsplit {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--r); margin: 0 14px;
 }
+
+/* Reaching the question form with no test to write into: the tests, as the
+   answer to the question the screen is asking. */
+.pick-test { display: flex; flex-wrap: wrap; gap: 10px; }
+.pick-test .btn { flex: 0 0 auto; }
