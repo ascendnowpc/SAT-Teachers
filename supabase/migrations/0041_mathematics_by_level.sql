@@ -383,7 +383,7 @@ perform seed_bank_item(
     {"label":"B","body":"2x − 3y > 4"},
     {"label":"C","body":"3x − 2y > 4"},
     {"label":"D","body":"3y − 2x > 2"}]'::jsonb,
-  'B', 'Every term is divisible by 3: 6x/3 − 9y/3 > 12/3 gives 2x − 3y > 4. C swaps the coefficients. A divides the left by 3 and the right by 6.',
+  'B', 'Every term is divisible by 3: 6x/3 − 9y/3 > 12/3 gives 2x − 3y > 4. C swaps the two coefficients; A divides each term by whatever happens to go into it — 6 into 6x, 9 into 9y, 6 into 12 — instead of dividing the whole inequality by one number.',
   'published', 'equivalent_expressions', 'mathematics', null);
 
 perform seed_bank_item(
@@ -414,7 +414,7 @@ y = √x + 9',
     {"label":"B","body":"40"},
     {"label":"C","body":"81"},
     {"label":"D","body":"130"}]'::jsonb,
-  'A', 'x = 49, so y = √49 + 9 = 7 + 9 = 16. C is (√49 + 9)² and D reads the expression as 49 + 81.',
+  'A', 'x = 49, so y = √49 + 9 = 7 + 9 = 16. C is 9², and D is 49 + 81 — both come of doing something with the 9 other than adding it to the root.',
   'published', 'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables', 'mathematics', null);
 
 perform seed_bank_item(
@@ -423,7 +423,7 @@ perform seed_bank_item(
   null,
   'Which of the following points is on the graph shown?',
   'easy',
-  'Read one point off a curve. Two options sit on the y-axis one unit apart, so a student who reads the axis carelessly — or counts the asymptote at y = −4 as the intercept — lands on C.',
+  'Read one point off a curve. Three of the four options sit on the y-axis, two of them a single unit apart, so a student who reads the axis carelessly — or counts the asymptote at y = −4 as the intercept — lands on C.',
   '[
     {"label":"A","body":"(−1, −9)"},
     {"label":"B","body":"(0, −5)"},
@@ -489,7 +489,7 @@ perform seed_bank_item(
     {"label":"B","body":"3"},
     {"label":"C","body":"4"},
     {"label":"D","body":"9"}]'::jsonb,
-  'B', 'Seven values in order: the median is the fourth, which is 3. A is the mode, C is the value either side of centre, and D is roughly the mean (4), which the 11 pulls upward.',
+  'B', 'Seven values in order: the median is the fourth, which is 3. A is the mode, C is the fifth and sixth value rather than the fourth, and D is close to nothing in the list — the mean is 4, which the 11 pulls up well above the median.',
   'published', 'one_variable_data_distributions_and_measures_of_center_and_spread', 'mathematics', null);
 
 perform seed_bank_item(
@@ -498,7 +498,7 @@ perform seed_bank_item(
   null,
   'Of the following, which is the best model for the data in the scatterplot?',
   'easy',
-  'All four models are upward parabolas, so the shape decides nothing. The y-intercept does: the plot passes through (0, 20) and only two options can. Reading a constant term off a graph is the easiest reliable check there is.',
+  'All four models are upward parabolas, so the shape decides nothing. The y-intercept does: the plot passes through (0, 20) and exactly one option has a constant term of 20. Reading a constant term off a graph is the easiest reliable check there is, and it settles this item on its own.',
   '[
     {"label":"A","body":"y = 2x² − 11x − 20"},
     {"label":"B","body":"y = 2x² − 11x + 20"},
@@ -534,7 +534,7 @@ perform seed_bank_item(
     {"label":"B","body":"30"},
     {"label":"C","body":"70"},
     {"label":"D","body":"170"}]'::jsonb,
-  'D', 'The 170° angle and w° are corresponding angles where transversal t cuts the parallel lines m and n, so w = 170. A is 187 − 170 and B and C belong to no relationship in the figure; the instinct this item tests against is subtracting from 180 out of habit, which would give 10 and is not on offer.',
+  'D', 'The 170° angle and w° are corresponding angles where transversal t cuts the parallel lines m and n, so w = 170. The instinct this item tests against is subtracting from 180 out of habit; that gives 10, which is deliberately not on offer, so a student who reaches for it has to stop and work out why the two angles are equal instead.',
   'published', 'lines_angles_and_triangles', 'mathematics', '/question-figures/math-easy-q17.png');
 
 perform seed_bank_item(
@@ -543,7 +543,7 @@ perform seed_bank_item(
   null,
   'What is the area, in square inches, of a rectangle with a length of 7 inches and a width of 6 inches?',
   'easy',
-  'One formula, two numbers. A is the sum and B is the perimeter minus the sum — every wrong option is a different formula, so this reads whether the student knows which one area is.',
+  'One formula, two numbers. A is the two sides added and D is that product doubled, so each wrong option is a different formula misremembered — this reads whether the student knows which one area is rather than whether they can multiply.',
   '[
     {"label":"A","body":"13"},
     {"label":"B","body":"20"},
@@ -626,13 +626,13 @@ x − (1/2)y = 2',
   null,
   'The given system of equations has solution (x, y). What is the value of x?',
   'medium',
-  'The first equation hands over y in one step, but the second contains the whole quantity ½y rather than y — so a student who substitutes y = 8 without halving it gets 6 and a student who substitutes carelessly gets 4. Both routes are on the option list.',
+  'The first equation hands over ½y rather than y, and the second equation wants that same half — so the quickest correct route never computes y at all. The student who does compute y = 8 has an extra step to undo, and C is waiting for the one who reports ½y as though it were x.',
   '[
     {"label":"A","body":"3"},
     {"label":"B","body":"7/2"},
     {"label":"C","body":"4"},
     {"label":"D","body":"6"}]'::jsonb,
-  'D', 'From ½y = 4, y = 8. Substituting into x − ½y = 2 gives x − 4 = 2, so x = 6. C is the value of ½y, mistaken for x; A and B come from substituting y = 8 directly into x − y = 2 or x − ½(4) = 2.',
+  'D', 'The second equation already contains ½y, and the first says ½y = 4, so x − 4 = 2 and x = 6 without ever finding y. C is 4, the value of ½y reported as though it were x.',
   'published', 'systems_of_two_linear_equations_in_two_variables', 'mathematics', null);
 
 perform seed_bank_item(
@@ -641,7 +641,7 @@ perform seed_bank_item(
   null,
   'The function h is defined by h(x) = 4x + 28. The graph of y = h(x) in the xy-plane has an x-intercept at (a, 0) and a y-intercept at (0, b), where a and b are constants. What is the value of a + b?',
   'medium',
-  'Two intercepts, two different procedures, and the x-intercept is negative — so the final addition is a subtraction in disguise. C is what a student gets who keeps the 7 positive, and it is the answer this item is built to catch.',
+  'Two intercepts, two different procedures, and the x-intercept is negative — so the final addition is a subtraction in disguise. D is 7 + 28, what a student gets who keeps the 7 positive, and it is the answer this item is built to catch.',
   '[
     {"label":"A","body":"21"},
     {"label":"B","body":"28"},
@@ -716,7 +716,7 @@ perform seed_bank_item(
   null,
   'Which of the following is a factor of the given polynomial?',
   'medium',
-  'Recognising a perfect square trinomial in two variables. C and D are what a student writes who takes the square roots of the first and last coefficients as they stand — 4 and 25 — instead of halving them into 2 and 5.',
+  'Recognising a perfect square trinomial in two variables. C and D are what a student writes who lifts the coefficients 4 and 25 straight out of the trinomial instead of taking their square roots, 2 and 5.',
   '[
     {"label":"A","body":"a + b"},
     {"label":"B","body":"2a + 5b"},
@@ -890,7 +890,7 @@ perform seed_bank_item(
     {"label":"B","body":"√15/4"},
     {"label":"C","body":"4√15/15"},
     {"label":"D","body":"√15"}]'::jsonb,
-  'B', 'R and S are complementary, and the sine of an angle equals the cosine of its complement: cos(S) = sin(R) = √15/4. A and C are rationalisations of √15/15 and 4/√15 — the answers of a student who inverted the ratio somewhere in the long route.',
+  'B', 'R and S are complementary, and the sine of an angle equals the cosine of its complement: cos(S) = sin(R) = √15/4. A is 1/√15 rationalised and C is 4/√15 rationalised — both the answers of a student who inverted the ratio somewhere in the long route and then tidied the surd.',
   'published', 'right_triangles_and_trigonometry', 'mathematics', null);
 
 end $seedmedium$;
@@ -1038,7 +1038,7 @@ perform seed_bank_item(
     {"label":"B","body":"10"},
     {"label":"C","body":"20"},
     {"label":"D","body":"40"}]'::jsonb,
-  'B', 'By the quadratic formula, x = (2 ± √(4 + 36))/2 = (2 ± √40)/2 = (2 ± 2√10)/2 = 1 ± √10. So k = 10. D is the discriminant 40, reported before the root is simplified; C is 40/2, the division by 2 applied to the discriminant instead of to the whole numerator; A is 4 + 4.',
+  'B', 'By the quadratic formula, x = (2 ± √(4 + 36))/2 = (2 ± √40)/2 = (2 ± 2√10)/2 = 1 ± √10. So k = 10. D is the discriminant 40, reported before the root is simplified; C is 40/2, the division by 2 applied to the discriminant instead of to the whole numerator.',
   'published', 'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables', 'mathematics', null);
 
 perform seed_bank_item(
@@ -1125,7 +1125,7 @@ perform seed_bank_item(
   null,
   'The positive number a is 2,241% of the sum of the positive numbers b and c, and b is 83% of c. What percent of b is a?',
   'hard',
-  'Two chained percentages, one of them over 100%, and an answer that is itself over 100% — so the decimal-point check a student would normally rely on offers no help. A and B are the same answers with the point misplaced, which is what makes this the hardest item in the section.',
+  'Two chained percentages, one of them far over 100%, and an answer that is itself over 100% — so the sense-check a student would normally run on the size of an answer offers no help here. The options come in two pairs a hundred apart, so converting the multiplier to a percentage at the wrong moment lands on a wrong option rather than on something obviously absurd.',
   '[
     {"label":"A","body":"23.24%"},
     {"label":"B","body":"49.41%"},
@@ -1185,7 +1185,7 @@ perform seed_bank_item(
   null,
   'A cube has an edge length of 68 inches. A solid sphere with a radius of 34 inches is inside the cube, such that the sphere touches the center of each face of the cube. To the nearest cubic inch, what is the volume of the space in the cube not taken up by the sphere?',
   'hard',
-  'Two volume formulas, a subtraction, and six-figure arithmetic that has to be carried to the nearest cubic inch — with B sitting close to the sphere''s own volume so that a student who subtracts in the wrong order still finds an answer that looks right.',
+  'Two volume formulas, a subtraction, and six-figure arithmetic that has to be carried to the nearest cubic inch — with B sitting close to the sphere''s own volume, so a student who works the sphere out and forgets that the question asked for what is left around it finds an answer waiting.',
   '[
     {"label":"A","body":"149,796"},
     {"label":"B","body":"164,500"},
