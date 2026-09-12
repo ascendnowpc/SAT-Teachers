@@ -1295,7 +1295,10 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
   display: grid; place-items: center; border: 1px solid var(--border-strong);
   color: var(--ink-2); font-size: 12px; font-weight: 600;
 }
-.qch .body { flex: 1; min-width: 0; }
+/* A choice is usually one line, but a mathematics item can offer a system of
+   two equations as a single option; pre-line keeps those stacked the way the
+   test prints them without disturbing the ordinary one-line choice. */
+.qch .body { flex: 1; min-width: 0; white-space: pre-line; }
 .qch.is-key { border-color: var(--sky); background: var(--sky-wash); }
 .qch.is-key .lab { background: var(--sky-dark); border-color: var(--sky-dark); color: #fff; }
 .qch.is-key .body { font-weight: 500; }
