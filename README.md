@@ -21,7 +21,7 @@ npm run dev                                    # http://localhost:5173
 | **Login** | Email + password, for teachers |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
-| **Maths, empty** | Mathematics has its three tests too, waiting for questions. A subject is bookable once they are filled |
+| **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
 | **Where it goes** | A question is written *inside* a test, in one call, and takes that test's subject and level |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
@@ -148,11 +148,13 @@ they are not is runnable, because a session runs a level.
 a typo is fixed where you found it, and an edit cannot move a question out of step with the test
 it is printed in: the level shown is the test's and is read-only.
 
-**Mathematics has its three tests as of `0040`**, and they are empty. Nothing else was needed to
-make them work — `load_session_level` has looked a test up by the session's subject as well as its
-level since `0027` — so the day the first maths question is written, a maths session runs it. Until
-then the New session form refuses the subject, and it refuses it by reading the bank rather than by
-naming English in the code, so filling the tests is the whole of what it takes.
+**Mathematics has its three tests as of `0040`** and its sixty questions as of `0041` — twenty
+easy, twenty medium, twenty hard, sorted by the teachers before they reached us and loaded as
+house content by `source_ref`, nine of them with a figure that ships with the app. Nothing else
+was needed to make them work: `load_session_level` has looked a test up by the session's subject
+as well as its level since `0027`. The New session form gates the subject on the bank rather than
+on English being named in the code, so filling the tests was the whole of what it took — and
+`0042` finished the other end of it, the diagnostic form a mathematics session is written up on.
 
 ## Identity codes
 
@@ -304,7 +306,7 @@ step with the data: the PDF is the report.
 ## The diagnostic form
 
 `/sessions/:id/diagnostic`. A diagnostic finishes with no score and no report, and what the
-teachers do next they already do on paper: they fill in the English reflection grid while the
+teachers do next they already do on paper: they fill in the reflection grid while the
 hour is still fresh, write what they made of it, and hand over the Fathom transcript. The report
 is generated from those afterwards. This is that form, in the order they fill it.
 
@@ -332,7 +334,16 @@ before `form_submitted_at` is set, so the rule holds outside the browser too. Ge
 sharing: the report stays a draft until it is published.
 
 The grid on screen is the grid on the paper: the same six columns in the same order, four domain
-rows, Domain and Skill Focus printed and the rest editable. **Next steps/Targets arrives
+rows, Domain and Skill Focus printed and the rest editable. **Which four rows depends on the
+subject** — English is assessed against Information and Ideas, Craft and Structure, Expression of
+Ideas and Standard English Conventions; mathematics against Algebra, Advanced Mathematics,
+Problem-Solving and Data Analysis, and Geometry and Trigonometry. They are the same four sections
+the questions are already tagged with, so the grid, the report's per-domain breakdown and the
+question bank all group by one list rather than three. `0042` taught
+`session_domain_notes.domain` the mathematics four: until it did, a mathematics session could not
+be written up at all, because the only form Postgres would accept was one judging it on Words in
+Context. Mathematics has no printed paper form yet, so its Next steps/Targets column arrives with
+our wording rather than the teachers' — the one part of the grid that is not taken from theirs. **Next steps/Targets arrives
 prefilled** with the form's own wording — a teacher who agrees with it should not have to retype
 it to say so — and is theirs to rewrite. Student Performance offers a tick and a cross and
 nothing else, because that is what the paper offers: it is one judgement the teacher signs about
@@ -350,6 +361,40 @@ What it writes: `session_domain_notes` gains `performance`, `performance_note` a
 alongside the strengths and gaps it already held; `session_reports` takes the comments in
 `teacher_reflection` and the two moments in `form_submitted_at` and `generated_at`; the transcript
 goes where it always went. Nothing on the form computes, scores or concludes anything.
+
+## The two recorded sessions
+
+Two real diagnostics are in the database as data rather than as documents, so every screen in the
+product has something true behind it.
+
+| | English — 7 August (`0012`, `0014`) | Mathematics — 28 August (`0043`) |
+| --- | --- | --- |
+| Questions | 18 of the 23 discussed | 7, the ones the teacher picked |
+| Score | 13 of 18 | 5 of 7 |
+| Level | one module | mixed: three easy, two medium, two hard |
+| Write-up | grid, summary, **report published** | grid, comments, transcript, **report not generated** |
+
+The mathematics one is the 46-minute recording of a grade 11 IB student sitting the SAT for the
+first time: `MATH-DIAG-AUG28-Q01`–`Q07`, every answer she gave, the two times the teacher measured
+out loud (16 seconds on the percentage question, 65 on the intersection one), her reasoning in her
+own words and the teacher's note on each. The Fathom transcript is on the session and the times
+are the recording's own, so the write-up page lines the two up at an offset of zero.
+
+It stops where the teacher stopped. The diagnostic form is filled in and handed in —
+`form_submitted_at` is set, all four mathematics domains carry a mark, strengths, gaps and next
+steps, and the comments are there — and **the report is not generated**: `generated_at` is null
+and the console offers the button, which is the state a teacher is in the evening after a session.
+
+Three things in that migration are ours rather than the recording's, and it says so where they
+appear: the distractors the student never names aloud, question 4's key (the teacher reads the
+printed choices and says the answer is not among them — it is 403, and it was not), and the
+elapsed times she did not measure, which are the gap between the turn a question opened on and the
+turn the answer landed in, an upper bound rather than a stopwatch.
+
+One judgement on the form is worth knowing about: **Geometry and Trigonometry was never tested**,
+and the form offers a tick or a cross and nothing else. It carries a cross, and the note beside it
+says the cross is the absence of evidence rather than a verdict on the student. The row's next
+steps are to sit that paper before any more algebra.
 
 ## Reading the recording
 

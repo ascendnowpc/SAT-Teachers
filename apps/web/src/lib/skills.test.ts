@@ -10,9 +10,9 @@ import {
 } from './constants'
 
 describe('the skill taxonomy', () => {
-  it('covers every English section and no Mathematics one', () => {
+  it('covers every section of both subjects', () => {
     for (const s of SECTIONS.english) expect(SKILLS[s.value]?.length).toBeGreaterThan(0)
-    for (const s of SECTIONS.mathematics) expect(SKILLS[s.value]).toBeUndefined()
+    for (const s of SECTIONS.mathematics) expect(SKILLS[s.value]?.length).toBeGreaterThan(0)
   })
 
   it('gives every skill to exactly one section', () => {
@@ -30,13 +30,21 @@ describe('skillsFor', () => {
   })
 
   it('offers every skill when no section is chosen yet', () => {
-    expect(skillsFor(null)).toHaveLength(11)
+    // Eleven English and nineteen Mathematics — the taxonomy the database
+    // checks (section, skill) against.
+    expect(skillsFor(null)).toHaveLength(30)
   })
 
-  // A Mathematics section has no skills yet; the form must show none rather
-  // than fall back to the English list.
+  it('narrows to a Mathematics section too', () => {
+    expect(skillsFor('advanced_math').map((s) => s.value)).toEqual([
+      'equivalent_expressions',
+      'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables',
+      'nonlinear_functions',
+    ])
+  })
+
   it('offers nothing for a section that has no skills', () => {
-    expect(skillsFor('algebra')).toEqual([])
+    expect(skillsFor('not_a_section')).toEqual([])
   })
 })
 
@@ -47,6 +55,7 @@ describe('skillFitsSection', () => {
 
   it('rejects a skill borrowed from another section', () => {
     expect(skillFitsSection('craft_and_structure', 'boundaries')).toBe(false)
+    expect(skillFitsSection('algebra', 'nonlinear_functions')).toBe(false)
   })
 
   it('accepts no skill at all — the label is optional', () => {

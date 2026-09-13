@@ -1,7 +1,8 @@
 import { sectionLabel } from './constants'
-import { DOMAIN_ORDER } from './grid'
+import { domainOrder } from './grid'
 import { formatDuration, type Attempt, type Report } from './report'
 import { linesIn, type AlignWindow, type Transcript, type TranscriptLine } from './transcript'
+import type { Subject } from './types'
 
 /**
  * Reading the recording.
@@ -500,13 +501,14 @@ export function analyseSession(
   transcript: Transcript,
   windows: Map<string, AlignWindow>,
   roles: Record<string, Role>,
+  subject: Subject = 'english',
 ): SessionAnalysis {
   const items = report.attempts.map((a) =>
     analyseItem(a, transcript, windows.get(a.itemId) ?? null, roles),
   )
   const covered = items.filter((i) => i.studentLines.length > 0)
 
-  const domains: DomainAnalysis[] = DOMAIN_ORDER.map((domain) => {
+  const domains: DomainAnalysis[] = domainOrder(subject).map((domain) => {
     const mine = covered.filter((i) => i.section === domain)
     const { strengths, gaps } = domainSuggestions(mine)
     return { domain, label: sectionLabel(domain) ?? domain, items: mine, strengths, gaps }

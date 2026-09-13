@@ -24,8 +24,8 @@ import type { DomainNote, Session, SessionReportRow, SessionTranscript } from '.
  * The teacher's diagnostic form.
  *
  * This is the step the teachers actually take, in the order they take it: the
- * session ends with no score and no report, they fill in the English reflection
- * grid while it is still fresh, write what they made of the hour, and drop in
+ * session ends with no score and no report, they fill in the reflection grid
+ * for that subject while it is still fresh, write what they made of the hour, and drop in
  * the Fathom transcript. The report is generated from the two of them
  * afterwards — nothing on this page computes, scores or concludes anything.
  *
@@ -42,7 +42,9 @@ export function DiagnosticForm() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const [gridRows, setGridRows] = useState<DiagnosticRow[]>(rowsFrom([]))
+  // Empty rather than a blank English form: which four rows this form has
+  // depends on the session's subject, and that is not known until it loads.
+  const [gridRows, setGridRows] = useState<DiagnosticRow[]>([])
   const [reflection, setReflection] = useState('')
   const [body, setBody] = useState('')
   const [filename, setFilename] = useState<string | null>(null)
@@ -63,8 +65,9 @@ export function DiagnosticForm() {
       supabase.from('session_transcripts').select('*').eq('session_id', id).maybeSingle(),
     ])
 
-    setSession(row<Session>(s.data))
-    setGridRows(rowsFrom(toRows<DomainNote>(n.data)))
+    const loaded = row<Session>(s.data)
+    setSession(loaded)
+    setGridRows(rowsFrom(toRows<DomainNote>(n.data), loaded?.subject))
 
     const report = row<SessionReportRow>(m.data)
     setReflection(report?.teacher_reflection ?? '')

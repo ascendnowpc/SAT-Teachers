@@ -47,7 +47,9 @@ export function AfterTheTest({
   session: Session | null
   items: SessionItem[]
 }) {
-  const [gridRows, setGridRows] = useState<DiagnosticRow[]>(rowsFrom([]))
+  // The grid is the subject's, so there is nothing to show until the session
+  // that says which subject has loaded.
+  const [gridRows, setGridRows] = useState<DiagnosticRow[]>([])
   const [report, setReport] = useState<SessionReportRow | null>(null)
   const [transcript, setTranscript] = useState<SessionTranscript | null>(null)
   const [extraction, setExtraction] = useState<ContextExtractionRow | null>(null)
@@ -69,12 +71,12 @@ export function AfterTheTest({
       supabase.from('session_transcripts').select('*').eq('session_id', sessionId).maybeSingle(),
       loadExtraction(sessionId),
     ])
-    setGridRows(rowsFrom(toRows<DomainNote>(n.data)))
+    setGridRows(rowsFrom(toRows<DomainNote>(n.data), session?.subject))
     setReport(row<SessionReportRow>(m.data))
     setTranscript(row<SessionTranscript>(t.data))
     setExtraction(e)
     setLoading(false)
-  }, [sessionId])
+  }, [sessionId, session?.subject])
 
   useEffect(() => {
     void load()

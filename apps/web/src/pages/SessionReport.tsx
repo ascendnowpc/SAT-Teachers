@@ -14,7 +14,7 @@ import {
   subjectLabel,
 } from '../lib/constants'
 import {
-  DOMAIN_ORDER,
+  domainOrder,
   buildGrid,
   confidenceAverage,
   recommendedPriority,
@@ -60,7 +60,10 @@ export function SessionReport() {
     void loadWritten()
   }, [loadWritten])
 
-  const grid = useMemo(() => buildGrid(report, notes), [report, notes])
+  const grid = useMemo(
+    () => buildGrid(report, notes, session?.subject ?? 'english'),
+    [report, notes, session],
+  )
 
   // The document: the teacher's form, the recording's findings and the computed
   // numbers, joined but never merged. It is assembled at read time from the
@@ -68,12 +71,12 @@ export function SessionReport() {
   const doc = useMemo(
     () =>
       buildReportDoc({
-        rows: rowsFrom(notes),
+        rows: rowsFrom(notes, session?.subject ?? 'english'),
         reflection: meta?.teacher_reflection ?? '',
         report,
         extraction: extraction?.body ?? null,
       }),
-    [notes, meta, report, extraction],
+    [notes, meta, report, extraction, session],
   )
   const conflicts = useMemo(() => disagreements(doc), [doc])
   const pace = useMemo(() => timeManagement(report), [report])
@@ -257,7 +260,7 @@ export function SessionReport() {
 
               <dt>Recommended practice priority</dt>
               <dd className="priority">
-                {DOMAIN_ORDER.map((key) => (
+                {domainOrder(session.subject).map((key) => (
                   <span key={key} className={key === priority ? 'opt on' : 'opt'}>
                     {sectionLabel(key)}
                   </span>

@@ -1,5 +1,6 @@
 import { SKILLS, sectionLabel } from './constants'
 import type { Report } from './report'
+import type { Subject } from './types'
 
 /**
  * The teacher evaluation grid.
@@ -12,13 +13,32 @@ import type { Report } from './report'
  * session_domain_notes.
  */
 
-/** The four domains in the order the paper form prints them. */
-export const DOMAIN_ORDER = [
-  'information_and_ideas',
-  'craft_and_structure',
-  'expression_of_ideas',
-  'standard_english_conventions',
-]
+/**
+ * The four domains of each subject, in the order the form prints them.
+ *
+ * There is one grid per subject, not one grid. A mathematics session assessed
+ * against Craft and Structure would be four rows about a test that was never
+ * sat — and the four rows it was sat against would be nowhere on the form.
+ */
+export const DOMAINS: Record<Subject, string[]> = {
+  english: [
+    'information_and_ideas',
+    'craft_and_structure',
+    'expression_of_ideas',
+    'standard_english_conventions',
+  ],
+  mathematics: [
+    'algebra',
+    'advanced_math',
+    'problem_solving_and_data_analysis',
+    'geometry_and_trigonometry',
+  ],
+}
+
+/** The domains a session of this subject is assessed against. */
+export function domainOrder(subject: Subject | null | undefined): string[] {
+  return DOMAINS[subject ?? 'english'] ?? DOMAINS.english
+}
 
 /** The Next steps/Targets column, verbatim from the teachers' form. */
 export const DOMAIN_TARGETS: Record<string, string[]> = {
@@ -38,6 +58,30 @@ export const DOMAIN_TARGETS: Record<string, string[]> = {
     'Practice sentence combining.',
     'Drill punctuation (commas, semicolons, clauses).',
   ],
+
+  // Mathematics has no printed form yet — the teachers' grid is the Reading and
+  // Writing one. These are the starting wording until it arrives, and like
+  // every other row they are there to be edited into what the student needs.
+  algebra: [
+    'Drill the standard linear forms until rearranging is automatic.',
+    'Read what the question asks for before solving for x.',
+    'Practise systems: substitution, elimination, and what no/infinite solutions mean.',
+  ],
+  advanced_math: [
+    'Practise quadratics: factoring, the formula, and the discriminant.',
+    'Work identities — (x + y)², sum and product of roots — as shortcuts, not detours.',
+    'Graph nonlinear systems on Desmos and read the intersections off.',
+  ],
+  problem_solving_and_data_analysis: [
+    'Percent increase and decrease as one multiplier, not two steps.',
+    'Rates, ratios and units — check the units the answer is asked in.',
+    'Read graphs and tables for what is asked, not for what is interesting.',
+  ],
+  geometry_and_trigonometry: [
+    'Learn the reference-sheet formulas by using them, not by reading them.',
+    'Angle rules in triangles and circles.',
+    'Right triangles: SOHCAHTOA and the common triples.',
+  ],
 }
 
 /** The Skill Focus column, worded as the form words it. */
@@ -52,6 +96,25 @@ export const DOMAIN_SKILL_FOCUS: Record<string, string[]> = {
   standard_english_conventions: [
     'Boundaries (comma splice, run-ons)',
     'Form, Structure, Sense (grammar, punctuation, usage)',
+  ],
+  algebra: [
+    'Linear equations in one & two variables',
+    'Linear functions',
+    'Systems of two linear equations',
+    'Linear inequalities',
+  ],
+  advanced_math: ['Equivalent expressions', 'Nonlinear equations & systems', 'Nonlinear functions'],
+  problem_solving_and_data_analysis: [
+    'Ratios, rates, proportions & units',
+    'Percentages',
+    'One- & two-variable data',
+    'Probability, inference & statistical claims',
+  ],
+  geometry_and_trigonometry: [
+    'Area & volume',
+    'Lines, angles & triangles',
+    'Right triangles & trigonometry',
+    'Circles',
   ],
 }
 
@@ -126,11 +189,11 @@ export function performanceOf(correct: number, total: number): Performance {
  * with the stock wording in it and no sign of their work. So the written cell
  * wins wherever there is one, and the row says which of the two it is showing.
  */
-export function buildGrid(report: Report, notes: GridNote[]): GridRow[] {
+export function buildGrid(report: Report, notes: GridNote[], subject: Subject): GridRow[] {
   const byDomain = new Map(report.sections.map((s) => [s.key, s]))
   const noteFor = new Map(notes.map((n) => [n.domain, n]))
 
-  return DOMAIN_ORDER.map((value) => {
+  return domainOrder(subject).map((value) => {
     const band = byDomain.get(value)
     const total = band?.total ?? 0
     const correct = band?.correct ?? 0

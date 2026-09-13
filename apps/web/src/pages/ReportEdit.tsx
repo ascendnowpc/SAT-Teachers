@@ -14,7 +14,7 @@ import {
   type SessionAnalysis,
   type Suggestion,
 } from '../lib/analysis'
-import { DOMAIN_ORDER, buildGrid, recommendedPriority } from '../lib/grid'
+import { buildGrid, domainOrder, recommendedPriority } from '../lib/grid'
 import { buildReport, formatDuration } from '../lib/report'
 import { rows, supabase } from '../lib/supabase'
 import {
@@ -116,8 +116,9 @@ export function ReportEdit() {
       buildGrid(
         report,
         Object.entries(notes).map(([domain, v]) => ({ domain, ...v })),
+        session?.subject ?? 'english',
       ),
-    [report, notes],
+    [report, notes, session],
   )
 
   const parsed: Transcript | null = useMemo(
@@ -154,8 +155,8 @@ export function ReportEdit() {
   const analysis: SessionAnalysis | null = useMemo(() => {
     if (!parsed || parsed.lines.length === 0) return null
     if (!Object.values(roles).includes('student')) return null
-    return analyseSession(report, parsed, windows, roles)
-  }, [parsed, report, windows, roles])
+    return analyseSession(report, parsed, windows, roles, session?.subject ?? 'english')
+  }, [parsed, report, windows, roles, session])
 
   function findOffset() {
     if (!parsed) return
@@ -567,7 +568,7 @@ export function ReportEdit() {
             <option value="">
               {suggested ? `From the answers — ${sectionLabel(suggested)}` : 'None'}
             </option>
-            {DOMAIN_ORDER.map((k) => (
+            {domainOrder(session?.subject).map((k) => (
               <option key={k} value={k}>
                 {sectionLabel(k)}
               </option>
