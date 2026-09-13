@@ -391,6 +391,13 @@ printed choices and says the answer is not among them — it is 403, and it was 
 elapsed times she did not measure, which are the gap between the turn a question opened on and the
 turn the answer landed in, an upper bound rather than a stopwatch.
 
+**The seven are retired**, like `ENG-DIAG-T4-M2-Q01` before them. They are the questions one
+teacher picked for one afternoon, they are in none of the three mathematics level tests, and no
+future session should ask them — which is what retired means here (`0029`). The bank counts them
+as retired rather than warning about seven strays it cannot explain, and nothing that reads a
+session looks at a question's own status, so they stay readable on this session's board and in its
+report for as long as it exists.
+
 One judgement on the form is worth knowing about: **Geometry and Trigonometry was never tested**,
 and the form offers a tick or a cross and nothing else. It carries a cross, and the note beside it
 says the cross is the absence of evidence rather than a verdict on the student. The row's next
