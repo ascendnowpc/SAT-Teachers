@@ -33,6 +33,17 @@
 --      the answer landed in — an upper bound, since Fathom stamps a block and
 --      not a sentence.  Question 4 is the widest of them: 15:56 to 17:46.
 --
+--  THEY GO IN RETIRED.  A question lives in a test or it is not stock (0029,
+--  0040), and these seven live in the record of one afternoon: they are the
+--  questions one teacher picked for one student, they are not in any of the
+--  three mathematics level tests, and no future session should ask them.
+--  Retired is that state exactly — the bank counts them as retired rather than
+--  naming them as strays it cannot explain, and nothing that reads a session
+--  looks at a question's own status, so the seven stay readable on this
+--  session's board and in its report for as long as it exists.  It is what
+--  0040 did with ENG-DIAG-T4-M2-Q01, the first question of the 7 August
+--  recording: it stays, because a session points at it, and it stays retired.
+--
 --  The session is seven questions, not twenty.  It was a conversation about
 --  seven questions, and padding it to a test's length would put thirteen rows
 --  in a report that nobody sat.  sessions.level is left at its default for the
@@ -58,7 +69,7 @@ perform seed_bank_item(
     {"label":"C","body":"36"},
     {"label":"D","body":"50"}]'::jsonb,
   'D', '6x + 14 is exactly twice 3x + 7, so it is twice 25, which is 50. B is the given total copied back; C is 6x alone once x = 6 has been found, which is where the long route stops one step early.',
-  'published', 'linear_equations_in_one_variable', 'mathematics', null);
+  'retired', 'linear_equations_in_one_variable', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q02', 'problem_solving_and_data_analysis',
@@ -73,7 +84,7 @@ perform seed_bank_item(
     {"label":"C","body":"$96"},
     {"label":"D","body":"$100"}]'::jsonb,
   'B', '80 × 1.25 = 100, and 100 × 0.8 = 80. D is the price after the increase, which is the step the question does not stop at; C takes 20% off the original rather than off the increased price.',
-  'published', 'percentages', 'mathematics', null);
+  'retired', 'percentages', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q03', 'advanced_math',
@@ -89,7 +100,7 @@ y = 2x − 1',
     {"label":"C","body":"6.37"},
     {"label":"D","body":"7.00"}]'::jsonb,
   'C', 'x² − 5x + 3 = 2x − 1 gives x² − 7x + 4 = 0, so x = (7 ± √33)/2: 0.63 and 6.37. Both are positive and only 6.37 is offered. D is the sum of the roots, which is where stopping at −b/a lands.',
-  'published', 'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables', 'mathematics', null);
+  'retired', 'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q04', 'algebra',
@@ -106,7 +117,7 @@ In the given equation, r and s are constants and s > 0. The equation has infinit
     {"label":"C","body":"312"},
     {"label":"D","body":"403"}]'::jsonb,
   'D', '(12x + 28)/4 is 3x + 7. Multiplying through by 13: 39x + 91 − s = 13rx − 104r. Infinitely many solutions means the sides are identical, so 39 = 13r and r = 3, and then 91 − s = −104(3) = −312, so s = 403. C is that −312 read as the answer; B is the constant on the left, left alone.',
-  'published', 'linear_equations_in_one_variable', 'mathematics', null);
+  'retired', 'linear_equations_in_one_variable', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q05', 'advanced_math',
@@ -122,7 +133,7 @@ xy = 20',
     {"label":"C","body":"104"},
     {"label":"D","body":"144"}]'::jsonb,
   'C', '(x + y)² = 144, and (x + y)² = x² + 2xy + y², so x² + y² = 144 − 2(20) = 104. D is (x + y)² with the 2xy never taken off; B takes off xy once instead of twice.',
-  'published', 'equivalent_expressions', 'mathematics', null);
+  'retired', 'equivalent_expressions', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q06', 'algebra',
@@ -137,7 +148,7 @@ perform seed_bank_item(
     {"label":"C","body":"35"},
     {"label":"D","body":"37"}]'::jsonb,
   'B', 'f(2) = 2 + c = 35, so c = 33. D adds the 2 instead of subtracting it; A divides 35 by 2, which is what reading f(2) as f × 2 leads to.',
-  'published', 'linear_functions', 'mathematics', null);
+  'retired', 'linear_functions', 'mathematics', null);
 
 perform seed_bank_item(
   'MATH-DIAG-AUG28-Q07', 'algebra',
@@ -155,7 +166,7 @@ In the given system of equations, r is a real number.',
     {"label":"C","body":"(r, 2r/3 + 7/3)"},
     {"label":"D","body":"(r, −3r/2 + 7/2)"}]'::jsonb,
   'B', 'Substitute and see which gives 7. B: 2(−3r/2 + 7/2) + 3r = −3r + 7 + 3r = 7 for every r. C gives 2r + 2r + 7 = 4r + 7, which is 7 only when r = 0 — it is the right rearrangement with the sign of the x-term dropped, so it is the option that survives matching the denominator instead of checking the expression.',
-  'published', 'systems_of_two_linear_equations_in_two_variables', 'mathematics', null);
+  'retired', 'systems_of_two_linear_equations_in_two_variables', 'mathematics', null);
 
 end
 $seedq$;
