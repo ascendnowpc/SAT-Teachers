@@ -6,7 +6,6 @@ import type {
   QuestionReading,
   TeacherFeedback,
 } from './extraction.ts'
-import { DOMAIN_ORDER } from './grid.ts'
 import type { Attempt, Report } from './report.ts'
 
 /**
@@ -121,19 +120,20 @@ export function buildReportDoc(input: {
     byDomain.set(e.domain, [...(byDomain.get(e.domain) ?? []), e])
   }
 
-  const rowFor = new Map(rows.map((r) => [r.domain, r]))
-
-  const domains: DomainSection[] = DOMAIN_ORDER.map((domain) => {
-    const row = rowFor.get(domain)
+  // The form's own rows decide which domains the document has, and their
+  // order: they are the subject's four, and reading them back from the form is
+  // what keeps a mathematics report off the English grid.
+  const domains: DomainSection[] = rows.map((row) => {
+    const domain = row.domain
     return {
       domain,
-      label: row?.label ?? domain,
+      label: row.label,
       teacher: {
-        performance: row?.performance ?? null,
-        performanceNote: row?.performanceNote ?? '',
-        strengths: row?.strengths ?? '',
-        gaps: row?.gaps ?? '',
-        targets: row?.targets ?? '',
+        performance: row.performance,
+        performanceNote: row.performanceNote,
+        strengths: row.strengths,
+        gaps: row.gaps,
+        targets: row.targets,
       },
       evidence: byDomain.get(domain) ?? [],
       measured: bandFor(report, domain),

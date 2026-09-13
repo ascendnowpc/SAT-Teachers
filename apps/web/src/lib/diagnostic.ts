@@ -1,6 +1,6 @@
 import { sectionLabel } from './constants'
-import { DOMAIN_ORDER, DOMAIN_SKILL_FOCUS, DOMAIN_TARGETS } from './grid'
-import type { DomainNote } from './types'
+import { DOMAIN_SKILL_FOCUS, DOMAIN_TARGETS, domainOrder } from './grid'
+import type { DomainNote, Subject } from './types'
 
 /**
  * The teacher's diagnostic form — the English reflection grid, filled in.
@@ -75,9 +75,14 @@ export function defaultTargets(domain: string): string {
   return (DOMAIN_TARGETS[domain] ?? []).join('\n')
 }
 
-/** A blank form: four rows, in the order the paper prints them. */
-export function emptyRows(): DiagnosticRow[] {
-  return DOMAIN_ORDER.map((domain) => ({
+/**
+ * A blank form: four rows, in the order the paper prints them.
+ *
+ * Which four depends on the subject — a mathematics session is assessed against
+ * the mathematics domains, and there is no row on it for Words in Context.
+ */
+export function emptyRows(subject: Subject = 'english'): DiagnosticRow[] {
+  return domainOrder(subject).map((domain) => ({
     domain,
     label: sectionLabel(domain) ?? domain,
     skillFocus: DOMAIN_SKILL_FOCUS[domain] ?? [],
@@ -94,9 +99,9 @@ export function emptyRows(): DiagnosticRow[] {
  * blank form has it. A domain with no row yet is not an error — it is a form
  * that is part-filled, which is the normal state of one halfway through.
  */
-export function rowsFrom(notes: DomainNote[]): DiagnosticRow[] {
+export function rowsFrom(notes: DomainNote[], subject: Subject = 'english'): DiagnosticRow[] {
   const byDomain = new Map(notes.map((n) => [n.domain, n]))
-  return emptyRows().map((row) => {
+  return emptyRows(subject).map((row) => {
     const note = byDomain.get(row.domain)
     if (!note) return row
     return {
@@ -168,7 +173,7 @@ export function summariseProblems(problems: Problem[]): string {
       problems.some((p) => p.where === 'row' && p.field === f),
     ).map((f) => FIELD_LABELS[f].toLowerCase())
     parts.push(
-      `${missingRows.size} of ${DOMAIN_ORDER.length} domain rows are unfinished (${fields.join(', ')})`,
+      `${missingRows.size} of 4 domain rows are unfinished (${fields.join(', ')})`,
     )
   }
   if (problems.some((p) => p.where === 'reflection')) parts.push('your comments on the session')

@@ -64,6 +64,21 @@ describe('emptyRows', () => {
   })
 })
 
+describe('emptyRows for mathematics', () => {
+  it('prints the mathematics domains, not the English ones', () => {
+    expect(emptyRows('mathematics').map((r) => r.domain)).toEqual([
+      'algebra',
+      'advanced_math',
+      'problem_solving_and_data_analysis',
+      'geometry_and_trigonometry',
+    ])
+  })
+
+  it('arrives with that subject’s targets prefilled', () => {
+    for (const row of emptyRows('mathematics')) expect(row.targets).not.toBe('')
+  })
+})
+
 describe('rowsFrom', () => {
   const note = (over: Partial<DomainNote>): DomainNote => ({
     session_id: 's1',

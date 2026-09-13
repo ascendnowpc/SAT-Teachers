@@ -50,7 +50,7 @@ describe('buildGrid', () => {
   it('always has all four domains, tested or not', () => {
     // The order the paper form prints them in, which is not the order the
     // section constant happens to list.
-    expect(buildGrid(report, []).map((r) => r.domain)).toEqual([
+    expect(buildGrid(report, [], 'english').map((r) => r.domain)).toEqual([
       'information_and_ideas',
       'craft_and_structure',
       'expression_of_ideas',
@@ -58,31 +58,51 @@ describe('buildGrid', () => {
     ])
   })
 
+  // A mathematics session is assessed against the mathematics domains. Before
+  // this, its grid was four English rows about a test nobody sat.
+  it('is the mathematics grid for a mathematics session', () => {
+    const maths = buildReport([
+      item(1, 'algebra', 'linear_equations_in_one_variable', true),
+      item(2, 'advanced_math', 'nonlinear_functions', false),
+    ])
+    const rows = buildGrid(maths, [], 'mathematics')
+    expect(rows.map((r) => r.domain)).toEqual([
+      'algebra',
+      'advanced_math',
+      'problem_solving_and_data_analysis',
+      'geometry_and_trigonometry',
+    ])
+    expect(rows[0].label).toBe('Algebra')
+    expect(rows[0].skillFocus).toContain('Linear functions')
+    expect(rows[0].targets.length).toBeGreaterThan(0)
+    expect(rows.find((r) => r.domain === 'geometry_and_trigonometry')!.performance).toBe('untested')
+  })
+
   it('carries the form’s own skill focus and targets', () => {
-    const row = buildGrid(report, [])[0]
+    const row = buildGrid(report, [], 'english')[0]
     expect(row.skillFocus).toContain('Central Ideas & Details')
     expect(row.targets).toContain('Review inference questions (implied vs stated).')
   })
 
   it('scores each domain from the answers', () => {
-    const row = buildGrid(report, []).find((r) => r.domain === 'information_and_ideas')!
+    const row = buildGrid(report, [], 'english').find((r) => r.domain === 'information_and_ideas')!
     expect([row.correct, row.total, row.performance]).toEqual([1, 2, 'mixed'])
   })
 
   it('leaves an untested domain empty rather than scoring it zero', () => {
-    const row = buildGrid(report, []).find((r) => r.domain === 'expression_of_ideas')!
+    const row = buildGrid(report, [], 'english').find((r) => r.domain === 'expression_of_ideas')!
     expect([row.total, row.performance]).toEqual([0, 'untested'])
   })
 
   it('shows only the skills the session actually reached', () => {
-    const row = buildGrid(report, []).find((r) => r.domain === 'information_and_ideas')!
+    const row = buildGrid(report, [], 'english').find((r) => r.domain === 'information_and_ideas')!
     expect(row.skills.map((s) => s.key)).toEqual(['inferences'])
   })
 
   it('attaches the teacher’s written columns to their domain', () => {
     const rows = buildGrid(report, [
       { domain: 'craft_and_structure', strengths: 'Eliminates well.', gaps: null },
-    ])
+    ], 'english')
     const cs = rows.find((r) => r.domain === 'craft_and_structure')!
     expect(cs.strengths).toBe('Eliminates well.')
     expect(cs.gaps).toBeNull()
@@ -101,7 +121,7 @@ describe('buildGrid', () => {
         gaps: null,
         targets: 'Ten inference questions a week.\nRead the question before the passage.',
       },
-    ])
+    ], 'english')
     const ii = rows.find((r) => r.domain === 'information_and_ideas')!
     expect(ii.targets).toEqual([
       'Ten inference questions a week.',
@@ -111,7 +131,7 @@ describe('buildGrid', () => {
   })
 
   it('falls back to the printed targets, and says that is what they are', () => {
-    const ii = buildGrid(report, [])[0]
+    const ii = buildGrid(report, [], 'english')[0]
     expect(ii.targets).toEqual(['Review inference questions (implied vs stated).'])
     expect(ii.targetsAreTheTeacher).toBe(false)
   })
@@ -119,7 +139,7 @@ describe('buildGrid', () => {
   it('treats a whitespace-only targets cell as unwritten', () => {
     const rows = buildGrid(report, [
       { domain: 'information_and_ideas', strengths: null, gaps: null, targets: '  \n\n ' },
-    ])
+    ], 'english')
     expect(rows[0].targetsAreTheTeacher).toBe(false)
   })
 
@@ -132,7 +152,7 @@ describe('buildGrid', () => {
         performance: 'tick',
         performance_note: 'Better than the score looks.',
       },
-    ])
+    ], 'english')
     const ii = rows.find((r) => r.domain === 'information_and_ideas')!
     // One right of two is mixed by the count; the teacher still ticked it, and
     // the report shows both rather than picking a winner.

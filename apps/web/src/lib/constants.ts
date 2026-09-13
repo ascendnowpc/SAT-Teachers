@@ -101,8 +101,8 @@ export const SECTIONS: Record<Subject, { value: string; label: string }[]> = {
 }
 
 /**
- * The Skill Focus column of the teachers' evaluation grid. A skill belongs to
- * exactly one section, so this is keyed by section — which is also what stops
+ * The Skill Focus column of the teachers' evaluation grid, for both subjects.
+ * A skill belongs to exactly one section, so this is keyed by section — which is also what stops
  * the form offering "Boundaries" under Craft and Structure. The database
  * enforces the same pairing; this is the version the UI reads.
  */
@@ -125,6 +125,66 @@ export const SKILLS: Record<string, { value: string; label: string }[]> = {
   standard_english_conventions: [
     { value: 'boundaries', label: 'Boundaries' },
     { value: 'form_structure_and_sense', label: 'Form, Structure and Sense' },
+  ],
+
+  // Mathematics, from the same source as the English eleven and in the same
+  // wording the database checks them in (0041). They are here for the same two
+  // reasons the English ones are: a report groups by skill and has to print a
+  // name rather than a column value, and the grid's Skill Focus column is the
+  // list of what a domain covers.
+  algebra: [
+    { value: 'linear_equations_in_one_variable', label: 'Linear Equations in One Variable' },
+    { value: 'linear_equations_in_two_variables', label: 'Linear Equations in Two Variables' },
+    { value: 'linear_functions', label: 'Linear Functions' },
+    {
+      value: 'systems_of_two_linear_equations_in_two_variables',
+      label: 'Systems of Two Linear Equations in Two Variables',
+    },
+    {
+      value: 'linear_inequalities_in_one_or_two_variables',
+      label: 'Linear Inequalities in One or Two Variables',
+    },
+  ],
+  advanced_math: [
+    { value: 'equivalent_expressions', label: 'Equivalent Expressions' },
+    {
+      value: 'nonlinear_equations_in_one_variable_and_systems_of_equations_in_two_variables',
+      label: 'Nonlinear Equations and Systems',
+    },
+    { value: 'nonlinear_functions', label: 'Nonlinear Functions' },
+  ],
+  problem_solving_and_data_analysis: [
+    {
+      value: 'ratios_rates_proportional_relationships_and_units',
+      label: 'Ratios, Rates, Proportional Relationships and Units',
+    },
+    { value: 'percentages', label: 'Percentages' },
+    {
+      value: 'one_variable_data_distributions_and_measures_of_center_and_spread',
+      label: 'One-Variable Data: Distributions and Measures of Center and Spread',
+    },
+    {
+      value: 'two_variable_data_models_and_scatterplots',
+      label: 'Two-Variable Data: Models and Scatterplots',
+    },
+    {
+      value: 'probability_and_conditional_probability',
+      label: 'Probability and Conditional Probability',
+    },
+    {
+      value: 'inference_from_sample_statistics_and_margin_of_error',
+      label: 'Inference from Sample Statistics and Margin of Error',
+    },
+    {
+      value: 'evaluating_statistical_claims_observational_studies_and_experiments',
+      label: 'Evaluating Statistical Claims: Observational Studies and Experiments',
+    },
+  ],
+  geometry_and_trigonometry: [
+    { value: 'area_and_volume', label: 'Area and Volume' },
+    { value: 'lines_angles_and_triangles', label: 'Lines, Angles and Triangles' },
+    { value: 'right_triangles_and_trigonometry', label: 'Right Triangles and Trigonometry' },
+    { value: 'circles', label: 'Circles' },
   ],
 }
 
