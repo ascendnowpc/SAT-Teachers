@@ -1628,3 +1628,21 @@ tr.miss-row { background: #fdf6f5; }
 @media (max-width: 900px) {
   .admin-who { grid-template-columns: 1fr; }
 }
+
+/* A teacher's page is grouped by the student rather than ordered by date: the
+   question it is opened with is "how is she getting on with this one", and a
+   date-ordered list interleaves that answer with three other students. */
+.student-block { margin-bottom: 26px; }
+.student-block-head {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 10px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.student-block-head h2 { font-size: 16.5px; }
+.student-block-head .spring { flex: 1 1 20px; }
+.student-block-counts {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 12.5px; font-weight: 300; color: var(--muted);
+}
+.student-block-counts strong { font-weight: 600; color: var(--ink-2); }
+.student-block-counts .overdue { font-weight: 600; }

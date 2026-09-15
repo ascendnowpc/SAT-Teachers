@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconCalendar, IconHome, IconLogout, IconShield, IconStack } from './icons'
+import { IconCalendar, IconHome, IconLogout, IconStack, IconUsers } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -35,11 +35,11 @@ export function AppLayout() {
                 <IconStack /> Questions
               </NavLink>
             )}
-            {/* Last, and only for an admin: the portal is a different job from
-                the three above it, not a fourth view of the same one. */}
+            {/* Last, and only for an admin. It is about people — the sessions
+                they run are under Sessions, listed once. */}
             {isAdmin && (
-              <NavLink to="/admin" className={cls}>
-                <IconShield /> The school
+              <NavLink to="/admin/users" className={cls}>
+                <IconUsers /> Users
               </NavLink>
             )}
           </nav>

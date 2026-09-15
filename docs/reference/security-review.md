@@ -108,6 +108,24 @@ mistake would fail at the database — which is the right place for it to fail.
   server only; `VITE_SUPABASE_ANON_KEY` is publishable by design and is useless without a policy
   that grants something.
 
+### The notification, reviewed on its way in (`0046`)
+
+The approval queue got an email, which means the database now makes an outbound HTTP call. Worth
+stating what that call is and is not:
+
+- It **carries no credential**. The function needs none, because it does not trust the request: it
+  takes an id, re-reads that profile on the service role, and sends only if the row really is a
+  pending teacher. The worst a stranger who guesses a uuid achieves is a duplicate of a true notice.
+- The recipients are **read from the database**, never from the request, so the endpoint cannot be
+  used to mail an arbitrary address.
+- The mail body names the pending teacher and nobody else.
+- The call is **queued** by pg_net rather than made inside the signup transaction, and every
+  failure path is swallowed, so neither a missing key nor a dead provider can fail an account
+  creation. That is also why the first version's wrong schema name showed up as a silent no-op —
+  the safety net worked, and the test that caught it was the response table, not an error.
+- `app_config`, which holds the URL, has RLS on and **no policies at all**, so no client role can
+  read it.
+
 ## What is still open
 
 These are recorded rather than fixed, because each one is a product decision rather than a bug,

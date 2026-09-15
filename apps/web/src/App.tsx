@@ -1,10 +1,9 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
-import { AdminOverview } from './pages/AdminOverview'
-import { AdminPeople } from './pages/AdminPeople'
 import { AdminSession } from './pages/AdminSession'
 import { AdminTeacher } from './pages/AdminTeacher'
+import { AdminUsers } from './pages/AdminUsers'
 import { Dashboard } from './pages/Dashboard'
 import { DiagnosticForm } from './pages/DiagnosticForm'
 import { Login } from './pages/Login'
@@ -71,10 +70,12 @@ export function App() {
         <Route path="/sessions/:id/report" element={<SessionReport />} />
         {isAdmin && (
           <>
-            <Route path="/admin" element={<AdminOverview />} />
-            <Route path="/admin/people" element={<AdminPeople />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/teachers/:id" element={<AdminTeacher />} />
             <Route path="/admin/sessions/:id" element={<AdminSession />} />
+            {/* The old overview counted sessions on a page that is not the
+                sessions list. Users is where its people half went. */}
+            <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
           </>
         )}
         {isTeacher && (

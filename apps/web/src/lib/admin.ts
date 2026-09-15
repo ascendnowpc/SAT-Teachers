@@ -244,6 +244,64 @@ export function filterPeople(rows: PersonRow[], query: string): PersonRow[] {
   })
 }
 
+/** One student, and every session this teacher has run with them. */
+export interface StudentGroup {
+  id: string
+  name: string
+  displayId: string | null
+  pc: string | null
+  sessions: Session[]
+  tally: Tally
+  /** The most recent of their sessions, scheduled or sat. */
+  lastAt: string
+}
+
+/**
+ * A teacher's sessions, gathered under the student they were with.
+ *
+ * A teacher's page used to be one long table ordered by date, which is the
+ * wrong axis for the question an admin opens it with. Nobody asks "what did
+ * she do on the 4th"; they ask "how is this teacher doing with this student" —
+ * and the answer is a run of sessions with a score trend down it, which a
+ * date-ordered list interleaves with three other students.
+ *
+ * Busiest student first, and within a student the most recent session first.
+ */
+export function sessionsByStudent(sessions: Session[], stages: Stages): StudentGroup[] {
+  const groups = new Map<string, StudentGroup>()
+
+  for (const s of sessions) {
+    const id = s.student?.id ?? s.student_id
+    let group = groups.get(id)
+    if (!group) {
+      group = {
+        id,
+        name: s.student?.full_name ?? 'Student',
+        displayId: s.student?.display_id ?? null,
+        pc: s.student?.pc ?? null,
+        sessions: [],
+        tally: emptyTally(),
+        lastAt: s.scheduled_at,
+      }
+      groups.set(id, group)
+    }
+    group.sessions.push(s)
+    count(group.tally, s, stageOf(stages, s.id))
+    if (new Date(s.scheduled_at) > new Date(group.lastAt)) group.lastAt = s.scheduled_at
+  }
+
+  for (const group of groups.values()) {
+    group.sessions.sort(
+      (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
+    )
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (a.sessions.length !== b.sessions.length) return b.sessions.length - a.sessions.length
+    return new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime()
+  })
+}
+
 /** Sessions whose write-up is unfinished, oldest first — the backlog, in order. */
 export function backlog(sessions: Session[], stages: Stages): Session[] {
   return sessions

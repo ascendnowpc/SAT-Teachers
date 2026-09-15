@@ -6,6 +6,7 @@ import {
   sortSessions,
   studentLink,
   studentOptions,
+  teacherOptions,
 } from './sessions'
 import type { Session, SessionLevel, SessionStatus } from './types'
 
@@ -155,5 +156,39 @@ describe('studentOptions', () => {
 describe('studentLink', () => {
   it('is the token on the /s/ route', () => {
     expect(studentLink('abc123', 'https://app.example')).toBe('https://app.example/s/abc123')
+  })
+})
+
+
+describe('the teacher filter', () => {
+  // An admin's list spans the school, so the teacher is a real axis on it.
+  const mine = session('a', 's1', '2026-06-01T09:00:00Z')
+  const theirs: Session = {
+    ...session('b', 's1', '2026-06-02T09:00:00Z'),
+    teacher_id: 't2',
+    teacher: { id: 't2', full_name: 'Other Teacher', display_id: 'TCH-t2' },
+  }
+
+  it('narrows to one teacher', () => {
+    const shown = filterSessions([mine, theirs], { ...NO_FILTERS, teacher: 't2' })
+    expect(shown.map((s) => s.id)).toEqual(['b'])
+  })
+
+  it('is off by default', () => {
+    expect(filterSessions([mine, theirs], NO_FILTERS)).toHaveLength(2)
+  })
+
+  it('composes with the student filter rather than replacing it', () => {
+    const shown = filterSessions([mine, theirs], { ...NO_FILTERS, teacher: 't2', student: 's1' })
+    expect(shown.map((s) => s.id)).toEqual(['b'])
+    expect(
+      filterSessions([mine, theirs], { ...NO_FILTERS, teacher: 't2', student: 'nobody' }),
+    ).toHaveLength(0)
+  })
+
+  it('offers each teacher once, with their count', () => {
+    const options = teacherOptions([mine, theirs, { ...theirs, id: 'c' }])
+    expect(options.map((t) => t.count)).toEqual([1, 2])
+    expect(options.map((t) => t.id).sort()).toEqual(['t1', 't2'])
   })
 })

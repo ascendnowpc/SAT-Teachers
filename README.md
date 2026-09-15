@@ -507,14 +507,23 @@ admin as staff, so an admin signing in got the teacher's app — and then every 
 asked `teacher_id = auth.uid()`, which is false for somebody who teaches nothing. An admin could
 see the question bank and not one session, not one form and not one report. `0044` is the role.
 
-**The school** in the sidebar opens it, and it is four screens over the same three lists:
+**Users** in the sidebar opens it, and it is three screens plus a filter on a fourth:
 
 | | |
 | --- | --- |
-| **Overview** | Who is waiting to be approved, what the school is doing, whose write-ups are late, every teacher |
-| **People** | Teachers and students, searched, each with their sessions, their counterparts and their backlog |
-| **A teacher** | Everything with their name on it, and the one control that suspends the account |
+| **Users** | Teachers, students, and the queue of teacher accounts waiting to be verified |
+| **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
 | **A session** | Read-only and complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary |
+| **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
+
+Sessions are listed in exactly one place. The portal opened with an overview that counted them
+again on a page that is not the sessions list, which is two readings of the same rows that can
+disagree — so that page is gone and Users counts only people.
+
+A teacher's page is grouped by student rather than ordered by date, because nobody opens it asking
+"what did she do on the 4th". They ask how this teacher is getting on with this student, and that
+is a run of sessions with a trend down it, which a date-ordered list interleaves with three other
+students.
 
 Every figure is tallied from the rows on read — nothing is stored — which is the same rule the
 session report is built on, for the same reason: a number nobody can open is a number nobody can
@@ -542,6 +551,25 @@ copy of the product. `0045` splits it:
 The two used to be the same column and the same answer, which put a removed teacher at the top of
 the admin's approval queue as though they were new. They are told apart now, on the screen and in
 the database, and letting somebody back in is the same button that took them away.
+
+### Nobody has to notice the queue
+
+A pending teacher cannot tell anybody they are waiting — they are stopped at the sign-in screen,
+and the only place their name appears is a list inside a portal an admin might not open for a week.
+So the row says it for them. `0046` puts a trigger on the new profile that calls the
+`notify_pending_teacher` edge function, which re-reads the profile on the service role and emails
+whichever admins have an address. The same count sits on the dashboard every admin lands on.
+
+Three things it is careful about:
+
+- **A signup must never fail because of a mail.** `pg_net` queues the request rather than making
+  the HTTP call inside the transaction, and the whole thing is wrapped so that any failure at all
+  — no key, no URL, the function down — is a warning and a signup that still worked.
+- **No secret lives in the database.** The call carries no token, because the function does not
+  need one: it takes an id and will only ever mail *admins* about a profile that really is a
+  pending teacher. Guessing a uuid gets you a second copy of a true notice.
+- **The URL is configuration, not schema.** It differs per project, so it is a row in `app_config`
+  (RLS on, no policies, so no client can read it) rather than a line in a migration.
 
 ### A teacher account is not a thing you award yourself
 
@@ -668,13 +696,31 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the project's environmen
 sequence. Do not change the schema from the dashboard; RLS policies are exactly the thing you
 cannot afford to have drift undocumented.
 
-**The edge function** — reading the recording runs server-side, because the key would otherwise
+**The edge functions** — reading the recording runs server-side, because the key would otherwise
 ship to every browser and the quote check would be a promise the client makes about itself:
 
 ```bash
 supabase secrets set GEMINI_API_KEY=...
 supabase functions deploy extract_session_context
 ```
+
+And the approval notice, which needs a mail provider and the URL to call it on:
+
+```bash
+supabase secrets set RESEND_API_KEY=...
+supabase secrets set MAIL_FROM='Ascend Now <no-reply@yourdomain>'   # optional
+supabase secrets set APP_URL=https://sat-teachers.vercel.app        # optional, for the link
+supabase functions deploy notify_pending_teacher --no-verify-jwt
+
+# once per project, so the trigger knows where to call:
+#   insert into app_config (key, value)
+#   values ('functions_url', 'https://<ref>.supabase.co/functions/v1')
+#   on conflict (key) do update set value = excluded.value;
+```
+
+Without `RESEND_API_KEY` the function answers 200 saying so and sends nothing — the queue in the
+portal is the source of truth and the mail is a nudge towards it, so a missing provider is a
+slower workflow rather than a broken signup.
 
 **Gemini reads the recording**, and `apps/web/src/lib/gemini.ts` is the only file that knows it —
 the guard, the prompt, the schema and the report are written against a shape, not a vendor. The

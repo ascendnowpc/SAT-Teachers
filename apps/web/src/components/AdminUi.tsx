@@ -183,10 +183,13 @@ export function SessionTable({
   sessions,
   stages,
   showTeacher = true,
+  showStudent = true,
 }: {
   sessions: Session[]
   stages: Stages
   showTeacher?: boolean
+  /** Off when the table already sits under that student's name. */
+  showStudent?: boolean
 }) {
   return (
     <div className="board">
@@ -196,7 +199,7 @@ export function SessionTable({
             <tr>
               <th>When</th>
               {showTeacher && <th>Teacher</th>}
-              <th>Student</th>
+              {showStudent && <th>Student</th>}
               <th>Session</th>
               <th>Level</th>
               <th>Status</th>
@@ -223,13 +226,15 @@ export function SessionTable({
                       <div className="cell-sub num">{s.teacher?.display_id}</div>
                     </td>
                   )}
-                  <td>
-                    <div className="cell-strong">{s.student?.full_name ?? '—'}</div>
-                    <div className="cell-sub">
-                      <span className="num">{s.student?.display_id}</span>
-                      {s.student?.pc && <> · {s.student.pc}</>}
-                    </div>
-                  </td>
+                  {showStudent && (
+                    <td>
+                      <div className="cell-strong">{s.student?.full_name ?? '—'}</div>
+                      <div className="cell-sub">
+                        <span className="num">{s.student?.display_id}</span>
+                        {s.student?.pc && <> · {s.student.pc}</>}
+                      </div>
+                    </td>
+                  )}
                   <td>
                     <div className="cell-strong">
                       {s.title || `${subjectLabel(s.subject)} session`}

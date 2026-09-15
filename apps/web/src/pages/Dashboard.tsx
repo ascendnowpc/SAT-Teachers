@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
+import { pendingTeachers } from '../lib/admin'
 import { rows, supabase } from '../lib/supabase'
-import type { Difficulty, Session } from '../lib/types'
+import { formatUtc } from '../lib/time'
+import type { Difficulty, Profile, Session } from '../lib/types'
 
 
 const SESSION_SELECT =
@@ -11,12 +13,28 @@ const SESSION_SELECT =
   ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc)'
 
 export function Dashboard() {
-  const { profile, isTeacher } = useAuth()
+  const { profile, isTeacher, isAdmin } = useAuth()
   const [counts, setCounts] = useState<Record<Difficulty, number> | null>(null)
   const [next, setNext] = useState<Session[]>([])
+  const [pending, setPending] = useState<Profile[]>([])
 
   useEffect(() => {
     let active = true
+
+    // A pending teacher cannot see anything at all until somebody approves
+    // them, and an admin who does not open Users does not know they are there.
+    // So the one piece of the portal that is a person waiting is on the page
+    // every admin lands on.
+    if (isAdmin) {
+      void supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'teacher')
+        .eq('is_active', false)
+        .then(({ data }) => {
+          if (active && data) setPending(pendingTeachers(rows<Profile>(data)))
+        })
+    }
 
     void supabase
       .from('sessions')
@@ -53,7 +71,7 @@ export function Dashboard() {
     return () => {
       active = false
     }
-  }, [isTeacher])
+  }, [isTeacher, isAdmin])
 
   if (!profile) return null
 
@@ -73,6 +91,34 @@ export function Dashboard() {
           </p>
         </div>
       </div>
+
+      {pending.length > 0 && (
+        <div className="card card-pad approvals" style={{ marginBottom: 22 }}>
+          <div className="section-title">
+            {pending.length} teacher {pending.length === 1 ? 'account is' : 'accounts are'} waiting
+            to be verified
+          </div>
+          <p className="sub" style={{ marginBottom: 12, maxWidth: '62ch' }}>
+            They can see nothing at all until you approve them — not a session, not a question, not
+            a student. Whoever signed up is sitting on a screen that says so.
+          </p>
+          <ul className="approval-list" style={{ marginBottom: 14 }}>
+            {pending.slice(0, 3).map((p) => (
+              <li key={p.id}>
+                <div>
+                  <div className="cell-strong">{p.full_name || 'Unnamed'}</div>
+                  <div className="cell-sub">
+                    {p.email && <>{p.email} · </>}signed up {formatUtc(p.created_at)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Link className="btn btn-primary" to="/admin/users">
+            {pending.length > 3 ? `Review all ${pending.length}` : 'Review them'}
+          </Link>
+        </div>
+      )}
 
       {isTeacher && (
         <div className="stats">

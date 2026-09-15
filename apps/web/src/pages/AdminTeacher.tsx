@@ -4,7 +4,7 @@ import { SessionTable, Stat } from '../components/AdminUi'
 import { IconBack } from '../components/icons'
 import { Notice } from '../components/ui'
 import { useSchool } from '../hooks/useSchool'
-import { backlog, isSuspended, rate, teacherRows } from '../lib/admin'
+import { backlog, isSuspended, rate, sessionsByStudent, teacherRows } from '../lib/admin'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 
@@ -27,14 +27,17 @@ export function AdminTeacher() {
   )
   const theirs = useMemo(() => sessions.filter((s) => s.teacher_id === id), [sessions, id])
   const late = useMemo(() => backlog(theirs, stages), [theirs, stages])
+  // The axis an admin actually opens this page on: not "what did she do on the
+  // 4th" but "how is she doing with this student".
+  const byStudent = useMemo(() => sessionsByStudent(theirs, stages), [theirs, stages])
 
   if (loading) return <div className="page">Loading…</div>
 
   if (!row) {
     return (
       <div className="page">
-        <Link className="back-link" to="/admin/people">
-          <IconBack /> People
+        <Link className="back-link" to="/admin/users">
+          <IconBack /> Users
         </Link>
         <div className="card">
           <div className="empty">
@@ -51,8 +54,8 @@ export function AdminTeacher() {
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to="/admin/people">
-        <IconBack /> People
+      <Link className="back-link" to="/admin/users">
+        <IconBack /> Users
       </Link>
 
       <div className="page-head">
@@ -100,9 +103,9 @@ export function AdminTeacher() {
       )}
 
       <div className="section-title" style={{ marginTop: 26 }}>
-        Every session
+        Their students
       </div>
-      {theirs.length === 0 ? (
+      {byStudent.length === 0 ? (
         <div className="card">
           <div className="empty">
             <h3>Nothing yet</h3>
@@ -110,7 +113,36 @@ export function AdminTeacher() {
           </div>
         </div>
       ) : (
-        <SessionTable sessions={theirs} stages={stages} showTeacher={false} />
+        byStudent.map((group) => (
+          <section key={group.id} className="student-block">
+            <div className="student-block-head">
+              <div>
+                <h2>{group.name}</h2>
+                <div className="cell-sub">
+                  <span className="num">{group.displayId}</span>
+                  {group.pc && <> · {group.pc}</>}
+                </div>
+              </div>
+              <div className="spring" />
+              <div className="student-block-counts">
+                <span>
+                  <strong>{group.sessions.length}</strong>{' '}
+                  {group.sessions.length === 1 ? 'session' : 'sessions'}
+                </span>
+                <span>
+                  <strong>{group.tally.answered}</strong> answered
+                </span>
+                <span>
+                  <strong>{group.tally.published}</strong> reported
+                </span>
+                {group.tally.outstanding > 0 && (
+                  <span className="overdue">{group.tally.outstanding} outstanding</span>
+                )}
+              </div>
+            </div>
+            <SessionTable sessions={group.sessions} stages={stages} showTeacher={false} showStudent={false} />
+          </section>
+        ))
       )}
     </div>
   )
