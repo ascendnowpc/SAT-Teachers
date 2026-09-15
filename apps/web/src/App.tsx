@@ -1,6 +1,10 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
+import { AdminOverview } from './pages/AdminOverview'
+import { AdminPeople } from './pages/AdminPeople'
+import { AdminSession } from './pages/AdminSession'
+import { AdminTeacher } from './pages/AdminTeacher'
 import { Dashboard } from './pages/Dashboard'
 import { DiagnosticForm } from './pages/DiagnosticForm'
 import { Login } from './pages/Login'
@@ -13,11 +17,12 @@ import { SessionReport } from './pages/SessionReport'
 import { Exam } from './pages/Exam'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
+import { Pending } from './pages/Pending'
 import { Signup } from './pages/Signup'
 import { StudentLink } from './pages/StudentLink'
 
 export function App() {
-  const { session, profile, loading, isTeacher } = useAuth()
+  const { session, profile, loading, isTeacher, isAdmin, isPending } = useAuth()
 
   // The student's link is not a page of the app — it is the app, for whoever
   // holds it. It is matched before anything asks who is signed in, because the
@@ -47,6 +52,12 @@ export function App() {
   // Signed in, but the profile row from the signup trigger has not arrived yet.
   if (!profile) return <div className="center-fill">Setting up your account…</div>
 
+  // A teacher account nobody has approved yet. There is no half-open version of
+  // this screen to show them: every policy in the schema asks is_teacher(),
+  // which asks is_active, so the app behind this would be empty tables and
+  // errors rather than a smaller product.
+  if (isPending) return <Pending />
+
   return (
     <Routes>
       {/* The exam sits outside the shell on purpose: while a paper is open the
@@ -58,6 +69,14 @@ export function App() {
         <Route path="/sessions" element={<Sessions />} />
         <Route path="/sessions/:id" element={<SessionRoom />} />
         <Route path="/sessions/:id/report" element={<SessionReport />} />
+        {isAdmin && (
+          <>
+            <Route path="/admin" element={<AdminOverview />} />
+            <Route path="/admin/people" element={<AdminPeople />} />
+            <Route path="/admin/teachers/:id" element={<AdminTeacher />} />
+            <Route path="/admin/sessions/:id" element={<AdminSession />} />
+          </>
+        )}
         {isTeacher && (
           <>
             <Route path="/sessions/new" element={<SessionNew />} />

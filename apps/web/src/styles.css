@@ -1575,3 +1575,56 @@ tr.row-open .qsplit {
    answer to the question the screen is asking. */
 .pick-test { display: flex; flex-wrap: wrap; gap: 10px; }
 .pick-test .btn { flex: 0 0 auto; }
+
+/* ------------------------------------------------------- the admin portal ---
+   Four screens over the same three lists. Everything here is a table or a
+   figure above one, so there is little to style that the board and the stats
+   above did not already have — the additions are the columns the portal has
+   that no teacher screen does. */
+
+.stat-sub {
+  margin-top: 4px; font-size: 11.5px; font-weight: 300; color: var(--muted); line-height: 1.4;
+}
+
+/* The approval queue sits above the school because it is the one thing on the
+   page that is somebody waiting on the admin. */
+.approvals { margin-bottom: 22px; border-left: 3px solid var(--sky); }
+.approval-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.approval-list li {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; background: var(--navy-50); border-radius: var(--r-sm);
+}
+.approval-list .spring { flex: 1 1 20px; }
+
+table.people-table { min-width: 940px; }
+table.admin-sess-table { min-width: 940px; }
+table.admin-items-table { min-width: 880px; }
+table.admin-form-table { min-width: 960px; }
+table.admin-form-table td { vertical-align: top; }
+
+/* A count that means somebody has to do something, rather than a count. */
+.overdue { color: var(--danger); font-weight: 600; }
+tr.miss-row { background: #fdf6f5; }
+
+.people-table .cell-strong .badge,
+.admin-who .badge { margin-left: 6px; vertical-align: 1px; }
+
+/* A stem in a table cell: two lines of it says which question this is, and the
+   whole of it would make every row a paragraph. */
+.cell-clip {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; max-width: 46ch; font-size: 13px; line-height: 1.45;
+}
+
+.admin-who { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+.admin-who .section-title { margin-bottom: 8px; }
+
+.admin-written p { font-size: 14px; font-weight: 300; line-height: 1.6; max-width: 76ch; }
+.admin-written p + p { margin-top: 10px; }
+
+.suspend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.suspend .notice { margin: 0; }
+
+@media (max-width: 900px) {
+  .admin-who { grid-template-columns: 1fr; }
+}

@@ -16,6 +16,14 @@ interface AuthValue {
   profile: Profile | null
   loading: boolean
   isTeacher: boolean
+  /** An active admin. Reads the whole school; writes none of it. */
+  isAdmin: boolean
+  /**
+   * A teacher account that has been created and not yet approved. 0044 writes
+   * one inactive, because signup is open and a teacher reads every answer key
+   * in the bank, so this is a real state a real person sits in.
+   */
+  isPending: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (args: {
     email: string
@@ -101,7 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       loading,
-      isTeacher: profile?.role === 'teacher' || profile?.role === 'admin',
+      isTeacher: (profile?.role === 'teacher' || profile?.role === 'admin') && profile.is_active,
+      isAdmin: profile?.role === 'admin' && profile.is_active,
+      isPending: profile?.role === 'teacher' && !profile.is_active,
       signIn,
       signUp,
       signOut,

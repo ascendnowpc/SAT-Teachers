@@ -27,6 +27,12 @@ export interface Profile {
   /** The student's PC, as the teachers write it. Null for teachers and for students added before it was asked for. */
   pc: string | null
   is_active: boolean
+  /**
+   * When an admin took the account away (0045). An inactive account with this
+   * still null is merely *pending* — nobody has approved it yet, and it can
+   * still sign in, because that is how it reaches the screen that says so.
+   */
+  suspended_at: string | null
   created_at: string
 }
 

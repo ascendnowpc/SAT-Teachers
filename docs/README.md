@@ -26,6 +26,8 @@ Supporting material:
   would and would not go
 - [The AI Layer](reference/report-ai-layer.md) — the four options for putting a model on top of
   the analysis, what it must never be given, where it runs, and what to measure
+- [Security Review](reference/security-review.md) — a pass over every migration, grant, the edge
+  function and what is committed: what was wrong, what `0044` fixed, and what is still open
 - [English Diagnostic Key Review](reference/english-diagnostic-key-review.md) — where every
   loaded key came from: the seven printed answers that were wrong, and the 40 written from
   scratch
