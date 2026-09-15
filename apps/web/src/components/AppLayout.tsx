@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconCalendar, IconHome, IconLogout, IconStack } from './icons'
+import { IconCalendar, IconHome, IconLogout, IconShield, IconStack } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -10,7 +10,7 @@ function initials(name: string, fallback: string): string {
 }
 
 export function AppLayout() {
-  const { profile, isTeacher, signOut } = useAuth()
+  const { profile, isTeacher, isAdmin, signOut } = useAuth()
   if (!profile) return null
 
   const cls = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '')
@@ -33,6 +33,13 @@ export function AppLayout() {
             {isTeacher && (
               <NavLink to="/questions" className={cls}>
                 <IconStack /> Questions
+              </NavLink>
+            )}
+            {/* Last, and only for an admin: the portal is a different job from
+                the three above it, not a fourth view of the same one. */}
+            {isAdmin && (
+              <NavLink to="/admin" className={cls}>
+                <IconShield /> The school
               </NavLink>
             )}
           </nav>

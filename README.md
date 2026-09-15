@@ -17,8 +17,9 @@ npm run dev                                    # http://localhost:5173
 
 | | |
 | --- | --- |
-| **Signup** | Teachers only. Students are added by their teacher and need no account at all |
+| **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
+| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
 | **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
@@ -498,6 +499,55 @@ The suggestion encodes what the teachers already do — escalate on solid reason
 level on a lucky guess or a concept gap, drop a level when they ran out of time. It suggests;
 it never moves anybody. The teacher's judgement is the product.
 
+## The admin portal
+
+`admin` has been in the role enum since `0001` with nothing behind it. `is_teacher()` counted an
+admin as staff, so an admin signing in got the teacher's app — and then every policy in the schema
+asked `teacher_id = auth.uid()`, which is false for somebody who teaches nothing. An admin could
+see the question bank and not one session, not one form and not one report. `0044` is the role.
+
+**The school** in the sidebar opens it, and it is four screens over the same three lists:
+
+| | |
+| --- | --- |
+| **Overview** | Who is waiting to be approved, what the school is doing, whose write-ups are late, every teacher |
+| **People** | Teachers and students, searched, each with their sessions, their counterparts and their backlog |
+| **A teacher** | Everything with their name on it, and the one control that suspends the account |
+| **A session** | Read-only and complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary |
+
+Every figure is tallied from the rows on read — nothing is stored — which is the same rule the
+session report is built on, for the same reason: a number nobody can open is a number nobody can
+check. The arithmetic is in [`lib/admin.ts`](apps/web/src/lib/admin.ts) and tested there rather
+than inside a component.
+
+**An admin reads and does not write.** `0044` adds a SELECT policy per table and no write policy
+anywhere, and every RPC that changes a session still opens with `assert_session_teacher`, so a
+button added to an admin screen by mistake fails at the database rather than in a code review. The
+one exception is `set_profile_active`, which is the approval, is admin-only, and refuses to touch
+the caller's own row — the last admin switching themselves off locks the role out of the product.
+
+### A teacher account is not a thing you award yourself
+
+Signup is open to the internet and the client asked for `teacher`. The role was coerced away from
+`admin`, which is the check everybody looked at and the one that was never the problem: a
+**teacher** reads every answer key in the bank, every student on the roster with their PC, and can
+edit the house content everybody else's sessions are built from. Nothing stood between a stranger
+and all of it but a confirmation email.
+
+`is_teacher()` has required `is_active` since `0001`, so the fix is one word in the signup trigger:
+a new teacher lands inactive and an admin approves them. A pending account reads *nothing*, which
+is why it gets a screen of its own rather than an empty product. Accounts that already exist are
+untouched, and the first admin is minted in the SQL editor by somebody who already owns the
+project — there is no RPC that grants the role, because any such RPC is a rung on a ladder:
+
+```sql
+update profiles set role = 'admin', is_active = true where email = 'you@ascendnow.info';
+```
+
+The rest of the pass over the schema, the grants, the edge function and what is committed — what
+was found, what `0044` fixed and what is still open — is in
+[`docs/reference/security-review.md`](docs/reference/security-review.md).
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -548,7 +598,10 @@ psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 > exception rather than a session; tightening them touches `is_teacher()`, which RLS policies call
 > as the querying role, so it still wants its own test pass.
 
-Between them these assert: a signup asking for `admin` is coerced to `student`; a student
+Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
+arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
+an admin reads every profile, session and write-up and can edit none of them, nor switch
+themselves off; a suspended teacher loses the answer keys the moment they are suspended; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible
