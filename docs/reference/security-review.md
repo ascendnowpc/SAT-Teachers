@@ -56,6 +56,20 @@ The subquery above is the shape Postgres raises `infinite recursion detected in 
 relation "profiles"` for. It was doing the trigger's job badly; with the trigger holding the
 line the policy says the one thing a policy should say — this is your row.
 
+### 3b. A suspended account could still sign in — **fixed in `0045`**
+
+`0044`'s suspension was `is_active = false`, which every policy in the schema reads, so the
+account lost every row at once. What it did not do is stop the sign-in: the password still worked
+and the person landed on a product with nothing in it. The right amount of data and the wrong
+door.
+
+Suspending now also bans the auth user (`banned_until` a century out) and deletes their sessions,
+so the password stops working and the tab they already had stops refreshing. That forced one
+distinction the product had been missing: **off is two things.** An account that is merely
+*pending* must still be able to sign in — that is how it reaches the screen telling it so —
+while a *suspended* one must not. `profiles.suspended_at` tells them apart, which also keeps a
+teacher an admin removed out of the approval queue they would otherwise head every morning.
+
 ### 4. `admin` was a label, not a role — **this is the portal**
 
 `admin` has been in the enum since `0001` and `is_teacher()` has counted one as staff the whole
@@ -126,6 +140,11 @@ still costs nothing.
 **Suspension is immediate at the database and lazy in the browser.** `is_active` is read every
 time a policy runs, so a suspended teacher loses every row at once — but their JWT stays valid
 until it expires, so their open tab looks signed in until something reloads. No data reaches it.
+
+**Leaked-password protection is off in the Supabase project.** One toggle
+(Authentication → Password security) checks new passwords against HaveIBeenPwned. It matters more
+now than it did: a teacher password is a key to every answer in the bank. This is a project
+setting rather than anything in this repository, so it is listed here rather than changed.
 
 **An admin reads `sessions.access_token`.** A consequence of giving the admin the whole row, and
 useful — it is how the portal offers to re-send a student's link — but it means an admin can open

@@ -4,7 +4,7 @@ import { SessionTable, Stat } from '../components/AdminUi'
 import { IconBack } from '../components/icons'
 import { Notice } from '../components/ui'
 import { useSchool } from '../hooks/useSchool'
-import { backlog, rate, teacherRows } from '../lib/admin'
+import { backlog, isSuspended, rate, teacherRows } from '../lib/admin'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 
@@ -60,7 +60,11 @@ export function AdminTeacher() {
           <h1>{profile.full_name || 'Unnamed'}</h1>
           <p className="sub">
             <span className="badge badge-role">{profile.role}</span>
-            {!profile.is_active && <span className="badge badge-bad">Suspended</span>}
+            {isSuspended(profile) ? (
+              <span className="badge badge-bad">Suspended</span>
+            ) : (
+              !profile.is_active && <span className="badge badge-medium">Pending</span>
+            )}
             <span style={{ marginLeft: 8 }} className="num">
               {profile.display_id}
             </span>
@@ -116,9 +120,11 @@ export function AdminTeacher() {
  * Switching an account off, and back on.
  *
  * It is the one write the portal has, and it is the same RPC the approval queue
- * calls: is_teacher() asks is_active, so an inactive teacher loses every policy
- * in the schema at once. Their sessions and their reports are untouched — this
- * is a door, not an eraser.
+ * calls. Suspending does two things at once (0045): is_teacher() asks
+ * is_active, so the account loses every policy in the schema, and the auth user
+ * is banned, so the password stops working and their open tab stops refreshing.
+ * Their sessions and their reports are untouched — this is a door, not an
+ * eraser, and letting them back in is the same button.
  */
 function Suspend({
   profile,
@@ -165,7 +171,9 @@ function Suspend({
       {failed && <Notice kind="error">{failed}</Notice>}
       {confirming ? (
         <>
-          <span className="cell-sub">Sign {profile.full_name || 'them'} out of everything?</span>
+          <span className="cell-sub">
+            {profile.full_name || 'They'} will be signed out and their password will stop working.
+          </span>
           <button
             type="button"
             className="btn btn-danger btn-sm"

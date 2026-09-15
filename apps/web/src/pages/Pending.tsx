@@ -16,17 +16,16 @@ import { useAuth } from '../context/AuthContext'
  * is_teacher(), is_teacher() asks is_active, and the app behind this would be
  * blank tables and errors that say nothing about why.
  *
- * An account an admin has *suspended* lands here too, which is why the wording
- * below is about the account being switched off rather than about being new.
- * The two states are the same column and the same answer: ask whoever runs the
- * platform.
+ * Only a PENDING account reaches this screen. An account an admin has taken
+ * away is banned at the auth server (0045), so it never gets a session to show
+ * anything to — it is stopped at the sign-in form instead.
  */
 export function Pending() {
   const { profile, signOut } = useAuth()
 
   return (
     <AuthLayout
-      title="Your account is not open yet"
+      title="Your account is waiting for approval"
       subtitle="An admin at Ascend Now has to let a teacher account in before it can see any sessions."
       footer={
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>

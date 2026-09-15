@@ -3,6 +3,7 @@ import {
   backlog,
   filterPeople,
   isOutstanding,
+  isSuspended,
   pendingTeachers,
   rate,
   reportStage,
@@ -22,6 +23,7 @@ function profile(id: string, role: Profile['role'], extra: Partial<Profile> = {}
     email: `${id}@example.test`,
     pc: null,
     is_active: true,
+    suspended_at: null,
     created_at: '2026-01-01T00:00:00Z',
     ...extra,
   }
@@ -238,6 +240,30 @@ describe('pendingTeachers', () => {
       profile('s1', 'student', { is_active: false }),
     ]
     expect(pendingTeachers(profiles).map((p) => p.id)).toEqual(['t2', 't3'])
+  })
+
+  // Off is two things (0045). Somebody an admin removed is not somebody
+  // waiting to be let in, and the queue must not ask them to undo it daily.
+  it('leaves out a teacher an admin suspended', () => {
+    const profiles = [
+      profile('t2', 'teacher', { is_active: false, created_at: '2026-02-01T00:00:00Z' }),
+      profile('t4', 'teacher', {
+        is_active: false,
+        suspended_at: '2026-04-01T00:00:00Z',
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    ]
+    expect(pendingTeachers(profiles).map((p) => p.id)).toEqual(['t2'])
+  })
+})
+
+describe('isSuspended', () => {
+  it('tells a removed account from one that was never approved', () => {
+    expect(isSuspended(profile('t1', 'teacher'))).toBe(false)
+    expect(isSuspended(profile('t2', 'teacher', { is_active: false }))).toBe(false)
+    expect(
+      isSuspended(profile('t3', 'teacher', { is_active: false, suspended_at: '2026-04-01T00:00:00Z' })),
+    ).toBe(true)
   })
 })
 

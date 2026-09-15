@@ -16,6 +16,8 @@
 --    * nobody rewrites their own role, display id or approval (0044)
 --    * an admin reads every session, every form and every report, and writes
 --      none of them
+--    * a SUSPENDED account cannot sign in at all (0045), where an account that
+--      is merely waiting for approval still can — that is how it is told so
 -- ============================================================================
 
 create or replace function public.__rls_check()
@@ -268,6 +270,24 @@ begin
 
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
+
+  -- 0045. Losing every row is the right amount of data and the wrong door: a
+  -- removed teacher should be stopped at the sign-in form, not left clicking
+  -- around an empty copy of the product.
+  return query select 'suspended teacher'::text, 'cannot sign in at all'::text,
+    'banned'::text,
+    (select case when banned_until > now() then 'banned' else 'can sign in' end
+       from auth.users where id = t_id),
+    (select case when banned_until > now() then 'PASS' else 'FAIL' end
+       from auth.users where id = t_id);
+
+  -- And the distinction the approval queue depends on: off is two things.
+  return query select 'suspended teacher'::text, 'is marked suspended, not pending'::text,
+    'suspended_at set'::text,
+    (select case when suspended_at is null then 'null' else 'set' end
+       from profiles where id = t_id),
+    (select case when suspended_at is not null then 'PASS' else 'FAIL' end
+       from profiles where id = t_id);
 
   delete from session_reports where session_id = sess;
   delete from sessions where id = sess;

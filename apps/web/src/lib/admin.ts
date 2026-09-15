@@ -196,16 +196,26 @@ export function schoolTally(sessions: Session[], stages: Stages): Tally {
   return tally
 }
 
+/** An account an admin took away, as opposed to one nobody has approved yet. */
+export function isSuspended(profile: Profile): boolean {
+  return !profile.is_active && profile.suspended_at !== null
+}
+
 /**
  * Teacher accounts waiting to be let in.
  *
  * 0044 writes a new teacher inactive, because signup is open to anyone with an
  * email address and a teacher reads every answer key in the bank. This is the
  * queue that makes that a workflow rather than a wall.
+ *
+ * A *suspended* teacher is inactive too and is deliberately not here: somebody
+ * an admin has removed is not somebody waiting to be let in, and putting them
+ * in this queue asks the admin to undo their own decision every time they open
+ * the page.
  */
 export function pendingTeachers(profiles: Profile[]): Profile[] {
   return profiles
-    .filter((p) => p.role === 'teacher' && !p.is_active)
+    .filter((p) => p.role === 'teacher' && !p.is_active && !isSuspended(p))
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
 }
 

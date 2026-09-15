@@ -4,6 +4,21 @@ import { AuthLayout } from '../components/AuthLayout'
 import { Field, Input, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 
+/**
+ * What Supabase says when the account has been suspended, and what to say back.
+ *
+ * 0045 bans the auth user, so the sign-in is refused before any of our own code
+ * runs and the message comes back from the auth server in its own words —
+ * "User is banned", which reads like a punishment from a service the teacher has
+ * never heard of. They are owed the real reason and the one useful next step.
+ */
+function readable(message: string): string {
+  if (/banned/i.test(message)) {
+    return 'This account has been closed by an admin. Ask whoever runs the platform to reopen it.'
+  }
+  return message
+}
+
 export function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
@@ -21,7 +36,7 @@ export function Login() {
       await signIn(email, password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not sign in.')
+      setError(err instanceof Error ? readable(err.message) : 'Could not sign in.')
     } finally {
       setBusy(false)
     }

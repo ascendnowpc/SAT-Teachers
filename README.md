@@ -20,6 +20,7 @@ npm run dev                                    # http://localhost:5173
 | **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
 | **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only |
+| **Approve and suspend** | An admin lets a new teacher in, or closes an account — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
 | **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
@@ -526,6 +527,22 @@ button added to an admin screen by mistake fails at the database rather than in 
 one exception is `set_profile_active`, which is the approval, is admin-only, and refuses to touch
 the caller's own row — the last admin switching themselves off locks the role out of the product.
 
+### Off is two things
+
+`0044` had one kind of off: `is_active = false`, which every policy reads, so the account lost
+every row in the database. That is the right amount of data (none) and the wrong door — the
+password still worked, so somebody you had removed could still sign in and click around an empty
+copy of the product. `0045` splits it:
+
+| | `is_active` | `suspended_at` | Can sign in? |
+| --- | --- | --- | --- |
+| **Pending** | false | null | **Yes** — that is how they reach the screen that says they are waiting |
+| **Suspended** | false | set | **No.** The auth user is banned and their open sessions are deleted |
+
+The two used to be the same column and the same answer, which put a removed teacher at the top of
+the admin's approval queue as though they were new. They are told apart now, on the screen and in
+the database, and letting somebody back in is the same button that took them away.
+
 ### A teacher account is not a thing you award yourself
 
 Signup is open to the internet and the client asked for `teacher`. The role was coerced away from
@@ -601,7 +618,8 @@ psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
 arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
 an admin reads every profile, session and write-up and can edit none of them, nor switch
-themselves off; a suspended teacher loses the answer keys the moment they are suspended; a student
+themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
+sign in again at all, while one merely waiting for approval still can; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible

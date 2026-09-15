@@ -1,5 +1,12 @@
 import { Link } from 'react-router-dom'
-import { STAGE_LABELS, rate, type PersonRow, type ReportStage, type Stages } from '../lib/admin'
+import {
+  STAGE_LABELS,
+  isSuspended,
+  rate,
+  type PersonRow,
+  type ReportStage,
+  type Stages,
+} from '../lib/admin'
 import { levelLabel, subjectLabel } from '../lib/constants'
 import { utcParts, utcTime } from '../lib/time'
 import type { Profile, Session } from '../lib/types'
@@ -96,7 +103,11 @@ export function PeopleTable({
                 <td>
                   <div className="cell-strong">
                     {profile.full_name || 'Unnamed'}
-                    {!profile.is_active && <span className="badge badge-bad">Suspended</span>}
+                    {isSuspended(profile) ? (
+                      <span className="badge badge-bad">Suspended</span>
+                    ) : (
+                      !profile.is_active && <span className="badge badge-medium">Pending</span>
+                    )}
                     {profile.role === 'admin' && <span className="badge badge-role">Admin</span>}
                   </div>
                   <div className="cell-sub">
