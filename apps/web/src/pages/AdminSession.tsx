@@ -73,8 +73,8 @@ export function AdminSession() {
   if (!session) {
     return (
       <div className="page">
-        <Link className="back-link" to="/admin">
-          <IconBack /> The school
+        <Link className="back-link" to="/admin/users">
+          <IconBack /> Users
         </Link>
         <div className="card">
           <div className="empty">

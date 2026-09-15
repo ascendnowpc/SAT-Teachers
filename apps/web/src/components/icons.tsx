@@ -42,8 +42,8 @@ export const IconTrash = ({ size = 14 }: P) => (
 export const IconGrip = ({ size = 15 }: P) => (
   <svg {...base(size)} strokeWidth={2.2}><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" /></svg>
 )
-export const IconShield = ({ size = 17 }: P) => (
-  <svg {...base(size)}><path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 8.5-4.1-.9-7-4.3-7-8.5V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
+export const IconUsers = ({ size = 17 }: P) => (
+  <svg {...base(size)}><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.2 2.7-5.2 6-5.2s6 2 6 5.2" /><path d="M16.5 5.2a3.2 3.2 0 0 1 0 5.9" /><path d="M18 14.4c2 .7 3.4 2.4 3.4 4.6" /></svg>
 )
 export const IconClock = ({ size = 15 }: P) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M12 7v5.5l3.5 2" /></svg>

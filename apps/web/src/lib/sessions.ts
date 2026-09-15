@@ -24,6 +24,12 @@ export interface SessionFilters {
   level: SessionLevel | 'all'
   /** A student's profile id, or 'all'. */
   student: string | 'all'
+  /**
+   * A teacher's profile id, or 'all'. Only ever offered to an admin: a teacher
+   * sees their own sessions and nobody else's, so the filter would have one
+   * value in it and that value would be them.
+   */
+  teacher: string | 'all'
 }
 
 export const NO_FILTERS: SessionFilters = {
@@ -32,6 +38,7 @@ export const NO_FILTERS: SessionFilters = {
   subject: 'all',
   level: 'all',
   student: 'all',
+  teacher: 'all',
 }
 
 export type SortKey = 'when' | 'student' | 'title' | 'status' | 'level'
@@ -86,6 +93,7 @@ export function filterSessions(sessions: Session[], f: SessionFilters): Session[
     if (f.subject !== 'all' && s.subject !== f.subject) return false
     if (f.level !== 'all' && s.level !== f.level) return false
     if (f.student !== 'all' && (s.student?.id ?? s.student_id) !== f.student) return false
+    if (f.teacher !== 'all' && (s.teacher?.id ?? s.teacher_id) !== f.teacher) return false
     if (words.length === 0) return true
     const hay = haystack(s)
     return words.every((w) => hay.includes(w))
@@ -129,7 +137,7 @@ export function sortSessions(sessions: Session[], sort: Sort): Session[] {
   })
 }
 
-export interface StudentOption {
+export interface PersonOption {
   id: string
   name: string
   displayId: string | null
@@ -137,15 +145,19 @@ export interface StudentOption {
   count: number
 }
 
+/** Kept for the name this was first called. */
+export type StudentOption = PersonOption
+
 /**
- * The students this list holds, for the student filter — built from the
- * sessions themselves rather than from a second query, so the dropdown can
- * never offer a student who has nothing in the table behind it.
+ * The people on one side of these sessions, for a filter dropdown — built from
+ * the sessions themselves rather than from a second query, so the dropdown can
+ * never offer somebody who has nothing in the table behind it.
  */
-export function studentOptions(sessions: Session[]): StudentOption[] {
-  const found = new Map<string, StudentOption>()
+function peopleOptions(sessions: Session[], side: 'student' | 'teacher'): PersonOption[] {
+  const found = new Map<string, PersonOption>()
   for (const s of sessions) {
-    const id = s.student?.id ?? s.student_id
+    const person = side === 'student' ? s.student : s.teacher
+    const id = person?.id ?? (side === 'student' ? s.student_id : s.teacher_id)
     const existing = found.get(id)
     if (existing) {
       existing.count += 1
@@ -153,13 +165,22 @@ export function studentOptions(sessions: Session[]): StudentOption[] {
     }
     found.set(id, {
       id,
-      name: s.student?.full_name ?? 'Student',
-      displayId: s.student?.display_id ?? null,
-      pc: s.student?.pc ?? null,
+      name: person?.full_name ?? (side === 'student' ? 'Student' : 'Teacher'),
+      displayId: person?.display_id ?? null,
+      pc: (person as { pc?: string | null } | null | undefined)?.pc ?? null,
       count: 1,
     })
   }
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function studentOptions(sessions: Session[]): PersonOption[] {
+  return peopleOptions(sessions, 'student')
+}
+
+/** The teachers this list holds. Empty for a teacher, who only ever has one. */
+export function teacherOptions(sessions: Session[]): PersonOption[] {
+  return peopleOptions(sessions, 'teacher')
 }
 
 /** The share link for a session, absolute so it can be pasted anywhere. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backlog,
+  sessionsByStudent,
   filterPeople,
   isOutstanding,
   isSuspended,
@@ -295,5 +296,49 @@ describe('rate', () => {
   it('is null rather than 0 when there is nothing to take a percentage of', () => {
     expect(rate(0, 0)).toBeNull()
     expect(rate(1, 4)).toBe(25)
+  })
+})
+
+
+describe('sessionsByStudent', () => {
+  const stages = stagesBySession([report('x1', { status: 'published' }), report('x3')])
+  const sessions = [
+    session('x1', 't1', 's1', '2026-06-01T09:00:00Z', 'completed', { answered_count: 20 }),
+    session('x2', 't1', 's2', '2026-06-02T09:00:00Z', 'scheduled'),
+    session('x3', 't1', 's1', '2026-06-09T09:00:00Z', 'completed', { answered_count: 7 }),
+  ]
+
+  it('gathers the sessions under the student they were with', () => {
+    const groups = sessionsByStudent(sessions, stages)
+    expect(groups.map((g) => g.id)).toEqual(['s1', 's2'])
+    expect(groups[0].sessions.map((s) => s.id)).toEqual(['x3', 'x1'])
+  })
+
+  it('counts each run on its own', () => {
+    const [s1] = sessionsByStudent(sessions, stages)
+    expect(s1.tally.total).toBe(2)
+    expect(s1.tally.answered).toBe(27)
+    expect(s1.tally.published).toBe(1)
+    // x3 is finished with a draft write-up: that is the number worth showing.
+    expect(s1.tally.outstanding).toBe(1)
+  })
+
+  it('puts the busiest student first and their latest session at the top', () => {
+    const groups = sessionsByStudent(sessions, stages)
+    expect(groups[0].sessions[0].id).toBe('x3')
+    expect(groups[0].lastAt).toBe('2026-06-09T09:00:00Z')
+  })
+
+  it('carries the name, id and PC the heading needs', () => {
+    const withPc = [
+      {
+        ...session('x9', 't1', 's9', '2026-06-01T09:00:00Z'),
+        student: { id: 's9', full_name: 'Amara Osei', display_id: 'AMAO26-3', pc: 'PC-9' },
+      },
+    ]
+    const [group] = sessionsByStudent(withPc, new Map())
+    expect(group.name).toBe('Amara Osei')
+    expect(group.displayId).toBe('AMAO26-3')
+    expect(group.pc).toBe('PC-9')
   })
 })

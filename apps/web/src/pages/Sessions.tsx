@@ -10,6 +10,7 @@ import {
   sortSessions,
   studentLink,
   studentOptions,
+  teacherOptions,
   type SessionFilters,
   type Sort,
   type SortKey,
@@ -36,7 +37,7 @@ const SESSION_SELECT =
  * that student on the hard test — where a heading never could.
  */
 export function Sessions() {
-  const { isTeacher } = useAuth()
+  const { isTeacher, isAdmin } = useAuth()
   const navigate = useNavigate()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -61,6 +62,9 @@ export function Sessions() {
   }, [load])
 
   const students = useMemo(() => studentOptions(sessions), [sessions])
+  // An admin's list spans the whole school, so it needs the other axis too.
+  // A teacher's is all their own sessions and the filter would hold one name.
+  const teachers = useMemo(() => (isAdmin ? teacherOptions(sessions) : []), [sessions, isAdmin])
   const shown = useMemo(
     () => sortSessions(filterSessions(sessions, filters), sort),
     [sessions, filters, sort],
@@ -89,7 +93,9 @@ export function Sessions() {
           <h1>Sessions</h1>
           <p className="sub">
             {isTeacher
-              ? 'Every session you have run or scheduled. Search a student, or narrow by what you are looking for.'
+              ? isAdmin
+                ? 'Every session in the school. Narrow by teacher, student, or anything else you are looking for.'
+                : 'Every session you have run or scheduled. Search a student, or narrow by what you are looking for.'
               : 'Your tutoring sessions. Open one once its time has come.'}
           </p>
         </div>
@@ -109,7 +115,7 @@ export function Sessions() {
           type="search"
           value={filters.query}
           placeholder={
-            isTeacher ? 'Search a student, PC, id or title…' : 'Search a teacher or a title…'
+            isTeacher ? 'Search a student, teacher, PC, id or title…' : 'Search a teacher or a title…'
           }
           aria-label="Search sessions"
           onChange={(e) => set('query', e.target.value)}
@@ -127,6 +133,21 @@ export function Sessions() {
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </Select>
+
+        {isAdmin && teachers.length > 1 && (
+          <Select
+            value={filters.teacher}
+            aria-label="Filter by teacher"
+            onChange={(e) => set('teacher', e.target.value)}
+          >
+            <option value="all">Any teacher</option>
+            {teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.count})
+              </option>
+            ))}
+          </Select>
+        )}
 
         {isTeacher && students.length > 1 && (
           <Select
