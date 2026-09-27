@@ -1,3 +1,4 @@
+import { LEVELS, levelLabel } from './constants'
 import type { Session, SessionLevel, SessionStatus, Subject } from './types'
 
 /**
@@ -54,6 +55,29 @@ function time(s: Session): number {
   return new Date(s.scheduled_at).getTime()
 }
 
+/**
+ * The tests a session covered, in the order the student reached them.
+ *
+ * sessions.level is where the queue is, which for a finished session is only
+ * where it happened to end: a lesson of ten medium questions that dropped to
+ * easy for the last three read as "Easy". levels_sat is what was actually sat
+ * (0053). A live session is on its current test as well, answered on yet or
+ * not; one with nothing answered is where it starts.
+ */
+export function levelsOf(s: Pick<Session, 'level' | 'levels_sat' | 'status'>): SessionLevel[] {
+  const sat = (s.levels_sat ?? []).filter((l) => LEVELS.includes(l))
+  if (s.status === 'live' && !sat.includes(s.level)) sat.push(s.level)
+  return sat.length > 0 ? sat : [s.level]
+}
+
+/** "Easy test", or "Medium, then easy": in the order the lesson went. */
+export function levelsLabel(levels: SessionLevel[]): string {
+  const [first, ...rest] = levels.map(levelLabel)
+  if (rest.length === 0) return `${first} test`
+  const later = rest.map((l) => l.toLowerCase())
+  return `${[first, ...later.slice(0, -1)].join(', ')}, then ${later[later.length - 1]}`
+}
+
 /** Everything about a session a search box should match. */
 function haystack(s: Session): string {
   return [
@@ -64,7 +88,7 @@ function haystack(s: Session): string {
     s.teacher?.full_name,
     s.teacher?.display_id,
     s.subject,
-    s.level,
+    ...levelsOf(s),
     s.status,
   ]
     .filter(Boolean)
@@ -91,7 +115,7 @@ export function filterSessions(sessions: Session[], f: SessionFilters): Session[
   return sessions.filter((s) => {
     if (!matchesStatus(s, f.status)) return false
     if (f.subject !== 'all' && s.subject !== f.subject) return false
-    if (f.level !== 'all' && s.level !== f.level) return false
+    if (f.level !== 'all' && !levelsOf(s).includes(f.level)) return false
     if (f.student !== 'all' && (s.student?.id ?? s.student_id) !== f.student) return false
     if (f.teacher !== 'all' && (s.teacher?.id ?? s.teacher_id) !== f.teacher) return false
     if (words.length === 0) return true
@@ -109,6 +133,11 @@ const STATUS_ORDER: Record<SessionStatus, number> = {
 
 const LEVEL_ORDER: Record<SessionLevel, number> = { easy: 0, medium: 1, hard: 2 }
 
+/** The hardest test a session reached, which is what sorting by level sorts on. */
+function furthest(s: Session): number {
+  return Math.max(...levelsOf(s).map((l) => LEVEL_ORDER[l]))
+}
+
 function compare(a: Session, b: Session, key: SortKey): number {
   switch (key) {
     case 'when':
@@ -120,7 +149,7 @@ function compare(a: Session, b: Session, key: SortKey): number {
     case 'status':
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     case 'level':
-      return LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]
+      return furthest(a) - furthest(b)
   }
 }
 

@@ -3,6 +3,8 @@ import {
   DEFAULT_SORT,
   NO_FILTERS,
   filterSessions,
+  levelsLabel,
+  levelsOf,
   sortSessions,
   studentLink,
   studentOptions,
@@ -190,5 +192,52 @@ describe('the teacher filter', () => {
     const options = teacherOptions([mine, theirs, { ...theirs, id: 'c' }])
     expect(options.map((t) => t.count)).toEqual([1, 2])
     expect(options.map((t) => t.id).sort()).toEqual(['t1', 't2'])
+  })
+})
+
+describe('the tests a session covered', () => {
+  // Ten medium questions, then down to easy for three: the queue ended on easy,
+  // and the list used to say only that.
+  const moved = session('m', 's1', '2026-09-27T12:30:00Z', 'completed', {
+    level: 'easy',
+    levels_sat: ['medium', 'easy'],
+  })
+  const easyOnly = session('e', 's2', '2026-09-26T12:30:00Z', 'completed', {
+    levels_sat: ['easy'],
+  })
+
+  it('names every test sat, in the order the lesson reached them', () => {
+    expect(levelsOf(moved)).toEqual(['medium', 'easy'])
+    expect(levelsLabel(levelsOf(moved))).toBe('Medium, then easy')
+  })
+
+  it('reads one test as that test', () => {
+    expect(levelsLabel(['easy'])).toBe('Easy test')
+    expect(levelsLabel(['easy', 'medium', 'hard'])).toBe('Easy, medium, then hard')
+  })
+
+  it('counts the test a live session is on before anything is answered on it', () => {
+    const live = session('l', 's1', '2026-09-27T12:30:00Z', 'live', {
+      level: 'hard',
+      levels_sat: ['easy'],
+    })
+    expect(levelsOf(live)).toEqual(['easy', 'hard'])
+  })
+
+  it('falls back to where it starts when nothing has been answered', () => {
+    expect(levelsOf(session('n', 's1', '2026-09-28T12:30:00Z', 'scheduled'))).toEqual(['easy'])
+    expect(levelsOf({ ...moved, levels_sat: undefined })).toEqual(['easy'])
+  })
+
+  it('finds a session under every test it sat, not only the one it ended on', () => {
+    const both = [moved, easyOnly]
+    expect(filterSessions(both, { ...NO_FILTERS, level: 'medium' }).map((s) => s.id)).toEqual(['m'])
+    expect(filterSessions(both, { ...NO_FILTERS, level: 'easy' })).toHaveLength(2)
+    expect(filterSessions(both, { ...NO_FILTERS, query: 'medium' }).map((s) => s.id)).toEqual(['m'])
+  })
+
+  it('sorts on the hardest test reached', () => {
+    const sorted = sortSessions([moved, easyOnly], { key: 'level', dir: 'asc' })
+    expect(sorted.map((s) => s.id)).toEqual(['e', 'm'])
   })
 })

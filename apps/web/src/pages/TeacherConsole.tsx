@@ -249,7 +249,10 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
               {unrevealed > 0 ? `Publish results (${answered})` : 'Results published'}
             </button>
           )}
-          {!over && (
+          {/* Only once the test is running. Before that there is nothing to
+              hand in, and ending it filed a lesson nobody sat as completed
+              (0052). */}
+          {session.status === 'live' && (
             <button
               type="button"
               className="btn btn-navy btn-sm"
@@ -273,21 +276,21 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           to find the button is being shown the answers instead. */}
       {over && <AfterTheTest sessionId={sessionId} session={session} items={items} />}
 
-      {!over && (
+      {/* The level and the questions are the teacher's once the test is
+          running, and not before: until then there is nothing on the screen to
+          wait behind, no queue to put anything in front of, and moving the
+          level only moved where it would start (0052). */}
+      {session.status === 'scheduled' && <BeforeTheStart session={session} />}
+      {session.status === 'live' && (
         <LevelControl session={session} hasOpenQuestion={open !== null} busy={busy} onCall={call}>
-          {/* Only once the test is running: before that there is nothing on
-              the screen to wait behind and no queue to put anything in front
-              of, and the level buttons already say where it will start. */}
-          {session.status === 'live' && (
-            <NextQuestion
-              session={session}
-              items={items}
-              tests={tests}
-              testsError={testsError}
-              busy={busy}
-              onCall={call}
-            />
-          )}
+          <NextQuestion
+            session={session}
+            items={items}
+            tests={tests}
+            testsError={testsError}
+            busy={busy}
+            onCall={call}
+          />
         </LevelControl>
       )}
 
@@ -360,8 +363,9 @@ function StudentLinkCard({ session }: { session: Session }) {
  * carry a switch of its own, and 0047 took it away along with any mention of
  * which test they are on.
  *
- * Under the buttons, while the test runs, is what comes next and the way to
- * choose something else — see NextQuestion.
+ * Only while the test runs (0052); BeforeTheStart stands in for it until then.
+ * Under the buttons is what comes next and the way to choose something else —
+ * see NextQuestion.
  */
 function LevelControl({
   session,
@@ -439,6 +443,27 @@ function LevelControl({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * The same card before the test has started, with nothing on it to press.
+ *
+ * The level buttons used to be here from the moment a session was scheduled,
+ * where the only thing they could do was move where the student would start —
+ * one click on the way past. They wait for the test now, as choosing a
+ * question always did, and this says where it starts and what comes after.
+ */
+function BeforeTheStart({ session }: { session: Session }) {
+  return (
+    <div className="card card-pad level-control">
+      <div className="section-title">Which test</div>
+      <p className="step-text muted">
+        They start on the <strong>{levelLabel(session.level).toLowerCase()}</strong> test. Moving
+        them to another test, choosing their questions and ending the session all open up once the
+        test has started.
+      </p>
     </div>
   )
 }
@@ -622,7 +647,12 @@ function QuestionPicker({
   }
 
   return (
-    <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="choose-title">
+    <div
+      className="leave-veil picker-veil"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="choose-title"
+    >
       <div className="picker-box">
         <div className="picker-head">
           <h2 id="choose-title">Choose a question</h2>
