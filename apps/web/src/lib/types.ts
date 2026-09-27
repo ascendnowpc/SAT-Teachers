@@ -130,7 +130,7 @@ export interface SessionItem {
   status: ItemStatus
   published_at: string | null
   first_viewed_at: string | null
-  /** When the student settled on an answer and a confidence. Stamped once; the clock stops here. */
+  /** When the student first picked an answer — not the confidence as well (0050). Stamped once; the clock stops here. */
   decided_at: string | null
   answered_at: string | null
   revealed_at: string | null

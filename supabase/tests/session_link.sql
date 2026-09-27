@@ -47,6 +47,11 @@
 --    * choosing a question and moving the level are signed-in only, and the
 --      two internal functions under them are reachable by nobody
 --
+--  0050 — the clock stops at the answer
+--    * crossing out does not stop it; picking an answer does, with no
+--      confidence given yet; a change of mind does not restart it
+--    * and the seconds recorded run to that first pick, not to Next
+--
 --  Every row must read PASS. Cleans up after itself, and is safe to run
 --  against a real database. Needs the three level tests loaded (0026).
 -- ============================================================================
@@ -198,9 +203,32 @@ begin
   return query select '4 answer'::text,'a link cannot answer another session'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
-  -- 0038: what they have picked so far, which is not an answer.
-  perform draft_by_token(tok, item, 'C'::answer_option, array['D']::answer_option[], 2::smallint);
+  -- 0050: the clock stops at the answer. The question has been on screen for
+  -- a hundred seconds. This is all one transaction, so now() does not move
+  -- while the test runs, and the time that passes is set by hand.
   execute 'reset role';
+  update session_items set first_viewed_at = now() - interval '100 seconds' where id = item;
+  execute 'set local role anon';
+  perform set_config('request.jwt.claims', '', true);
+
+  perform draft_by_token(tok, item, null::answer_option, array['D']::answer_option[], null::smallint);
+  execute 'reset role';
+  select count(*) into n from session_items where id = item and decided_at is null;
+  return query select '4 answer'::text,'crossing out does not stop the clock'::text,'running'::text,
+    (case when n=1 then 'running' else 'stopped' end),
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+  -- 0038: what they have picked so far, which is not an answer. And no
+  -- confidence yet, which since 0050 is the point.
+  execute 'set local role anon';
+  perform set_config('request.jwt.claims', '', true);
+  perform draft_by_token(tok, item, 'C'::answer_option, array['D']::answer_option[], null::smallint);
+  execute 'reset role';
+
+  select count(*) into n from session_items where id = item and decided_at = now();
+  return query select '4 answer'::text,'picking an answer stops it, before any confidence'::text,'stopped'::text,
+    (case when n=1 then 'stopped' else 'running' end),
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
   select status::text, selected_option::text into txt, v_draft
     from session_items where id = item;
@@ -213,6 +241,20 @@ begin
   select count(*) into n from session_item_assessments where session_item_id = item;
   return query select '4 answer'::text,'nor grade it'::text,'0'::text,n::text,
     (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+  -- Say C was picked sixty seconds in. Forty seconds later they change their
+  -- mind to B and say how sure they are.
+  update session_items set decided_at = now() - interval '40 seconds' where id = item;
+  execute 'set local role anon';
+  perform set_config('request.jwt.claims', '', true);
+  perform draft_by_token(tok, item, 'B'::answer_option, array['D']::answer_option[], 2::smallint);
+  execute 'reset role';
+
+  select count(*) into n from session_items
+   where id = item and decided_at = now() - interval '40 seconds';
+  return query select '4 answer'::text,'a change of mind does not restart it'::text,'kept'::text,
+    (case when n=1 then 'kept' else 'moved' end),
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
   execute 'set local role anon';
   perform set_config('request.jwt.claims', '', true);
@@ -227,6 +269,13 @@ begin
   select count(*) into n from session_item_assessments where session_item_id = item;
   return query select '4 answer'::text,'and it is graded, like any other'::text,'1'::text,n::text,
     (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+  -- On screen at -100s, first pick at -40s: sixty. Not the hundred it took to
+  -- press Next, and not the forty spent after the pick.
+  select elapsed_seconds into n from session_item_assessments where session_item_id = item;
+  return query select '4 answer'::text,'timed to the first pick, not to Next'::text,'60'::text,
+    coalesce(n::text,'(none)'),
+    (case when n=60 then 'PASS' else 'FAIL' end)::text;
 
   -- The guard that matters: a draft can never land on an answered item.
   perform draft_by_token(tok, item, 'D'::answer_option, '{}'::answer_option[], 1::smallint);

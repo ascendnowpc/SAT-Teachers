@@ -459,8 +459,9 @@ function ItemPane({
    * The teacher is on a call watching this student, and until now the console
    * showed nothing at all until Next was pressed — so "you've gone for B, talk
    * me through it" needed a screen share, which is the thing that keeps
-   * failing. It is a draft, not an answer: the item stays published, nothing
-   * is graded, and the clock keeps running.
+   * failing. It is a draft, not an answer: the item stays published and
+   * nothing is graded. The first answer in it does stop the clock (0050), the
+   * same as the call below.
    *
    * Debounced, because crossing out three options is three renders and the
    * teacher does not need to watch each one land.
@@ -477,17 +478,22 @@ function ItemPane({
     return () => clearTimeout(t)
   }, [gateway, item.id, selected, struck, confidence])
 
-  // The clock measures working the question out, which ends when there is an
-  // answer and a confidence down — not when the button is found. The server is
+  // The clock measures answering the question, which ends when an answer is
+  // picked. Not when the confidence is in as well: how sure they are is asked
+  // about the answer once there is one, and the seconds spent on it are not
+  // seconds spent answering (0050). Nor when the button is found. The server is
   // told the moment it happens, so the number in the report is the number the
   // student watched stop.
-  const decided = selected !== null && confidence !== null
-  const stamped = useRef(false)
+  //
+  // And it stays stopped. Picking something else, or crossing the pick out, is
+  // a change of mind about an answer that has already been timed; a clock that
+  // started again would be one the student could run by clicking around.
+  const [stopped, setStopped] = useState(item.decided_at !== null)
   useEffect(() => {
-    if (!decided || stamped.current) return
-    stamped.current = true
+    if (stopped || selected === null) return
+    setStopped(true)
     void gateway.markDecided(item.id)
-  }, [decided, gateway, item.id])
+  }, [stopped, selected, gateway, item.id])
 
   const submit = useCallback(async () => {
     if (!selected) return
@@ -533,7 +539,7 @@ function ItemPane({
         <div className="exam-qhead">
           <span className="qn">{String(number).padStart(2, '0')}</span>
           <span className="spring" />
-          <QuestionClock itemId={item.id} running={!decided && !busy} />
+          <QuestionClock itemId={item.id} running={!stopped} />
           <button
             type="button"
             className={`abc ${crossoutOn ? 'on' : ''}`}
@@ -635,7 +641,7 @@ function ItemPane({
 
 /**
  * The clock on this question. It starts when the question appears and stops
- * when the answer goes in — which is exactly the interval the server records
+ * when an answer is picked — which is exactly the interval the server records
  * as elapsed_seconds, so the number the student watches is the number their
  * teacher reads in the report.
  */

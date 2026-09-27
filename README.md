@@ -310,10 +310,12 @@ race, and the reason `lock_open_item` looks twice).
 
 Every answer is timed server-side: `session_items.first_viewed_at` (set when the question is
 actually on the student's screen, not when it was published) to `decided_at` — the moment the
-student has an answer and a confidence down. The seconds after that are finding the Submit
-button, and they were landing in the number the report calls pace. Stored as
-`session_item_assessments.elapsed_seconds`; the student watches the same interval stop on the
-question itself. A change of mind afterwards does not restart it. Each question carries a `target_seconds` benchmark, so
+student picks an answer. Not the moment they have also said how sure they are (`0050`): the
+confidence is a question about the answer, asked once there is one, and the seconds spent on it
+are not seconds spent answering. Nor the seconds after, finding the Next button. Both were
+landing in the number the report calls pace. Stored as `session_item_assessments.elapsed_seconds`;
+the student watches the same interval stop on the question itself, and the teacher on the
+console. A change of mind afterwards does not restart it. Each question carries a `target_seconds` benchmark, so
 the report can separate *wrong* from *wrong in nineteen seconds* — those need different fixes.
 
 ## The report

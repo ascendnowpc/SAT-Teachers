@@ -47,7 +47,9 @@ sees "student is reading…"       ◄──────── strikes out optio
      live elimination feed       ◄──────── strikes out option D
                                            eliminated_options = [A, D]
 
-                                           selects B, adds confidence
+                                           selects B
+                                           ⏱ timer stops
+                                           adds confidence (not timed)
                                            presses Next ──► Postgres grades it
 sees: B · wrong (key: C)         ◄──────── student sees only the next question
       eliminated A, D

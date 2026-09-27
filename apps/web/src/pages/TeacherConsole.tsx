@@ -58,8 +58,8 @@ type OnCall = (fn: string, args: Record<string, unknown>) => Promise<string | nu
 /**
  * The clock the student is watching.
  *
- * It runs while the question is open and they have not settled, and stops at
- * exactly the moment the server records as elapsed_seconds — so the number
+ * It runs while the question is open and no answer has been picked, and stops
+ * at exactly the moment the server records as elapsed_seconds — so the number
  * here is the number in the report, not an approximation of it.
  */
 function LiveClock({ item }: { item: SessionItem }) {
