@@ -111,6 +111,22 @@ describe('reportStage', () => {
     expect(reportStage(report('s1', { status: 'published' }))).toBe('published')
     expect(reportStage(report('s1', { published_at: '2026-06-03T00:00:00Z' }))).toBe('published')
   })
+
+  // The report was made from the form as it was; handed in again, the form is
+  // owed a report until somebody generates one from it (0051).
+  it('goes back to submitted when the form is handed in again after the report', () => {
+    const again = report('s1', {
+      form_submitted_at: '2026-06-04T00:00:00Z',
+      generated_at: '2026-06-02T00:00:00Z',
+    })
+    expect(reportStage(again)).toBe('submitted')
+    expect(reportStage({ ...again, generated_at: '2026-06-04T00:05:00Z' })).toBe('generated')
+    expect(reportStage({ ...again, status: 'published' })).toBe('published')
+  })
+
+  it('counts a report generated before anybody recorded a hand-in as generated', () => {
+    expect(reportStage(report('s1', { generated_at: '2026-06-02T00:00:00Z' }))).toBe('generated')
+  })
 })
 
 describe('isOutstanding', () => {

@@ -3,6 +3,7 @@ import { crypto as stdCrypto } from 'jsr:@std/crypto@1/crypto'
 import { encodeHex } from 'jsr:@std/encoding@1/hex'
 
 import { askNumbers } from '../../../apps/web/src/lib/asked.ts'
+import { domainOrder } from '../../../apps/web/src/lib/domains.ts'
 import {
   questionWindows,
   validateExtraction,
@@ -115,18 +116,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: session } = await asCaller
     .from('sessions')
-    .select('id, teacher_id')
+    .select('id, teacher_id, subject')
     .eq('id', sessionId)
     .maybeSingle()
 
   if (!session) return json({ error: 'no such session' }, 404)
 
-  // The session's teacher, or an admin (0048): an admin can correct the
-  // transcript and generate the report, and generating reads the recording
-  // first. Asked of the database as the caller rather than decided here —
-  // is_admin() is the same test every admin policy uses. Reading is the only
-  // thing an admin gains: everything below reads as the caller, which 0044
-  // already lets an admin do, and the one write is the reading itself.
+  // The session's teacher, or an admin: an admin can do to any session what
+  // its teacher can (0050), generating the report included, and generating
+  // reads the recording first. Asked of the database as the caller rather than
+  // decided here — is_admin() is the same test every admin policy uses.
+  // Everything below reads as the caller, and the one write is the reading.
   if (session.teacher_id !== user.user.id) {
     const { data: admin } = await asCaller.rpc('is_admin')
     if (admin !== true) return json({ error: 'not your session' }, 403)
@@ -217,12 +217,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       claimed === 'teacher' || claimed === 'student' || claimed === 'other' ? claimed : 'other'
   }
 
-  const DOMAINS = [
-    'information_and_ideas',
-    'craft_and_structure',
-    'expression_of_ideas',
-    'standard_english_conventions',
-  ]
+  // The four the form was written against, which depend on the subject. This
+  // was the English four whatever the session, so a mathematics form reached the
+  // model as four empty English rows and every domain finding it made was
+  // dropped for being filed under a domain the list did not have.
+  const DOMAINS = domainOrder(session.subject)
 
   const noteFor = new Map((notes.data ?? []).map((n) => [n.domain, n]))
   const form = DOMAINS.map((domain) => {

@@ -14,9 +14,9 @@
 --    * a teacher account arrives INACTIVE and reads nothing until an admin
 --      approves it (0044) — signup is open to anyone with an email address
 --    * nobody rewrites their own role, display id or approval (0044)
---    * an admin reads every session, every form and every report, and writes
---      none of them — but for a session's write-up, which 0048 and 0049 opened
---      on purpose and admin_writeup.sql covers
+--    * an admin reads every session, every form and every report, and can do
+--      to any session what its teacher can (0050) — admin_access.sql is that
+--      contract in full — but cannot switch themselves off
 --    * a SUSPENDED account cannot sign in at all (0045), where an account that
 --      is merely waiting for approval still can — that is how it is told so
 -- ============================================================================
@@ -175,9 +175,12 @@ begin
   return query select 'student'::text, 'reads ANSWER KEYS'::text, '0'::text, n::text,
     (case when n = 0 then 'PASS' else 'FAIL' end)::text;
 
-  select count(*) into n from profiles;
-  return query select 'student'::text, 'reads profiles (own only)'::text, '1'::text, n::text,
-    (case when n = 1 then 'PASS' else 'FAIL' end)::text;
+  -- Their own, and the teacher of the session above (profiles_session_counterpart,
+  -- which is how a student sees who teaches them) — nobody else's. This counted
+  -- every visible row against 1 from before the session was added to this file.
+  select count(*) into n from profiles where id not in (s_id, t_id);
+  return query select 'student'::text, 'reads no profile but their own and their teacher''s'::text,
+    '0'::text, n::text, (case when n = 0 then 'PASS' else 'FAIL' end)::text;
 
   begin
     perform create_question('english', null, null, 'Sneaky', 'easy'::difficulty_level, null,
@@ -219,27 +222,26 @@ begin
   return query select 'admin'::text, 'reads the write-up'::text, '1'::text,
     n::text, (case when n = 1 then 'PASS' else 'FAIL' end)::text;
 
-  -- Read-only is the design: the sessions themselves have no admin write policy,
-  -- and every RPC that changes a session still asks assert_session_teacher. The
-  -- write-up is the exception (0048, 0049), and admin_writeup.sql is its
-  -- contract.
+  -- An admin can do to a session what its teacher can (0050): its rows and the
+  -- RPCs that run it. admin_access.sql is that contract in full; these two are
+  -- here so this file still says what an admin is.
   begin
     update sessions set title = 'Admin was here' where id = sess;
     select count(*) into n from sessions where id = sess and title = 'Admin was here';
-    ok := (n = 0);
-  exception when others then ok := true;
+    ok := (n = 1);
+  exception when others then ok := false;
   end;
-  return query select 'admin'::text, 'cannot edit a session'::text, 'blocked'::text,
-    (case when ok then 'blocked' else 'EDITED' end)::text,
+  return query select 'admin'::text, 'edits a session they do not teach'::text, 'edited'::text,
+    (case when ok then 'edited' else 'blocked' end)::text,
     (case when ok then 'PASS' else 'FAIL' end)::text;
 
   begin
     perform set_session_status(sess, 'cancelled'::session_status);
-    ok := false;
-  exception when others then ok := true;
+    ok := true;
+  exception when others then ok := false;
   end;
-  return query select 'admin'::text, 'cannot run a teacher''s RPC'::text, 'blocked'::text,
-    (case when ok then 'blocked' else 'RAN' end)::text,
+  return query select 'admin'::text, 'runs a session RPC on it'::text, 'ran'::text,
+    (case when ok then 'ran' else 'blocked' end)::text,
     (case when ok then 'PASS' else 'FAIL' end)::text;
 
   begin

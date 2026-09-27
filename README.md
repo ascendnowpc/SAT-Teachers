@@ -19,7 +19,7 @@ npm run dev                                    # http://localhost:5173
 | --- | --- |
 | **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
-| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only, but for a session's write-up: the transcript, the diagnostic form and generating the report |
+| **The admin portal** | One seat that sees every teacher, every session, every form and every report — and can do to any session what its teacher can: run it, write it up, generate the report and publish it |
 | **Approve and suspend** | An admin lets a new teacher in, or closes an account — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
@@ -387,6 +387,13 @@ alongside the strengths and gaps it already held; `session_reports` takes the co
 `teacher_reflection` and the two moments in `form_submitted_at` and `generated_at`; the transcript
 goes where it always went. Nothing on the form computes, scores or concludes anything.
 
+**A form that has been handed in is changed by handing it in again.** Its Save draft button goes,
+because a draft saved over a handed-in form would skip the form's checks and leave the report
+made from a form that no longer exists. *Resubmit form* moves `form_submitted_at`, and the page
+it returns to — the console, or the admin's page for the session — **reads the recording again and
+generates the report** on arrival, because the reading was taken against the form as it was
+(below) and whoever handed it in again has already said the report is to be made from it.
+
 ## The two recorded sessions
 
 Two real diagnostics are in the database as data rather than as documents, so every screen in the
@@ -459,8 +466,18 @@ different words, would read to a parent as a second independent finding.
 
 A reading is optional. The form, the grid and the computed numbers are a complete report on their
 own, and a model being down on a Thursday does not stop a teacher finishing their work. A reading
-taken from a transcript that has since been replaced is not optional to notice: `generate_report`
-refuses it.
+that is out of date is not optional to notice, and a reading goes out of date two ways (`0051`):
+
+- **the transcript changed after it** — it quotes lines the recording no longer has;
+- **the form was handed in again after it** — it filed its evidence as supporting, complicating
+  or adding to what the form *said*, and the form says something else now.
+
+`generate_report` refuses either, the console and the admin's page read the recording again
+first, and the report leaves a stale reading out rather than showing it as the recording's
+findings. When the model will not answer, *Generate without the recording* still goes through:
+it removes the stale reading, so the report says it has none. For any of this to work the
+reading has to know when it was taken — it is stored by an upsert, which never moved its
+`created_at`, so a reading taken again looked as old as the first one. A trigger dates it now.
 
 The design, the measurements behind it, and what to watch before trusting it are in
 [`docs/reference/context-extraction.md`](docs/reference/context-extraction.md).
@@ -540,7 +557,7 @@ see the question bank and not one session, not one form and not one report. `004
 | --- | --- |
 | **Users** | Teachers, students, and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
-| **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary. Read-only but for the write-up — the admin can correct the transcript, fill in and hand in the diagnostic form, and generate the report (`0048`, `0049`) |
+| **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary — and the way into all of it: the console, the form, the transcript, generating, and the report's editor, where it is published (`0050`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
 
 Sessions are listed in exactly one place. The portal opened with an overview that counted them
@@ -557,45 +574,42 @@ session report is built on, for the same reason: a number nobody can open is a n
 check. The arithmetic is in [`lib/admin.ts`](apps/web/src/lib/admin.ts) and tested there rather
 than inside a component.
 
-**An admin reads, and writes two things.** `0044` adds a SELECT policy per table and no write
-policy anywhere, and every RPC that changes a session still opens with `assert_session_teacher`, so a
-button added to an admin screen by mistake fails at the database rather than in a code review. The
-exceptions are each opened on purpose, in the database first:
+**An admin can do to any session what its teacher can** (`0050`). `0044` made the seat a reader,
+and `0048` and `0049` opened a session's write-up to it one door at a time — the transcript, the
+form, generating. The first admin to pick a session up went through it the way its teacher would,
+and met "not your session" at every step that was not one of those doors: *Publish results* on
+the console, and the reading of the recording behind *Generate*. An admin is who picks a session up
+when its teacher cannot — off sick with a report due, a form handed in wrong, results nobody has
+sent — and oversight that has to ask the teacher to press each button is not oversight. So:
 
-* **`set_profile_active`** — the approval. Admin-only, and it refuses to touch the caller's own row:
-  the last admin switching themselves off locks the role out of the product.
-* **The recording** (`0048`). An admin can put a session's Fathom transcript in, replace it, or
-  correct it — insert and update on `session_transcripts`, not delete. A transcript the teacher
-  never uploaded, the wrong call pasted into the right session, a speaker label Zoom got wrong.
-* **The write-up** (`0048`, `0049`) — everything between the test ending and the report existing:
-  - *the transcript* — put in, replaced or corrected; insert and update on `session_transcripts`,
-    not delete. A transcript the teacher never uploaded, the wrong call pasted into the right
-    session, a speaker label Zoom got wrong.
-  - *the diagnostic form* — the grid, the comments, and handing it in. `0048` stopped short of this
-    and the first admin to press Save on a form met `new row violates row-level security policy for
-    table "session_domain_notes"`: the form saves the grid first, and the grid was the one part an
-    admin could not write. `0049` opens `session_domain_notes` and `session_reports` to them, and
-    `submit_diagnostic_form` keeps every check for both seats.
-  - *generating the report* — `generate_report` takes an admin as well as the session's teacher,
-    and keeps both its refusals: the form has to be in, and a reading of a transcript that has since
-    changed is refused. Generating reads the recording first, from either seat — one hook,
-    `useReportGeneration`, behind both buttons.
+* **Every RPC that runs a session.** They all open with `assert_session_teacher`, and that gate
+  lets an active admin through for any session that exists: letting the student in early,
+  starting it, moving the level, choosing the question, answering for them, ending it, publishing
+  the results, the diagnoses, handing the form in, generating, publishing and unpublishing the
+  report. The console is the teacher's own screen, and it works from the admin's seat; it says
+  whose session it is.
+* **Every row a session writes** — one admin policy per table, for every command, beside the
+  teacher's own: `sessions`, `session_items`, `session_item_assessments`, `session_transcripts`,
+  `session_domain_notes`, `session_reports`.
+* **Publishing.** `0049` had a trigger refusing an admin who changed a report's status; it is gone,
+  and the report editor offers an admin the Publish button it offers the teacher.
 
-**Publishing stays the teacher's**, and the database holds that line itself: `publish_report` and
-`unpublish_report` check for the session's teacher, and because an UPDATE policy on
-`session_reports` is also a way to set its status by hand, a trigger refuses an admin who tries —
-they can correct the report's text, not whether it has reached the family. The report editor shows
-an admin a line saying so where the Publish button would be.
+What the seat still cannot do is the same as what nobody can: write the model's reading of a
+recording (the edge function stores it on the service role, after its quote check) or make anybody
+an admin. **`set_profile_active`** — the approval — is admin-only and refuses the caller's own row,
+because the last admin switching themselves off locks the role out of the product.
 
-Because two seats can now do these things, the database records which one did:
+Because two seats can do all of this, the database records which one did:
 `session_reports.form_submitted_by` and `generated_by`, and the transcript's `uploaded_by` and
-`created_at`, which a trigger moves whenever its text changes. The teacher's console says so when
-it was an admin — "Submitted … by an admin", "Generated … by an admin", "last changed by an admin"
-— rather than showing a new timestamp on their own work with no name on it.
+`created_at`, which a trigger moves whenever its text changes. Whoever is reading is told when it
+was the other seat — the teacher sees "Submitted … by an admin", "Generated … by an admin", "last
+changed by an admin"; an admin sees the teacher's name — rather than a new timestamp with no name
+on it.
 
-The edge function that reads the recording checked for the session's teacher itself, and asks
-`is_admin()` as well now. **It has to be redeployed for that to take effect** (below); until it is,
-an admin's Generate gets "not your session" from the reading and offers to generate without it.
+The edge function that reads the recording checks for the session's teacher or `is_admin()`, and
+reads the form under the session's own subject's four domains — it had the English four written
+into it, so a mathematics form never reached the model and every domain finding on a mathematics
+session was dropped.
 
 ### Off is two things
 
@@ -675,7 +689,7 @@ psql "$DATABASE_URL" -f supabase/tests/choosing.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
-psql "$DATABASE_URL" -f supabase/tests/admin_writeup.sql
+psql "$DATABASE_URL" -f supabase/tests/admin_access.sql
 ```
 
 > **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
@@ -708,8 +722,9 @@ psql "$DATABASE_URL" -f supabase/tests/admin_writeup.sql
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
 arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
-an admin reads every profile and session and can edit none of them — the write-up aside, which
-`admin_writeup.sql` covers — nor switch themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
+an admin reads every profile and session and can edit and run a session they do not teach — which
+`admin_access.sql` covers in full — but cannot switch themselves off; a student reads no profile
+but their own and their teacher's; a suspended teacher loses the answer keys the moment they are suspended and cannot
 sign in again at all, while one merely waiting for approval still can; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
@@ -725,14 +740,18 @@ only while the test runs; *now* sets aside the question on screen and leaves exa
 *next* leaves it and brings the chosen one up when it is answered, or at once when nothing is up;
 the test carries on after the chosen question and comes round to the ones before it; the student
 still reads nothing staged; and nothing answered, on screen, set aside, in another subject's tests
-or in no test at all can be chosen. `admin_writeup.sql` is the admin's write-up and the wall
-around it: an admin can put in and correct a transcript for a session they do not teach but not
-delete it, and it is signed and re-dated when its text changes (and not when the same text is saved
-again); an admin can save the grid and the comments and hand the form in, under the form's own
-checks, and `form_submitted_by` says so; an admin can generate a report once the form is in, and
-not before, and `generated_by` says who pressed it; a reading of a transcript changed since is
-refused after an admin's edit too; and an admin cannot publish or unpublish, through the RPCs or by
-writing the report row, while the session's teacher still can. `opening_early.sql`
+or in no test at all can be chosen. `admin_access.sql` is the admin on a session they do not
+teach: they let the student in early, start it, move the level, choose the question, answer for
+the student, publish the results, diagnose, end it and edit it; they put in, correct and delete a
+transcript, which is signed and re-dated when its text changes (and not when the same text is
+saved again); they save the grid and the comments and hand the form in, under the form's own
+checks, and `form_submitted_by` says so; they generate a report once the form is in, and not
+before, and `generated_by` says who pressed it; a reading is dated when it is stored whatever it
+is given, and refused once the transcript changed after it or the form was handed in again after
+it — for the teacher too; generating without the recording removes a stale reading and leaves a
+current one; they publish and unpublish, through the RPCs and by writing the report row, and the
+teacher still can; and another teacher, a student and an anonymous caller can do none of it.
+`opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
 student is in. Every row must read PASS.
@@ -741,11 +760,11 @@ student is in. Every row must read PASS.
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
 `level_session.sql`, `choosing.sql`, `opening_early.sql`, `authoring.sql`, `session_link.sql` and
-`admin_writeup.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql` and
-`session_link.sql` need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
+`admin_access.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql`,
+`session_link.sql` and `admin_access.sql`'s console rows need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
 the mathematics easy test (`0040`) — without it those rows read SKIP rather than FAIL. A teacher
 account arrives pending since `0044`, so a contract that acts as a teacher approves its own teacher
-first, as the migration role. `session_link.sql` and `authoring.sql` were written before that and
+first, as the migration role. `session_link.sql`, `authoring.sql` and `session_flow.sql` were written before that and
 did not, so each stopped at its first row against any database with `0044` on it — they do now. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
 add a roster student and a student cannot; a session's token is unique, opens only its own
 session, and never returns the key or the token itself; a link cannot answer another session's
@@ -783,11 +802,12 @@ supabase secrets set GEMINI_API_KEY=...
 supabase functions deploy extract_session_context
 ```
 
-Deploy it again after any change to it or to the library files it imports — `0048`'s admin check
-lives in it, so an admin's reading of the recording is refused until it is redeployed. The deployed
-copy is not checked against the repository by anything, and it drifts: when `0048` was written, the
-live function was `4c007e9`'s, without `dbe6299` (the report's numbering and the review windows) or
-`cc8d571` (two alignment fixes). Redeploying ships those as well.
+Deploy it again after any change to it or to the library files it imports. The deployed copy is
+not checked against the repository by anything, and it drifts: `0048` put the admin's check into
+it and left the live copy at `4c007e9`'s, so for as long as it stayed there an admin's Generate got
+"not your session" from the reading — which is how the first admin to use it met the wall. It was
+redeployed with `0050`. `node tools/bundle-edge-function.mjs` flattens it and the library files it
+imports into one directory for a deploy through the Management API, which resolves files flat.
 
 And the approval notice, which needs a mail provider and the URL to call it on:
 

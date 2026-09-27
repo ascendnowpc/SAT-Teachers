@@ -34,18 +34,29 @@ export const STAGE_LABELS: Record<ReportStage, string> = {
   published: 'Published',
 }
 
-/** Latest first: a report row only ever moves forward through these. */
+/**
+ * Latest first. A report row moves forward through these, with one step back:
+ * a form handed in again after its report was generated is a form the report
+ * was not made from, so it is 'submitted' — handed in, and owed a report —
+ * until the report is generated again (0051).
+ */
 export function reportStage(report: Pick<
   SessionReportRow,
   'status' | 'published_at' | 'generated_at' | 'form_submitted_at' | 'teacher_reflection'
 > | null | undefined): ReportStage {
   if (!report) return 'none'
   if (report.status === 'published' || report.published_at) return 'published'
-  if (report.generated_at) return 'generated'
+  if (report.generated_at && !handedInSince(report.form_submitted_at, report.generated_at)) {
+    return 'generated'
+  }
   if (report.form_submitted_at) return 'submitted'
   // A row exists at all because something was saved into it — a draft form, or
   // a written reflection. Either way somebody has started.
   return 'form'
+}
+
+function handedInSince(formSubmittedAt: string | null, generatedAt: string): boolean {
+  return formSubmittedAt !== null && Date.parse(formSubmittedAt) > Date.parse(generatedAt)
 }
 
 /** A session that is finished and whose report has not been published. */

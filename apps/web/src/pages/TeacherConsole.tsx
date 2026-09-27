@@ -4,6 +4,7 @@ import { AfterTheTest } from '../components/AfterTheTest'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { QuestionView } from '../components/QuestionView'
 import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
 import { useLevelTests } from '../hooks/useLevelTests'
 import { useLiveSession } from '../hooks/useLiveSession'
 import {
@@ -113,6 +114,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const { session, items, loading, error, reload } = useLiveSession(sessionId, {
     withAssessments: true,
   })
+  // An admin runs any session from here as its teacher would (0050), and is
+  // told whose it is.
+  const { profile } = useAuth()
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -193,6 +197,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
             <span className="num">({session.student?.display_id})</span>
             {session.student?.pc && <> · {session.student.pc}</>} ·{' '}
             {formatUtc(session.scheduled_at)}
+            {session.teacher_id !== profile?.id && session.teacher?.full_name && (
+              <> · taught by {session.teacher.full_name}</>
+            )}
           </div>
         </div>
         <div className="spring" />

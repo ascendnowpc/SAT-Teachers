@@ -17,9 +17,9 @@ interface AuthValue {
   loading: boolean
   isTeacher: boolean
   /**
-   * An active admin. Reads the whole school, and writes one part of it: a
-   * session's write-up — the transcript, the diagnostic form and generating the
-   * report (0048, 0049). Not publishing it, and nothing else.
+   * An active admin. Reads the whole school, approves and suspends teachers,
+   * and can do to any session whatever its teacher can (0050): run it from the
+   * console, write it up, generate the report and publish it.
    */
   isAdmin: boolean
   /**

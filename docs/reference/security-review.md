@@ -79,17 +79,24 @@ reason there was no oversight of any kind: no list of teachers, no way to see a 
 not run, no way to tell whether a report was ever published.
 
 `0044` adds `is_admin()` and a **SELECT** policy for it on every table a session leaves a trace
-in. Read, and only read. There is no admin write policy anywhere, and every RPC that changes a
-session still goes through `assert_session_teacher`, so a button added to an admin screen by
-mistake would fail at the database — which is the right place for it to fail.
+in. That was read-only, and `0048` and `0049` opened a session's write-up to it one door at a
+time — the transcript, the form, generating. The first admin to pick a session up then met "not
+your session" at every step that was not one of those doors, so `0050` gives the seat what the
+session's teacher has, on every session:
 
-`0048` and `0049` open one part of it on purpose — a session's write-up. Insert and update on
-`session_transcripts` (not delete), `session_domain_notes` and `session_reports`; and
-`submit_diagnostic_form` and `generate_report`, which take an admin as well as the session's teacher
-through `assert_session_teacher_or_admin` and keep all their checks. Publishing does not open: the
-RPCs check for the teacher, and a trigger on `session_reports` refuses an admin who changes its
-status or `published_at` directly. The session itself, its questions and its answers stay closed;
-`supabase/tests/admin_writeup.sql` asserts both the doors and the walls around them.
+- `assert_session_teacher`, the gate every session RPC opens with, lets an active admin through
+  for any session that exists — so an admin can run the console, reveal the results, diagnose,
+  generate, publish and unpublish.
+- Each session table (`sessions`, `session_items`, `session_item_assessments`,
+  `session_transcripts`, `session_domain_notes`, `session_reports`) carries one admin policy for
+  every command, beside the teacher's own. It replaces the read and write-up policies before it.
+- The trigger that refused an admin who changed a report's status is gone.
+
+What the seat still cannot do: write the model's reading of a recording (the edge function stores
+it on the service role, after its quote check), grant the admin role, or switch itself off. Who
+did what is recorded — `form_submitted_by`, `generated_by`, the transcript's `uploaded_by` — so a
+teacher is told when an admin changed their session. `supabase/tests/admin_access.sql` asserts all
+of it, and that another teacher, a student and an anonymous caller still get none of it.
 
 ## What was checked and is sound
 
@@ -108,7 +115,7 @@ status or `published_at` directly. The session itself, its questions and its ans
   question. `session_by_token` strips `access_token` and `teacher_notes` and never joins
   `question_keys` at all.
 - **The edge function.** It reads as the caller, so RLS decides what it may see; it checks
-  `teacher_id` against the signed-in user; it loads the transcript itself rather than accepting
+  `teacher_id` against the signed-in user, or asks `is_admin()` as them; it loads the transcript itself rather than accepting
   one from the client (a client that could post its own transcript could post one containing the
   quotes it wanted to see); and it stores the reading on the service role because the table has
   no client-side insert policy.
@@ -174,5 +181,6 @@ setting rather than anything in this repository, so it is listed here rather tha
 
 **An admin reads `sessions.access_token`.** A consequence of giving the admin the whole row, and
 useful — it is how the portal offers to re-send a student's link — but it means an admin can open
-any student's session as that student. Admin is the most trusted seat in the product; this is
-what that means.
+any student's session as that student. Admin is the most trusted seat in the product — since
+`0050` it can do to any session whatever its teacher can, publishing included — and this is what
+that means.

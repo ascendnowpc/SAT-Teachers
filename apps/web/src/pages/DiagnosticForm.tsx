@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { DiagnosticGrid } from '../components/DiagnosticGrid'
 import { IconBack } from '../components/icons'
 import { Field, Notice, Textarea } from '../components/ui'
 import { SESSION_SELECT } from '../hooks/useLiveSession'
+import { HANDED_IN_AGAIN } from '../hooks/useReadAgain'
 import { subjectLabel } from '../lib/constants'
 import {
   rowsComplete,
@@ -38,6 +39,10 @@ import type { DomainNote, Session, SessionReportRow, SessionTranscript } from '.
 export function DiagnosticForm() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  // Back to whichever page opened the form: the session's console, or an
+  // admin's page for the session, which says so as it links here.
+  const from = (useLocation().state as { back?: unknown } | null)?.back
+  const back = typeof from === 'string' && from.startsWith('/') ? from : `/sessions/${id}`
 
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -173,8 +178,11 @@ export function DiagnosticForm() {
         const { error: err } = await supabase.rpc('submit_diagnostic_form', { p_session: id })
         if (err) throw new Error(err.message)
         // Back to the session, which is where the form is read and where the
-        // report is generated from it.
-        navigate(`/sessions/${id}`)
+        // report is generated from it. Handed in for the first time, it waits
+        // there for Generate. Handed in again, the recording was read against
+        // the form as it was (0051) and a report is already owed from this
+        // one, so the page reads it again and generates the report on arrival.
+        navigate(back, { state: submittedAt ? HANDED_IN_AGAIN : null })
         return
       }
       setSaved('draft')
@@ -193,7 +201,7 @@ export function DiagnosticForm() {
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to={`/sessions/${id}`}>
+      <Link className="back-link" to={back}>
         <IconBack /> Session
       </Link>
 
@@ -219,7 +227,7 @@ export function DiagnosticForm() {
 
       {/* ------------------------------------------------ the grid --------- */}
       <div className="card card-pad">
-        <div className="section-title">English reflection grid</div>
+        <div className="section-title">{subjectLabel(session.subject)} reflection grid</div>
         <DiagnosticGrid
           rows={gridRows}
           problems={problems}
@@ -294,12 +302,18 @@ export function DiagnosticForm() {
       </div>
 
       <div className="form-actions">
-        <Link className="btn btn-ghost" to={`/sessions/${id}`}>
+        <Link className="btn btn-ghost" to={back}>
           Cancel
         </Link>
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void save(false)}>
-          Save draft
-        </button>
+        {/* A handed-in form is the one the report is made from, so a change to
+            it is handed in again rather than saved over it as a draft: that
+            would skip the form's checks, and leave a reading of the old form
+            looking current. */}
+        {!submittedAt && (
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void save(false)}>
+            Save draft
+          </button>
+        )}
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save(true)}>
           {submittedAt ? 'Resubmit form' : 'Submit form'}
           {outstanding.length > 0 && <span className="btn-count">{outstanding.length} left</span>}

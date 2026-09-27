@@ -6,20 +6,23 @@ import type { Session, SessionItem } from '../lib/types'
 /**
  * Generating a report, which reads the recording first.
  *
- * Two seats press this button now — the session's teacher on their console,
- * and an admin on the session's page (0048) — and it has to mean the same thing
- * from both, so it is written once. The order is AfterTheTest's, where it came
- * from: read the recording unless the stored reading is of this transcript,
- * then stamp the report; and if the reading fails, say so and offer to go ahead
- * on the form and the answers alone rather than stopping the report behind a
- * model call.
+ * Two seats press this button — the session's teacher, and an admin (0048,
+ * 0050), from the console or the admin's session page — and it has to mean the
+ * same thing from all of them, so it is written once. The order is
+ * AfterTheTest's, where it came from: read the recording unless the stored
+ * reading is of this transcript and this form, then stamp the report; and if
+ * the reading fails, say so and offer to go ahead on the form and the answers
+ * alone rather than stopping the report behind a model call.
  */
 export function useReportGeneration(input: {
   sessionId: string
   session: Session | null
   items: SessionItem[]
   transcriptBody: string
-  /** There is a stored reading and it is of the transcript there now. */
+  /**
+   * There is a stored reading and it is of the transcript there now and the
+   * form as it was last handed in.
+   */
   current: boolean
   /** Where the lesson starts in the recording, when somebody has said. */
   offset?: number
@@ -55,10 +58,20 @@ export function useReportGeneration(input: {
     }
   }
 
-  /** Stamps the report. Separated out because it is also the fallback below. */
-  async function stamp() {
+  /**
+   * Stamps the report. Separated out because it is also the fallback below,
+   * which asks the database to drop a reading that is out of date rather than
+   * refuse: without that, a stale reading and a model that would not answer
+   * left no way to finish the report at all (0051).
+   */
+  async function stamp(withoutReading = false) {
     setStage('generating')
-    const { error: err } = await supabase.rpc('generate_report', { p_session: input.sessionId })
+    const { error: err } = await supabase.rpc(
+      'generate_report',
+      withoutReading
+        ? { p_session: input.sessionId, p_without_reading: true }
+        : { p_session: input.sessionId },
+    )
     if (err) setError(err.message)
     await input.reload()
     setStage('idle')
@@ -80,11 +93,15 @@ export function useReportGeneration(input: {
     await stamp()
   }
 
-  /** Explicitly going ahead on the teacher's form and the numbers alone. */
+  /**
+   * Explicitly going ahead on the teacher's form and the numbers alone. A
+   * reading that is out of date goes with it, so the report says it has none
+   * rather than showing one of another form or another recording.
+   */
   async function generateWithoutReading() {
     setError(null)
     setReadingFailed(false)
-    await stamp()
+    await stamp(true)
   }
 
   return { stage, error, setError, readingFailed, read, generate, generateWithoutReading }

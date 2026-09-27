@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { readingIsStale, whoDid } from './recording'
+import { readingIsStale, readingStaleness, whoDid } from './recording'
 
 describe('readingIsStale', () => {
   const reading = { created_at: '2026-09-27T10:00:00Z' }
 
   it('is not stale when there is nothing to compare', () => {
     expect(readingIsStale(null, { created_at: '2026-09-27T11:00:00Z' })).toBe(false)
+    expect(readingIsStale(null, null, '2026-09-27T11:00:00Z')).toBe(false)
     expect(readingIsStale(reading, null)).toBe(false)
   })
 
@@ -16,6 +17,34 @@ describe('readingIsStale', () => {
   it('is current when the reading came after the transcript', () => {
     expect(readingIsStale(reading, { created_at: '2026-09-27T09:59:59Z' })).toBe(false)
     expect(readingIsStale(reading, { created_at: '2026-09-27T10:00:00Z' })).toBe(false)
+  })
+
+  // The reading files its evidence against what the form says, so a form handed
+  // in again after it is a form the reading never saw (0051).
+  it('is stale when the form was handed in again after the reading', () => {
+    const transcript = { created_at: '2026-09-27T09:00:00Z' }
+    expect(readingIsStale(reading, transcript, '2026-09-27T10:05:00Z')).toBe(true)
+    expect(readingStaleness(reading, transcript, '2026-09-27T10:05:00Z')).toBe('form')
+  })
+
+  it('is current when the reading came after the form was handed in', () => {
+    const transcript = { created_at: '2026-09-27T09:00:00Z' }
+    expect(readingIsStale(reading, transcript, '2026-09-27T09:30:00Z')).toBe(false)
+    expect(readingIsStale(reading, transcript, null)).toBe(false)
+  })
+
+  // Postgres writes microseconds and JavaScript reads milliseconds; the two
+  // timestamps these compare are always seconds apart, never microseconds.
+  it('reads the timestamps Postgres writes', () => {
+    const read = { created_at: '2026-09-27T15:27:09.412345+00:00' }
+    expect(readingStaleness(read, null, '2026-09-27T15:27:07.223855+00:00')).toBeNull()
+    expect(readingStaleness(read, null, '2026-09-27T15:31:02.000001+00:00')).toBe('form')
+  })
+
+  it('names the transcript first when both changed', () => {
+    expect(
+      readingStaleness(reading, { created_at: '2026-09-27T10:01:00Z' }, '2026-09-27T10:02:00Z'),
+    ).toBe('transcript')
   })
 })
 
