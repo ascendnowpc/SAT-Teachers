@@ -33,6 +33,11 @@ export function Pending() {
         </button>
       }
     >
+      {/* The link in the confirmation email lands here, signed in: the email is
+          confirmed and the account is waiting, and those are two different
+          things a new teacher needs told apart — the first is done, and the
+          second is nothing they can do anything about. */}
+      <Notice kind="ok">Your email address is confirmed.</Notice>
       <Notice kind="info">
         Nothing else is needed from you. Tell whoever runs the platform that{' '}
         <strong>{profile?.full_name || profile?.email}</strong> is waiting — a new account sits at

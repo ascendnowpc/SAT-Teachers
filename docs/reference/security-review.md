@@ -83,11 +83,13 @@ in. Read, and only read. There is no admin write policy anywhere, and every RPC 
 session still goes through `assert_session_teacher`, so a button added to an admin screen by
 mistake would fail at the database — which is the right place for it to fail.
 
-`0048` opens two doors in that on purpose: insert and update on `session_transcripts` (not delete),
-and `generate_report`, which takes an admin as well as the session's teacher through
-`assert_session_teacher_or_admin` and keeps both of its refusals. Neither lets an admin write the
-form, the report's text or the session, or publish; `supabase/tests/admin_recording.sql` asserts
-both the doors and the walls around them.
+`0048` and `0049` open one part of it on purpose — a session's write-up. Insert and update on
+`session_transcripts` (not delete), `session_domain_notes` and `session_reports`; and
+`submit_diagnostic_form` and `generate_report`, which take an admin as well as the session's teacher
+through `assert_session_teacher_or_admin` and keep all their checks. Publishing does not open: the
+RPCs check for the teacher, and a trigger on `session_reports` refuses an admin who changes its
+status or `published_at` directly. The session itself, its questions and its answers stay closed;
+`supabase/tests/admin_writeup.sql` asserts both the doors and the walls around them.
 
 ## What was checked and is sound
 

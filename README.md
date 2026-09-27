@@ -19,7 +19,7 @@ npm run dev                                    # http://localhost:5173
 | --- | --- |
 | **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
-| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only, but for a session's transcript and generating its report |
+| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only, but for a session's write-up: the transcript, the diagnostic form and generating the report |
 | **Approve and suspend** | An admin lets a new teacher in, or closes an account — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
@@ -540,7 +540,7 @@ see the question bank and not one session, not one form and not one report. `004
 | --- | --- |
 | **Users** | Teachers, students, and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
-| **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary. Read-only but for two things — the admin can correct the transcript and generate the report (`0048`) |
+| **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary. Read-only but for the write-up — the admin can correct the transcript, fill in and hand in the diagnostic form, and generate the report (`0048`, `0049`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
 
 Sessions are listed in exactly one place. The portal opened with an overview that counted them
@@ -557,7 +557,7 @@ session report is built on, for the same reason: a number nobody can open is a n
 check. The arithmetic is in [`lib/admin.ts`](apps/web/src/lib/admin.ts) and tested there rather
 than inside a component.
 
-**An admin reads, and writes three things.** `0044` adds a SELECT policy per table and no write
+**An admin reads, and writes two things.** `0044` adds a SELECT policy per table and no write
 policy anywhere, and every RPC that changes a session still opens with `assert_session_teacher`, so a
 button added to an admin screen by mistake fails at the database rather than in a code review. The
 exceptions are each opened on purpose, in the database first:
@@ -567,17 +567,31 @@ exceptions are each opened on purpose, in the database first:
 * **The recording** (`0048`). An admin can put a session's Fathom transcript in, replace it, or
   correct it — insert and update on `session_transcripts`, not delete. A transcript the teacher
   never uploaded, the wrong call pasted into the right session, a speaker label Zoom got wrong.
-* **Generating the report** (`0048`). `generate_report` takes an admin as well as the session's
-  teacher, and keeps both its refusals for both: the teacher's diagnostic form has to be in, and a
-  reading of a transcript that has since changed is refused. Generating reads the recording first,
-  from either seat — one hook, `useReportGeneration`, behind both buttons.
+* **The write-up** (`0048`, `0049`) — everything between the test ending and the report existing:
+  - *the transcript* — put in, replaced or corrected; insert and update on `session_transcripts`,
+    not delete. A transcript the teacher never uploaded, the wrong call pasted into the right
+    session, a speaker label Zoom got wrong.
+  - *the diagnostic form* — the grid, the comments, and handing it in. `0048` stopped short of this
+    and the first admin to press Save on a form met `new row violates row-level security policy for
+    table "session_domain_notes"`: the form saves the grid first, and the grid was the one part an
+    admin could not write. `0049` opens `session_domain_notes` and `session_reports` to them, and
+    `submit_diagnostic_form` keeps every check for both seats.
+  - *generating the report* — `generate_report` takes an admin as well as the session's teacher,
+    and keeps both its refusals: the form has to be in, and a reading of a transcript that has since
+    changed is refused. Generating reads the recording first, from either seat — one hook,
+    `useReportGeneration`, behind both buttons.
 
-The form stays the teacher's, and so does publishing: an admin generates the report the teacher's
-form describes, and sending it to the family is still the teacher's step. Because two seats can now
-do these things, the database records which one did: `session_reports.generated_by`, and the
-transcript's `uploaded_by` and `created_at`, which a trigger moves whenever its text changes. The
-teacher's console says so when it was an admin — "Generated … by an admin", "last changed by an
-admin" — rather than showing a new timestamp on their own work with no name on it.
+**Publishing stays the teacher's**, and the database holds that line itself: `publish_report` and
+`unpublish_report` check for the session's teacher, and because an UPDATE policy on
+`session_reports` is also a way to set its status by hand, a trigger refuses an admin who tries —
+they can correct the report's text, not whether it has reached the family. The report editor shows
+an admin a line saying so where the Publish button would be.
+
+Because two seats can now do these things, the database records which one did:
+`session_reports.form_submitted_by` and `generated_by`, and the transcript's `uploaded_by` and
+`created_at`, which a trigger moves whenever its text changes. The teacher's console says so when
+it was an admin — "Submitted … by an admin", "Generated … by an admin", "last changed by an admin"
+— rather than showing a new timestamp on their own work with no name on it.
 
 The edge function that reads the recording checked for the session's teacher itself, and asks
 `is_admin()` as well now. **It has to be redeployed for that to take effect** (below); until it is,
@@ -661,7 +675,7 @@ psql "$DATABASE_URL" -f supabase/tests/choosing.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
-psql "$DATABASE_URL" -f supabase/tests/admin_recording.sql
+psql "$DATABASE_URL" -f supabase/tests/admin_writeup.sql
 ```
 
 > **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
@@ -694,8 +708,8 @@ psql "$DATABASE_URL" -f supabase/tests/admin_recording.sql
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
 arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
-an admin reads every profile, session and write-up and can edit none of them — the transcript
-and generating the report aside, which `admin_recording.sql` covers — nor switch themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
+an admin reads every profile and session and can edit none of them — the write-up aside, which
+`admin_writeup.sql` covers — nor switch themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
 sign in again at all, while one merely waiting for approval still can; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
@@ -711,13 +725,14 @@ only while the test runs; *now* sets aside the question on screen and leaves exa
 *next* leaves it and brings the chosen one up when it is answered, or at once when nothing is up;
 the test carries on after the chosen question and comes round to the ones before it; the student
 still reads nothing staged; and nothing answered, on screen, set aside, in another subject's tests
-or in no test at all can be chosen. `admin_recording.sql` is the admin's two doors and the walls
-around them: an admin can put in and correct a transcript for a session they do not teach but not
+or in no test at all can be chosen. `admin_writeup.sql` is the admin's write-up and the wall
+around it: an admin can put in and correct a transcript for a session they do not teach but not
 delete it, and it is signed and re-dated when its text changes (and not when the same text is saved
-again); an admin can generate a report once the teacher's form is in, and not before, and
-`generated_by` says who pressed it; a reading of a transcript changed since is refused after an
-admin's edit too; and an admin still cannot touch the grid or the comments, hand the form in, or
-publish. `opening_early.sql`
+again); an admin can save the grid and the comments and hand the form in, under the form's own
+checks, and `form_submitted_by` says so; an admin can generate a report once the form is in, and
+not before, and `generated_by` says who pressed it; a reading of a transcript changed since is
+refused after an admin's edit too; and an admin cannot publish or unpublish, through the RPCs or by
+writing the report row, while the session's teacher still can. `opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
 student is in. Every row must read PASS.
@@ -726,7 +741,7 @@ student is in. Every row must read PASS.
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
 `level_session.sql`, `choosing.sql`, `opening_early.sql`, `authoring.sql`, `session_link.sql` and
-`admin_recording.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql` and
+`admin_writeup.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql` and
 `session_link.sql` need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
 the mathematics easy test (`0040`) — without it those rows read SKIP rather than FAIL. A teacher
 account arrives pending since `0044`, so a contract that acts as a teacher approves its own teacher
@@ -812,3 +827,17 @@ dependency.
 
 > Email confirmation is on by default. To let people in immediately after signing up, turn it
 > off under **Authentication → Sign In / Providers → Email**. The signup screen handles both.
+
+**Where the confirmation link goes.** Under **Authentication → URL Configuration**:
+
+| Setting | Value |
+| --- | --- |
+| Site URL | `https://sat-teachers.vercel.app` |
+| Redirect URLs | `https://sat-teachers.vercel.app/**`, and `http://localhost:5173/**` for local work |
+
+Signup asks for the link to come back to the app it was made from (`emailRedirectTo`), and Supabase
+only does that for an address on the Redirect URLs list — anything else goes to the Site URL. That
+was `localhost` on this project, so new teachers confirmed their email and then landed on "this site
+can't be reached". With both set, the link signs them in and they see that their email is confirmed
+and their account is waiting for approval. A Vercel preview deployment needs its own pattern on the
+list (Supabase's docs give one for Vercel) or its links fall back to the Site URL too.

@@ -17,7 +17,7 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
 import { StatusBadge } from './Sessions'
 
 /**
- * One session, all of it, and read-only but for the recording and the report.
+ * One session, all of it, and read-only but for its write-up.
  *
  * This is what the portal is for. A session leaves its traces in six places —
  * the session row, the questions it put up, the assessment behind each answer,
@@ -31,10 +31,11 @@ import { StatusBadge } from './Sessions'
  * asks for its teacher. If a button were added to this page it would fail at
  * the database, which is the right place for it to fail.
  *
- * The two exceptions were opened on purpose, in the database first (0048): an
- * admin can put in or correct the transcript, and generate the report from the
- * teacher's form. Both are in AdminRecording, under The recording. The form
- * itself, and publishing the report to the family, stay the teacher's.
+ * The exceptions were opened on purpose, in the database first: an admin can
+ * put in or correct the transcript and generate the report (0048, in
+ * AdminRecording), and fill in and hand in the diagnostic form (0049, on the
+ * form's own page, linked from here). Publishing the report to the family
+ * stays the teacher's.
  */
 export function AdminSession() {
   const { id = '' } = useParams()
@@ -227,8 +228,14 @@ export function AdminSession() {
         </div>
       )}
 
-      <div className="section-title" style={{ marginTop: 26 }}>
-        The teacher's diagnostic form
+      <div className="step-head" style={{ marginTop: 26 }}>
+        <div className="section-title" style={{ marginBottom: 0 }}>
+          The teacher's diagnostic form
+        </div>
+        <span className="spring" />
+        <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/diagnostic`}>
+          Edit the form
+        </Link>
       </div>
       <FormView rows={formRows} reflection={meta?.teacher_reflection ?? ''} stage={stage} />
 

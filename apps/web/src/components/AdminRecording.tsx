@@ -1,4 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useReportGeneration } from '../hooks/useReportGeneration'
 import type { ContextExtractionRow } from '../lib/contextExtraction'
@@ -17,10 +18,10 @@ import { Field, Notice, Textarea } from './ui'
  * correct it, and generate the report — the same button, doing the same thing,
  * as the one on the teacher's console, because it is the same hook.
  *
- * What stays the teacher's is the form and the publishing. A report is made
- * from the diagnostic form the teacher handed in, so until they have, there is
- * nothing to generate, and this says so rather than offering a button the
- * database would refuse.
+ * A report is made from the diagnostic form, so until the form is handed in
+ * there is nothing to generate, and this says so — with the way to the form,
+ * which an admin can fill in and hand in too (0049). What stays the teacher's
+ * is publishing: sending the report to the family.
  *
  * Correcting a transcript that has already been read makes the reading out of
  * date — it quotes lines the recording no longer has — so the page says so
@@ -228,10 +229,14 @@ export function AdminRecording({
       </div>
 
       {!report?.form_submitted_at ? (
-        <p className="sub">
-          A report is generated from the teacher's diagnostic form, and they have not handed it in
-          yet. Once they have, it can be generated here.
-        </p>
+        <div className="step-actions">
+          <span className="muted">
+            A report is generated from the diagnostic form, and it has not been handed in yet.
+          </span>
+          <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/diagnostic`}>
+            Open the diagnostic form
+          </Link>
+        </div>
       ) : (
         <>
           {stale && (

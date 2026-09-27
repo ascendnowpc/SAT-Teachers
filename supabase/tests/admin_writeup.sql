@@ -1,30 +1,32 @@
 -- ============================================================================
---  The admin, the recording and the report
+--  The admin and the write-up
 --
---    psql "$DATABASE_URL" -f supabase/tests/admin_recording.sql
+--    psql "$DATABASE_URL" -f supabase/tests/admin_writeup.sql
 --
---  0048 opened two doors in the admin's read-only seat and no others. What has
---  to hold:
+--  0048 and 0049 opened the admin's read-only seat onto a session's write-up —
+--  the transcript, the diagnostic form and generating the report — and kept
+--  one thing shut: publishing. What has to hold:
 --
 --    * an admin can put a transcript into a session they do not teach, and
 --      change it — but not delete it
 --    * the transcript is signed by whoever changed its text, and re-dated; the
 --      same text saved again is not a new recording
 --    * another teacher and a student can do none of that
---    * an admin can generate the report, and only once the teacher's form is
---      in; generated_by says who pressed it
+--    * an admin can fill in the grid and the comments and hand the form in,
+--      and form_submitted_by says so; the form's checks stand for them too
+--    * an admin can generate the report, and only once the form is in;
+--      generated_by says who pressed it
 --    * a reading of a transcript that has since changed is refused, whoever
 --      asks — including after an admin's edit
---    * everything else stays read-only for an admin: the form, the report's
---      text, submitting the form and publishing the report
---    * generate_report is signed-in only; the two internal functions are
---      reachable by nobody
+--    * an admin cannot publish or unpublish, through the RPCs or by writing
+--      the report row directly; the session's teacher still can
+--    * the RPCs are signed-in only; the internal functions reachable by nobody
 --
 --  Every row must read PASS. Cleans up after itself, and is safe against a real
 --  database: it is one statement, so a failure rolls back what it made.
 -- ============================================================================
 
-create or replace function public.__admin_recording_check()
+create or replace function public.__admin_writeup_check()
 returns table(step text, detail text, expected text, actual text, verdict text)
 language plpgsql as $fn$
 declare
@@ -150,36 +152,74 @@ begin
     (case when d = body2 then 'untouched' else 'OVERWRITTEN' end),
     (case when d = body2 then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ 2. the report ============
+  -- ============ 2. the form ============
   perform set_config('request.jwt.claims', json_build_object('sub',a_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
   begin perform generate_report(sess); txt := 'generated';
   exception when others then txt := 'refused'; end;
-  return query select '2 report'::text,'not before the teacher''s form is in'::text,'refused'::text,txt,
+  return query select '2 form'::text,'no report before the form is in'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
-  execute 'reset role';
 
-  -- The teacher fills the form in and hands it in.
-  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
-  execute 'set local role authenticated';
-  foreach d in array array['information_and_ideas','craft_and_structure',
-                           'expression_of_ideas','standard_english_conventions'] loop
-    insert into session_domain_notes (session_id, domain, performance, strengths, gaps, targets)
-    values (sess, d, 'tick', 'Reads closely.', 'Rushes the last line.', 'Slow down on the stem.');
-  end loop;
+  -- The form's own checks stand for an admin: half a grid is refused.
+  insert into session_domain_notes (session_id, domain, performance, strengths, gaps, targets)
+  values (sess, 'information_and_ideas', 'tick', 'Reads closely.', 'Rushes.', 'Slow down.');
   insert into session_reports (session_id, teacher_reflection) values (sess, 'A good first session.');
-  perform submit_diagnostic_form(sess);
+  begin perform submit_diagnostic_form(sess); txt := 'submitted';
+  exception when others then txt := 'refused'; end;
+  return query select '2 form'::text,'an admin cannot hand in half a grid'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  -- The rest of the grid, the way the form saves it: an upsert over all four,
+  -- which is the write that met the RLS error before 0049.
+  begin
+    foreach d in array array['information_and_ideas','craft_and_structure',
+                             'expression_of_ideas','standard_english_conventions'] loop
+      insert into session_domain_notes (session_id, domain, performance, strengths, gaps, targets)
+      values (sess, d, 'tick', 'Reads closely.', 'Rushes the last line.', 'Slow down on the stem.')
+      on conflict (session_id, domain) do update
+        set performance = excluded.performance, strengths = excluded.strengths,
+            gaps = excluded.gaps, targets = excluded.targets;
+    end loop;
+    insert into session_reports (session_id, teacher_reflection) values (sess, 'A steady first session.')
+    on conflict (session_id) do update set teacher_reflection = excluded.teacher_reflection;
+    txt := 'saved';
+  exception when others then txt := 'refused: ' || sqlerrm;
+  end;
+  return query select '2 form'::text,'an admin saves the grid and the comments'::text,'saved'::text,txt,
+    (case when txt='saved' then 'PASS' else 'FAIL' end)::text;
+
+  begin perform submit_diagnostic_form(sess); txt := 'submitted';
+  exception when others then txt := 'refused: ' || sqlerrm; end;
+  return query select '2 form'::text,'and hands the form in'::text,'submitted'::text,txt,
+    (case when txt='submitted' then 'PASS' else 'FAIL' end)::text;
+
+  select form_submitted_by into who from session_reports where session_id = sess;
+  return query select '2 form'::text,'which says who handed it in'::text,'the admin'::text,
+    (case when who = a_id then 'the admin' else coalesce(who::text,'nobody') end),
+    (case when who = a_id then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
+  perform set_config('request.jwt.claims', json_build_object('sub',x_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  update session_domain_notes set gaps = 'Not mine' where session_id = sess;
+  begin perform submit_diagnostic_form(sess); txt := 'submitted';
+  exception when others then txt := 'refused'; end;
+  execute 'reset role';
+  select count(*) into n from session_domain_notes where session_id = sess and gaps = 'Not mine';
+  return query select '2 form'::text,'another teacher can neither write the grid nor hand it in'::text,
+    'untouched, refused'::text, (case when n = 0 then 'untouched, ' else 'WRITTEN, ' end) || txt,
+    (case when n = 0 and txt = 'refused' then 'PASS' else 'FAIL' end)::text;
+
+  -- ============ 3. the report ============
   perform set_config('request.jwt.claims', json_build_object('sub',a_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
   begin perform generate_report(sess); txt := 'generated';
   exception when others then txt := 'refused: ' || sqlerrm; end;
-  return query select '2 report'::text,'an admin generates it once the form is in'::text,'generated'::text,txt,
+  return query select '3 report'::text,'an admin generates it once the form is in'::text,'generated'::text,txt,
     (case when txt='generated' then 'PASS' else 'FAIL' end)::text;
 
   select generated_by into who from session_reports where session_id = sess;
-  return query select '2 report'::text,'and the report says who pressed it'::text,'the admin'::text,
+  return query select '3 report'::text,'and the report says who pressed it'::text,'the admin'::text,
     (case when who = a_id then 'the admin' else coalesce(who::text,'nobody') end),
     (case when who = a_id then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
@@ -188,7 +228,7 @@ begin
   execute 'set local role authenticated';
   perform generate_report(sess);
   select generated_by into who from session_reports where session_id = sess;
-  return query select '2 report'::text,'the teacher still can, and it says so'::text,'the teacher'::text,
+  return query select '3 report'::text,'the teacher still can, and it says so'::text,'the teacher'::text,
     (case when who = t_id then 'the teacher' else coalesce(who::text,'nobody') end),
     (case when who = t_id then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
@@ -197,7 +237,7 @@ begin
   execute 'set local role authenticated';
   begin perform generate_report(sess); txt := 'generated';
   exception when others then txt := 'refused'; end;
-  return query select '2 report'::text,'another teacher cannot'::text,'refused'::text,txt,
+  return query select '3 report'::text,'another teacher cannot'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
@@ -205,7 +245,7 @@ begin
   execute 'set local role authenticated';
   begin perform generate_report(sess); txt := 'generated';
   exception when others then txt := 'refused'; end;
-  return query select '2 report'::text,'nor can the student'::text,'refused'::text,txt,
+  return query select '3 report'::text,'nor can the student'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
@@ -220,42 +260,66 @@ begin
   update session_transcripts set body = body1 where session_id = sess;
   begin perform generate_report(sess); txt := 'generated';
   exception when others then txt := 'refused'; end;
-  return query select '2 report'::text,'a reading of the old transcript is refused after an edit'::text,
+  return query select '3 report'::text,'a reading of the old transcript is refused after an edit'::text,
     'refused'::text, txt, (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ 3. still a reader everywhere else ============
-  update session_reports set teacher_reflection = 'Admin was here' where session_id = sess;
-  update session_domain_notes set gaps = 'Admin was here' where session_id = sess;
+  -- ============ 4. publishing stays the teacher's ============
+  begin perform publish_report(sess); txt := 'published';
+  exception when others then txt := 'refused'; end;
+  return query select '4 publishing'::text,'an admin cannot publish through the RPC'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  begin
+    update session_reports set status = 'published', published_at = now() where session_id = sess;
+    txt := 'published';
+  exception when others then txt := 'refused';
+  end;
+  return query select '4 publishing'::text,'nor by writing the row directly'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
-  select count(*) into n from session_reports where session_id = sess and teacher_reflection = 'Admin was here';
-  return query select '3 reader'::text,'an admin cannot rewrite the teacher''s comments'::text,'0'::text,n::text,
-    (case when n=0 then 'PASS' else 'FAIL' end)::text;
-  select count(*) into n from session_domain_notes where session_id = sess and gaps = 'Admin was here';
-  return query select '3 reader'::text,'nor the grid'::text,'0'::text,n::text,
-    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform publish_report(sess); txt := 'published';
+  exception when others then txt := 'refused: ' || sqlerrm; end;
+  return query select '4 publishing'::text,'the teacher publishes'::text,'published'::text,txt,
+    (case when txt='published' then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub',a_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
-  begin perform submit_diagnostic_form(sess); txt := 'submitted';
+  begin perform unpublish_report(sess); txt := 'unpublished';
   exception when others then txt := 'refused'; end;
-  return query select '3 reader'::text,'nor hand the form in'::text,'refused'::text,txt,
-    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
-
-  begin perform publish_report(sess); txt := 'published';
-  exception when others then txt := 'refused'; end;
-  return query select '3 reader'::text,'nor publish the report'::text,'refused'::text,txt,
-    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+  if txt = 'refused' then
+    begin
+      update session_reports set status = 'draft', published_at = null where session_id = sess;
+      txt := 'unpublished';
+    exception when others then txt := 'refused';
+    end;
+  end if;
+  -- And what an admin can still write on a published report is its text.
+  update session_reports set summary = 'Reads carefully; rushes the end.' where session_id = sess;
   execute 'reset role';
+  select status::text into d from session_reports where session_id = sess;
+  return query select '4 publishing'::text,'an admin cannot take it back either'::text,'refused, still published'::text,
+    txt || ', ' || (case when d = 'published' then 'still published' else d end),
+    (case when txt = 'refused' and d = 'published' then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_reports where session_id = sess and summary = 'Reads carefully; rushes the end.';
+  return query select '4 publishing'::text,'but can still correct its text'::text,'1'::text,n::text,
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ 4. who can even ask ============
-  ok := has_function_privilege('anon', 'public.generate_report(uuid)', 'execute');
-  return query select '4 grants'::text,'generate_report — signed in only'::text,'no anon'::text,
-    (case when ok then 'anon too!' else 'no anon' end),(case when ok then 'FAIL' else 'PASS' end)::text;
+  -- ============ 5. who can even ask ============
+  for txt in select unnest(array['generate_report(uuid)', 'submit_diagnostic_form(uuid)']) loop
+    ok := has_function_privilege('anon', 'public.'||txt, 'execute');
+    return query select '5 grants'::text, txt || ' — signed in only', 'no anon'::text,
+      (case when ok then 'anon too!' else 'no anon' end),(case when ok then 'FAIL' else 'PASS' end)::text;
+  end loop;
 
-  for txt in select unnest(array['assert_session_teacher_or_admin(uuid)', 'stamp_transcript()']) loop
+  for txt in select unnest(array['assert_session_teacher_or_admin(uuid)', 'stamp_transcript()',
+                                 'guard_report_publishing()']) loop
     ok := has_function_privilege('anon', 'public.'||txt, 'execute')
        or has_function_privilege('authenticated', 'public.'||txt, 'execute');
-    return query select '4 grants'::text, txt || ' — internal', 'nobody'::text,
+    return query select '5 grants'::text, txt || ' — internal', 'nobody'::text,
       (case when ok then 'reachable' else 'nobody' end),(case when ok then 'FAIL' else 'PASS' end)::text;
   end loop;
 
@@ -267,6 +331,6 @@ begin
   delete from auth.users where id in (t_id, x_id, s_id, a_id);
 end $fn$;
 
-select * from public.__admin_recording_check();
+select * from public.__admin_writeup_check();
 
-drop function public.__admin_recording_check();
+drop function public.__admin_writeup_check();
