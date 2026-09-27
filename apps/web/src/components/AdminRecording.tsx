@@ -153,14 +153,15 @@ export function AdminRecording({
             <Textarea
               rows={14}
               value={body}
-              placeholder={'@2:24 - Malya Rastogi (…)\nSo we’ll do it one by one, right?'}
+              placeholder={'2:24 - Malya Rastogi (…)\n  So we’ll do it one by one, right?'}
               onChange={(e) => setBody(e.target.value)}
             />
           </Field>
 
           {body.trim() && parsed && parsed.lines.length === 0 && (
             <Notice kind="info">
-              No Fathom timestamps in this — nothing reads as <code>@12:34 - Name</code>. It saves,
+              No Fathom timestamps in this — nothing reads as <code>12:34 - Name</code> or{' '}
+              <code>@12:34 - Name</code>. It saves,
               but the report cannot line quotes up against questions without them.
             </Notice>
           )}

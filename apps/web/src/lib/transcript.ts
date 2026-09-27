@@ -6,6 +6,12 @@
  *   @12:34 - Malya Rastogi (rastogimalya26@gmail.com)
  *   what the person said, over one or more lines
  *
+ * or, in the layout Fathom exports today, the same without the "@" and with
+ * the words indented under the stamp:
+ *
+ *   12:34 - Malya Rastogi (rastogimalya26@gmail.com)
+ *     what the person said, over one or more lines
+ *
  * The timestamps are what make it useful: they are minutes into the recording,
  * and the session's own rows know when each question was on screen. Line those
  * two up and every question gets the part of the conversation that was about
@@ -26,7 +32,17 @@ export interface Transcript {
   duration: number
 }
 
-const STAMP = /^@(\d{1,2}):(\d{2})(?::(\d{2}))?\s*-\s*(.+?)\s*$/
+/**
+ * A turn's stamp: `@12:34 - Name`, or `12:34 - Name` as Fathom writes it now.
+ *
+ * The "@" was the whole of what the first version looked for, and a transcript
+ * in the current layout — the same stamps, no "@" — read as no turns at all: 0
+ * turns on the console, and a reading refused for having nothing timestamped in
+ * it. Without the "@" a stamp is only recognised at the start of an unindented
+ * line (see parseTranscript), because that layout indents the words and a time
+ * said out loud at the start of a sentence is not a new turn.
+ */
+const STAMP = /^@?(\d{1,2}):(\d{2})(?::(\d{2}))?\s*[-–—]\s*(.+?)\s*$/
 
 /** Drops the email Fathom appends, which is an address and not a name. */
 function cleanSpeaker(raw: string): string {
@@ -36,12 +52,19 @@ function cleanSpeaker(raw: string): string {
 export function parseTranscript(body: string): Transcript {
   const lines: TranscriptLine[] = []
   let current: TranscriptLine | null = null
+  // Which of the two layouts this is, settled by its first stamp. An "@" marks
+  // a stamp wherever it sits. Without one, a stamp is a line at the margin —
+  // but only in the layout that has no "@", because the "@" layout does not
+  // indent the words, and there a time at the start of a spoken line is speech.
+  let bare: boolean | null = null
 
   for (const raw of body.split(/\r?\n/)) {
     const line = raw.trim()
     const m = STAMP.exec(line)
+    const marked = line.startsWith('@')
 
-    if (m) {
+    if (m && (marked || (bare !== false && !/^\s/.test(raw)))) {
+      bare ??= !marked
       if (current && current.text) lines.push(current)
       // Fathom writes h:mm:ss once a call passes an hour, m:ss before that.
       const [, a, b, c, speaker] = m

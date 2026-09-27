@@ -12,6 +12,7 @@ import {
 } from '../../../apps/web/src/lib/extraction.ts'
 import { EXTRACTION_SCHEMA, buildPrompt, SYSTEM_PROMPT } from '../../../apps/web/src/lib/extractionPrompt.ts'
 import { readerFrom, type Reader } from '../../../apps/web/src/lib/gemini.ts'
+import { rolesFor } from '../../../apps/web/src/lib/speakers.ts'
 import { parseTranscript, reviewWindows, windowsFor } from '../../../apps/web/src/lib/transcript.ts'
 
 /**
@@ -116,7 +117,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: session } = await asCaller
     .from('sessions')
-    .select('id, teacher_id, subject')
+    .select(
+      'id, teacher_id, subject, teacher:profiles!sessions_teacher_id_fkey(full_name), student:profiles!sessions_student_id_fkey(full_name)',
+    )
     .eq('id', sessionId)
     .maybeSingle()
 
@@ -208,14 +211,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: 'no question has a timestamp to align against' }, 400)
   }
 
-  // Roles are the teacher's correction of Fathom's labels. Anything the client
-  // sends that is not one of the three roles is 'other', which is inert.
-  const roles: ValidationInput['roles'] = {}
-  for (const speaker of transcript.speakers) {
-    const claimed = body.roles?.[speaker]
-    roles[speaker] =
-      claimed === 'teacher' || claimed === 'student' || claimed === 'other' ? claimed : 'other'
-  }
+  // Roles are the client's first guess at Fathom's labels. A client that could
+  // not parse this transcript names nobody — an app older than the layout it is
+  // in — and then the guess is made here, from the same two names.
+  const names = session as { teacher?: { full_name?: string } | null; student?: { full_name?: string } | null }
+  const roles: ValidationInput['roles'] = rolesFor(transcript.speakers, body.roles, {
+    teacher: names.teacher?.full_name,
+    student: names.student?.full_name,
+  })
 
   // The four the form was written against, which depend on the subject. This
   // was the English four whatever the session, so a mathematics form reached the

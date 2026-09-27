@@ -1,6 +1,7 @@
 import { sectionLabel } from './constants'
 import { domainOrder } from './grid'
 import { formatDuration, type Attempt, type Report } from './report'
+import { inferRoles, type Role } from './speakers.ts'
 import { linesIn, type AlignWindow, type Transcript, type TranscriptLine } from './transcript'
 import type { Subject } from './types'
 
@@ -24,39 +25,9 @@ import type { Subject } from './types'
 
 // --------------------------------------------------------------- speakers --
 
-export type Role = 'teacher' | 'student' | 'other'
-
-/** The first name, lowercased — what two spellings of a person have in common. */
-function firstName(name: string): string {
-  return name.trim().toLowerCase().split(/\s+/)[0] ?? ''
-}
-
-/**
- * A first guess at who is who.
- *
- * Fathom labels turns with whatever the person called themselves in Zoom, which
- * is often neither the name on the account nor the same across two calls. So
- * this matches on the given name and gives up rather than guessing: an unmatched
- * speaker is 'other', and the write-up page asks. Attributing the teacher's
- * explanation to the student is the one mistake that would poison every finding
- * downstream, so it is not left to a heuristic.
- */
-export function inferRoles(
-  speakers: string[],
-  teacherName: string | null | undefined,
-  studentName: string | null | undefined,
-): Record<string, Role> {
-  const t = firstName(teacherName ?? '')
-  const s = firstName(studentName ?? '')
-  const out: Record<string, Role> = {}
-  for (const speaker of speakers) {
-    const f = firstName(speaker)
-    if (f && f === s) out[speaker] = 'student'
-    else if (f && f === t) out[speaker] = 'teacher'
-    else out[speaker] = 'other'
-  }
-  return out
-}
+// Who is who lives in speakers.ts, which the edge function that reads the
+// recording imports too.
+export { inferRoles, type Role }
 
 // ---------------------------------------------------------------- markers --
 

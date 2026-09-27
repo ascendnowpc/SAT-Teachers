@@ -284,7 +284,7 @@ export function DiagnosticForm() {
             value={body}
             className={problems.some((p) => p.where === 'transcript') ? 'bad' : ''}
             aria-invalid={problems.some((p) => p.where === 'transcript') || undefined}
-            placeholder={'@2:24 - Malya Rastogi (…)\nSo we’ll do it one by one, right?'}
+            placeholder={'2:24 - Malya Rastogi (…)\n  So we’ll do it one by one, right?'}
             onChange={(e) => {
               setSaved(null)
               setBody(e.target.value)
@@ -295,7 +295,8 @@ export function DiagnosticForm() {
 
         {body.trim() && parsed && parsed.lines.length === 0 && (
           <Notice kind="info">
-            No Fathom timestamps in this — nothing reads as <code>@12:34 - Name</code>. It saves,
+            No Fathom timestamps in this — nothing reads as <code>12:34 - Name</code> or{' '}
+            <code>@12:34 - Name</code>. It saves,
             but the report cannot line quotes up against questions without them.
           </Notice>
         )}
