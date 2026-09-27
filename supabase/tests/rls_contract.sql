@@ -15,8 +15,8 @@
 --      approves it (0044) — signup is open to anyone with an email address
 --    * nobody rewrites their own role, display id or approval (0044)
 --    * an admin reads every session, every form and every report, and writes
---      none of them — but for a session's transcript and generating its report,
---      which 0048 opened on purpose and admin_recording.sql covers
+--      none of them — but for a session's write-up, which 0048 and 0049 opened
+--      on purpose and admin_writeup.sql covers
 --    * a SUSPENDED account cannot sign in at all (0045), where an account that
 --      is merely waiting for approval still can — that is how it is told so
 -- ============================================================================
@@ -221,8 +221,8 @@ begin
 
   -- Read-only is the design: the sessions themselves have no admin write policy,
   -- and every RPC that changes a session still asks assert_session_teacher. The
-  -- transcript and generate_report are the two exceptions (0048), and
-  -- admin_recording.sql is their contract.
+  -- write-up is the exception (0048, 0049), and admin_writeup.sql is its
+  -- contract.
   begin
     update sessions set title = 'Admin was here' where id = sess;
     select count(*) into n from sessions where id = sess and title = 'Admin was here';

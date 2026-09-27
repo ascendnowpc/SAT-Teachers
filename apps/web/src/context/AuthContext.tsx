@@ -17,8 +17,9 @@ interface AuthValue {
   loading: boolean
   isTeacher: boolean
   /**
-   * An active admin. Reads the whole school, and writes two things in it: a
-   * session's transcript and its report's generation (0048). Nothing else.
+   * An active admin. Reads the whole school, and writes one part of it: a
+   * session's write-up — the transcript, the diagnostic form and generating the
+   * report (0048, 0049). Not publishing it, and nothing else.
    */
   isAdmin: boolean
   /**
@@ -94,9 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      // The database coerces this to teacher|student, so a tampered payload
-      // cannot mint an admin.
-      options: { data: { role, full_name: fullName.trim() } },
+      options: {
+        // The database coerces this to teacher|student, so a tampered payload
+        // cannot mint an admin.
+        data: { role, full_name: fullName.trim() },
+        // Back to this app, wherever it is running. Without it the link in the
+        // confirmation email goes to the project's Site URL — localhost, until
+        // somebody changes it — so the email was confirmed and the page it
+        // landed on could not be reached. Supabase honours this only for an
+        // address on the project's Redirect URLs list, and falls back to the
+        // Site URL otherwise; both are set in the dashboard (README, Deploying).
+        emailRedirectTo: window.location.origin,
+      },
     })
     if (error) throw new Error(error.message)
     return { needsConfirmation: !data.session }

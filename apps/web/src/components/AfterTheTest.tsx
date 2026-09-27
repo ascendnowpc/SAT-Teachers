@@ -119,6 +119,7 @@ export function AfterTheTest({
     return who && who !== 'you' ? who : null
   }
   const transcriptBy = someoneElse(transcript?.uploaded_by)
+  const submittedBy = someoneElse(report?.form_submitted_by)
   const generatedBy = someoneElse(report?.generated_by)
 
   /** The transcript as a Word file, named after the student and the lesson. */
@@ -167,7 +168,10 @@ export function AfterTheTest({
         <div className="section-title" style={{ marginBottom: 0 }}>
           Diagnostic form
         </div>
-        <span className="badge badge-ok">Submitted {formatUtc(submitted)}</span>
+        <span className="badge badge-ok">
+          Submitted {formatUtc(submitted)}
+          {submittedBy && ` by ${submittedBy}`}
+        </span>
         <span className="spring" />
         <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/diagnostic`}>
           Edit

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import { Field, Notice, Select, Textarea } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { sectionLabel, skillLabel } from '../lib/constants'
 import {
@@ -69,6 +70,11 @@ export function ReportEdit() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { session, items, loading } = useLiveSession(id, { withAssessments: true })
+  const { profile } = useAuth()
+  // An admin can write this page up too (0049), and publishing is still the
+  // teacher's: publish_report refuses anybody else, and a button that saves and
+  // then fails with "not your session" tells an admin nothing about why.
+  const mayPublish = !session || session.teacher_id === profile?.id
 
   const [transcript, setTranscript] = useState<SessionTranscript | null>(null)
   const [draftBody, setDraftBody] = useState('')
@@ -591,9 +597,13 @@ export function ReportEdit() {
         <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void save(false)}>
           Save draft
         </button>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save(true)}>
-          Publish report
-        </button>
+        {mayPublish ? (
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save(true)}>
+            Publish report
+          </button>
+        ) : (
+          <span className="muted">Publishing it to the family is the teacher's step.</span>
+        )}
       </div>
     </div>
   )
