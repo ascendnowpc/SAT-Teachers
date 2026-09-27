@@ -63,7 +63,7 @@ export function clock(seconds: number): string {
  *
  * The same interval the server records as elapsed_seconds: it starts when the
  * question actually reached the student's screen — first_viewed_at, falling
- * back to when it was published — and stops when they settled on an answer.
+ * back to when it was published — and stops when they first picked an answer.
  * While they are still deciding it runs, which is what lets the teacher's
  * console show the clock the student is watching rather than a blank cell.
  */
