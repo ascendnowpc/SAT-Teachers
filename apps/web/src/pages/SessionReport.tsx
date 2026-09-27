@@ -22,6 +22,7 @@ import {
 } from '../lib/grid'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { rowsFrom } from '../lib/diagnostic'
+import { readingStaleness } from '../lib/recording'
 import { buildReport, formatDuration, paceLabel, type Attempt, type Band } from '../lib/report'
 import { buildReportDoc, disagreements, type DomainSection } from '../lib/reportDoc'
 import { rows, supabase } from '../lib/supabase'
@@ -43,18 +44,34 @@ export function SessionReport() {
 
   const [notes, setNotes] = useState<DomainNote[]>([])
   const [meta, setMeta] = useState<SessionReportRow | null>(null)
-  const [extraction, setExtraction] = useState<ContextExtractionRow | null>(null)
+  const [stored, setStored] = useState<ContextExtractionRow | null>(null)
+  const [transcriptAt, setTranscriptAt] = useState<string | null>(null)
 
   const loadWritten = useCallback(async () => {
-    const [n, m, e] = await Promise.all([
+    const [n, m, e, t] = await Promise.all([
       supabase.from('session_domain_notes').select('*').eq('session_id', id),
       supabase.from('session_reports').select('*').eq('session_id', id).maybeSingle(),
       loadExtraction(id),
+      // Only when it was put in, to tell whether the reading is of it. Staff
+      // only, like the reading itself: a student gets neither.
+      supabase.from('session_transcripts').select('created_at').eq('session_id', id).maybeSingle(),
     ])
     setNotes(rows<DomainNote>(n.data))
     setMeta((m.data as SessionReportRow | null) ?? null)
-    setExtraction(e)
+    setStored(e)
+    setTranscriptAt((t.data as { created_at: string } | null)?.created_at ?? null)
   }, [id])
+
+  // A reading of an older transcript, or taken before the form was handed in
+  // again, is a reading of something this report no longer says — its
+  // "complicates what the teacher wrote" may be about a sentence that is gone.
+  // It is not shown as the recording's findings until it is read again.
+  const staleness = readingStaleness(
+    stored,
+    transcriptAt ? { created_at: transcriptAt } : null,
+    meta?.form_submitted_at,
+  )
+  const extraction = staleness ? null : stored
 
   useEffect(() => {
     void loadWritten()
@@ -195,12 +212,23 @@ export function SessionReport() {
             </div>
           )}
 
-          {!extraction && (
+          {staleness ? (
             <Notice kind="info">
-              The recording has not been read for this session, so everything here is the teacher’s
-              own writing and the numbers from the answers. Generate the report again from the
-              session console to have the transcript read.
+              {staleness === 'form'
+                ? 'The diagnostic form was handed in again after the recording was read'
+                : 'The transcript was changed after the recording was read'}
+              , so what the recording showed is left out until it is read again. Everything here is
+              the teacher’s own writing and the numbers from the answers. Generate the report again
+              from the session console to have it read.
             </Notice>
+          ) : (
+            !extraction && (
+              <Notice kind="info">
+                The recording has not been read for this session, so everything here is the teacher’s
+                own writing and the numbers from the answers. Generate the report again from the
+                session console to have the transcript read.
+              </Notice>
+            )
           )}
 
           {conflicts.length > 0 && (

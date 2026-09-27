@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DiagnosticGrid } from './DiagnosticGrid'
 import { Notice } from './ui'
+import { useAuth } from '../context/AuthContext'
+import { useReadAgain } from '../hooks/useReadAgain'
 import { useReportGeneration } from '../hooks/useReportGeneration'
 import { rowsComplete, rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
 import { alignmentFor, loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { transcriptDocx } from '../lib/docx'
-import { readingIsStale, whoDid } from '../lib/recording'
+import { STALE_READING, readingStaleness, whoDid } from '../lib/recording'
 import { parseTranscript } from '../lib/transcript'
 import { row, rows as toRows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -77,10 +79,11 @@ export function AfterTheTest({
   const submitted = report?.form_submitted_at ?? null
   const generated = report?.generated_at ?? null
   const started = rowsComplete(gridRows)
-  // The transcript is replaced in place, and its created_at moves with its text
-  // (0048), so one dated after the reading is a different recording than the
-  // one that was read.
-  const stale = readingIsStale(extraction, transcript)
+  // A reading is of the transcript and the form it was taken against. A
+  // transcript replaced since, or a form handed in again since, makes it the
+  // reading of something that is no longer there (0048, 0051).
+  const staleness = readingStaleness(extraction, transcript, submitted)
+  const stale = staleness !== null
 
   // Generating the report, which reads the recording first. The same hook the
   // admin's session page uses, so the button means one thing from both seats.
@@ -95,6 +98,10 @@ export function AfterTheTest({
       reload: load,
     })
 
+  // Back from handing the form in again: the reading is out of date, and the
+  // report is to be made from the new form, so both happen now.
+  useReadAgain(!loading, generate)
+
   // suggestOffset tries every offset up to twenty minutes against every
   // question, so this is a scan over the whole transcript rather than a lookup —
   // not something to redo on each keystroke elsewhere on the console.
@@ -105,13 +112,15 @@ export function AfterTheTest({
 
   const turns = useMemo(() => parseTranscript(transcript?.body ?? '').lines, [transcript])
 
-  // An admin can change the transcript and generate the report too (0048). When
-  // one has, the teacher is told, rather than finding a new timestamp on their
-  // own work and no name on it. Their own doing is not announced back to them.
+  // A teacher and an admin can both do all of this (0050). Whoever is reading
+  // is told when it was the other — the teacher that an admin changed their
+  // write-up, an admin that it was the teacher's — rather than finding a new
+  // timestamp with no name on it. Their own doing is not announced back to them.
+  const { profile } = useAuth()
   const someoneElse = (id: string | null | undefined) => {
     const who = session
       ? whoDid(id, {
-          me: session.teacher_id,
+          me: profile?.id,
           teacherId: session.teacher_id,
           teacherName: session.teacher?.full_name,
         })
@@ -227,11 +236,7 @@ export function AfterTheTest({
         <p className="step-text muted">Nothing pasted in yet.</p>
       )}
 
-      {stale && (
-        <Notice kind="info">
-          The transcript was replaced after the last reading. Generating again reads the new one.
-        </Notice>
-      )}
+      {staleness && <Notice kind="info">{STALE_READING[staleness]}</Notice>}
 
       {/* Folded away. The alignment is guessed correctly for a lesson that runs
           question by question, and a teacher who never has to think about it

@@ -28,6 +28,7 @@ const LIB = join(ROOT, 'apps/web/src/lib')
 /** Everything the entrypoint pulls in, and everything those pull in. */
 const DEPENDENCIES = [
   'asked.ts',
+  'domains.ts',
   'extraction.ts',
   'extractionPrompt.ts',
   'gemini.ts',

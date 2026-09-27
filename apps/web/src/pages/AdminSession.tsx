@@ -17,7 +17,7 @@ import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/typ
 import { StatusBadge } from './Sessions'
 
 /**
- * One session, all of it, and read-only but for its write-up.
+ * One session, all of it, from the admin's seat.
  *
  * This is what the portal is for. A session leaves its traces in six places —
  * the session row, the questions it put up, the assessment behind each answer,
@@ -26,16 +26,11 @@ import { StatusBadge } from './Sessions'
  * has three screens that each show part of it and each let them change what
  * they show.
  *
- * Almost nothing here can be changed. Not because a control was hidden: an
- * admin has SELECT policies (0044), and every RPC that writes a session still
- * asks for its teacher. If a button were added to this page it would fail at
- * the database, which is the right place for it to fail.
- *
- * The exceptions were opened on purpose, in the database first: an admin can
- * put in or correct the transcript and generate the report (0048, in
- * AdminRecording), and fill in and hand in the diagnostic form (0049, on the
- * form's own page, linked from here). Publishing the report to the family
- * stays the teacher's.
+ * An admin can do to a session whatever its teacher can (0050), and this page
+ * is the way into all of it rather than a second copy of it: the console, to
+ * run the session or publish its results; the diagnostic form; the transcript
+ * and generating the report, here (AdminRecording); and the report's editor,
+ * where it is published.
  */
 export function AdminSession() {
   const { id = '' } = useParams()
@@ -106,6 +101,12 @@ export function AdminSession() {
           </p>
         </div>
         <div className="spring" />
+        {/* The teacher's own console, which works from this seat too (0050):
+            running the session, answering for the student, publishing the
+            results, the diagnoses. */}
+        <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}`}>
+          Open the console
+        </Link>
         {/* The report as the teacher and the parent read it. It is the same page
             the teacher opens, which is the point: an admin checking a report
             should be reading the report, not a summary of it. */}
@@ -233,7 +234,11 @@ export function AdminSession() {
           The teacher's diagnostic form
         </div>
         <span className="spring" />
-        <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/diagnostic`}>
+        <Link
+          className="btn btn-ghost btn-sm"
+          to={`/sessions/${session.id}/diagnostic`}
+          state={{ back: `/admin/sessions/${session.id}` }}
+        >
           Edit the form
         </Link>
       </div>
@@ -283,8 +288,15 @@ export function AdminSession() {
 function timings(meta: SessionReportRow | null): string {
   if (!meta) return 'nothing written yet'
   if (meta.published_at) return `published ${formatUtc(meta.published_at)}`
-  if (meta.generated_at) return `generated ${formatUtc(meta.generated_at)}`
-  if (meta.form_submitted_at) return `form in ${formatUtc(meta.form_submitted_at)}`
+  if (meta.generated_at && reportStage(meta) === 'generated') {
+    return `generated ${formatUtc(meta.generated_at)}`
+  }
+  if (meta.form_submitted_at) {
+    // Handed in again after the report was made from it: the report is owed.
+    return meta.generated_at
+      ? `form in again ${formatUtc(meta.form_submitted_at)}`
+      : `form in ${formatUtc(meta.form_submitted_at)}`
+  }
   return 'a draft'
 }
 

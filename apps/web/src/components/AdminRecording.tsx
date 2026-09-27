@@ -1,9 +1,10 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useReadAgain } from '../hooks/useReadAgain'
 import { useReportGeneration } from '../hooks/useReportGeneration'
 import type { ContextExtractionRow } from '../lib/contextExtraction'
-import { readingIsStale, whoDid } from '../lib/recording'
+import { STALE_READING, readingStaleness, whoDid } from '../lib/recording'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import { parseTranscript } from '../lib/transcript'
@@ -13,19 +14,20 @@ import { Field, Notice, Textarea } from './ui'
 /**
  * The recording and the report, from the admin's seat.
  *
- * Everything else on an admin's session page is there to be read. This is the
- * part that is not (0048): an admin can put a session's transcript in, or
- * correct it, and generate the report — the same button, doing the same thing,
- * as the one on the teacher's console, because it is the same hook.
+ * An admin can put a session's transcript in or correct it, and generate the
+ * report — the same button, doing the same thing, as the one on the teacher's
+ * console, because it is the same hook — and publish it, as the teacher can
+ * (0050).
  *
  * A report is made from the diagnostic form, so until the form is handed in
  * there is nothing to generate, and this says so — with the way to the form,
- * which an admin can fill in and hand in too (0049). What stays the teacher's
- * is publishing: sending the report to the family.
+ * which an admin can fill in and hand in too (0049).
  *
- * Correcting a transcript that has already been read makes the reading out of
- * date — it quotes lines the recording no longer has — so the page says so
- * before the save and after it, and generating again reads the new one first.
+ * A reading is taken against the transcript and the form. Correcting the
+ * transcript, or handing the form in again, makes it out of date — it quotes
+ * lines the recording no longer has, or weighs evidence against a form that
+ * has since changed — so the page says so, and generating reads it again
+ * first. Handing the form in again from here does both on the way back.
  */
 export function AdminRecording({
   session,
@@ -56,7 +58,8 @@ export function AdminRecording({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const stale = readingIsStale(extraction, transcript)
+  const staleness = readingStaleness(extraction, transcript, report?.form_submitted_at)
+  const stale = staleness !== null
   const gen = useReportGeneration({
     sessionId: session.id,
     session,
@@ -65,6 +68,11 @@ export function AdminRecording({
     current: Boolean(extraction) && !stale,
     reload: onChanged,
   })
+
+  // Back from handing the form in again: read the recording against the new
+  // form and generate the report from it. The report row is what says the
+  // page has loaded — there is one once a form has been handed in.
+  useReadAgain(report !== null, gen.generate)
 
   const shown = editing ? body : (transcript?.body ?? '')
   const parsed = useMemo(() => (shown.trim() ? parseTranscript(shown) : null), [shown])
@@ -156,7 +164,7 @@ export function AdminRecording({
               but the report cannot line quotes up against questions without them.
             </Notice>
           )}
-          {extraction && !unchanged && (
+          {extraction && !stale && !unchanged && (
             <p className="step-text muted">
               The recording was read on {formatUtc(extraction.created_at)}. Saving a change makes that
               reading out of date, and generating the report again reads the new transcript first.
@@ -226,6 +234,9 @@ export function AdminRecording({
             {generatedBy && ` by ${generatedBy}`}
           </span>
         )}
+        {report?.published_at && (
+          <span className="badge badge-ok">Published {formatUtc(report.published_at)}</span>
+        )}
       </div>
 
       {!report?.form_submitted_at ? (
@@ -233,17 +244,17 @@ export function AdminRecording({
           <span className="muted">
             A report is generated from the diagnostic form, and it has not been handed in yet.
           </span>
-          <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/diagnostic`}>
+          <Link
+            className="btn btn-ghost btn-sm"
+            to={`/sessions/${session.id}/diagnostic`}
+            state={{ back: `/admin/sessions/${session.id}` }}
+          >
             Open the diagnostic form
           </Link>
         </div>
       ) : (
         <>
-          {stale && (
-            <Notice kind="info">
-              The transcript was changed after the last reading. Generating again reads the new one.
-            </Notice>
-          )}
+          {staleness && <Notice kind="info">{STALE_READING[staleness]}</Notice>}
           {gen.error && <Notice kind="error">{gen.error}</Notice>}
 
           <div className="step-actions">
@@ -262,8 +273,8 @@ export function AdminRecording({
                     : 'Generate report'}
             </button>
             {/* Generating reuses a reading that is still of this transcript
-                rather than spending another model call on the same recording.
-                This is the way to force one. */}
+                and this form rather than spending another model call on the
+                same recording. This is the way to force one. */}
             {extraction && !stale && (
               <button
                 type="button"
@@ -273,6 +284,14 @@ export function AdminRecording({
               >
                 Read the recording again
               </button>
+            )}
+            {/* Publishing is the admin's to do as well (0050). The editor is
+                where it happens, for either seat: it saves the report's
+                written text and publishes it in one step. */}
+            {report.generated_at && (
+              <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/report/edit`}>
+                {report.published_at ? 'Edit the published report' : 'Write up and publish'}
+              </Link>
             )}
           </div>
 

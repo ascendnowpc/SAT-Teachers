@@ -37,6 +37,12 @@ begin
     (select string_agg(display_id, ' / ' order by role::text) from profiles where id in (t_id,s_id)),
     'INFO'::text;
 
+  -- A teacher account arrives pending since 0044, and a pending teacher is not
+  -- staff: RLS refused the first question below, and this file stopped there.
+  -- Approving is an admin's job; with no JWT this is the migration role, which
+  -- the identity guard lets through.
+  update profiles set is_active = true where id = t_id;
+
   -- ============ TEACHER: author two questions, create a session ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';

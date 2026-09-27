@@ -1,4 +1,5 @@
 import { SKILLS, sectionLabel } from './constants'
+import { DOMAINS, domainOrder } from './domains.ts'
 import type { Report } from './report'
 import type { Subject } from './types'
 
@@ -13,32 +14,9 @@ import type { Subject } from './types'
  * session_domain_notes.
  */
 
-/**
- * The four domains of each subject, in the order the form prints them.
- *
- * There is one grid per subject, not one grid. A mathematics session assessed
- * against Craft and Structure would be four rows about a test that was never
- * sat — and the four rows it was sat against would be nowhere on the form.
- */
-export const DOMAINS: Record<Subject, string[]> = {
-  english: [
-    'information_and_ideas',
-    'craft_and_structure',
-    'expression_of_ideas',
-    'standard_english_conventions',
-  ],
-  mathematics: [
-    'algebra',
-    'advanced_math',
-    'problem_solving_and_data_analysis',
-    'geometry_and_trigonometry',
-  ],
-}
-
-/** The domains a session of this subject is assessed against. */
-export function domainOrder(subject: Subject | null | undefined): string[] {
-  return DOMAINS[subject ?? 'english'] ?? DOMAINS.english
-}
+// The four domains of each subject live in domains.ts, which the edge function
+// that reads the recording imports too.
+export { DOMAINS, domainOrder }
 
 /** The Next steps/Targets column, verbatim from the teachers' form. */
 export const DOMAIN_TARGETS: Record<string, string[]> = {
