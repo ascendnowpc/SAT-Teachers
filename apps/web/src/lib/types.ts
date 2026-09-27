@@ -172,6 +172,9 @@ export interface SessionTranscript {
   source: 'fathom' | 'zoom' | 'manual'
   filename: string | null
   body: string
+  /** Who put this text in: the session's teacher or an admin. Null before 0048. */
+  uploaded_by: string | null
+  /** When this text went in — the first upload, or the latest change to it (0048). */
   created_at: string
 }
 
@@ -201,7 +204,9 @@ export interface SessionReportRow {
   teacher_reflection: string | null
   /** When the diagnostic form was handed in complete. Null while it is a draft. */
   form_submitted_at: string | null
-  /** When the teacher generated the report from the form. Null until they press it. */
+  /** When the report was generated from the form. Null until somebody presses it. */
   generated_at: string | null
+  /** Who pressed it: the session's teacher or an admin (0048). Null before then. */
+  generated_by: string | null
   published_at: string | null
 }

@@ -83,6 +83,12 @@ in. Read, and only read. There is no admin write policy anywhere, and every RPC 
 session still goes through `assert_session_teacher`, so a button added to an admin screen by
 mistake would fail at the database — which is the right place for it to fail.
 
+`0048` opens two doors in that on purpose: insert and update on `session_transcripts` (not delete),
+and `generate_report`, which takes an admin as well as the session's teacher through
+`assert_session_teacher_or_admin` and keeps both of its refusals. Neither lets an admin write the
+form, the report's text or the session, or publish; `supabase/tests/admin_recording.sql` asserts
+both the doors and the walls around them.
+
 ## What was checked and is sound
 
 - **The answer key.** It lives in its own table because RLS is row-level and Realtime pushes

@@ -175,9 +175,10 @@ export function PeopleTable({
 /**
  * Sessions, with the write-up column the teacher's own list does not carry.
  *
- * Rows open the admin's read-only view rather than the teacher's console: an
- * admin opening a live session should not land on the screen with the buttons
- * that publish questions on it.
+ * Rows open the admin's own view rather than the teacher's console: an admin
+ * opening a live session should not land on the screen with the buttons that
+ * publish questions on it. That view is read-only but for the transcript and
+ * generating the report (0048).
  */
 export function SessionTable({
   sessions,

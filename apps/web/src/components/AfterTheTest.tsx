@@ -2,14 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DiagnosticGrid } from './DiagnosticGrid'
 import { Notice } from './ui'
+import { useReportGeneration } from '../hooks/useReportGeneration'
 import { rowsComplete, rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
-import {
-  alignmentFor,
-  loadExtraction,
-  readRecording,
-  type ContextExtractionRow,
-} from '../lib/contextExtraction'
+import { alignmentFor, loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { transcriptDocx } from '../lib/docx'
+import { readingIsStale, whoDid } from '../lib/recording'
 import { parseTranscript } from '../lib/transcript'
 import { row, rows as toRows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -54,15 +51,10 @@ export function AfterTheTest({
   const [transcript, setTranscript] = useState<SessionTranscript | null>(null)
   const [extraction, setExtraction] = useState<ContextExtractionRow | null>(null)
   const [loading, setLoading] = useState(true)
-  /** What the button is doing, so it can say so rather than just spin. */
-  const [stage, setStage] = useState<'idle' | 'reading' | 'generating'>('idle')
   /** Null until the teacher types one; the suggestion stands until they do. */
   const [offsetOverride, setOffsetOverride] = useState<string | null>(null)
   /** The alignment control is folded away until something looks wrong. */
   const [showAlignment, setShowAlignment] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  /** Set when the reading failed, so the teacher can go ahead without it. */
-  const [readingFailed, setReadingFailed] = useState(false)
 
   const load = useCallback(async () => {
     const [n, m, t, e] = await Promise.all([
@@ -85,69 +77,23 @@ export function AfterTheTest({
   const submitted = report?.form_submitted_at ?? null
   const generated = report?.generated_at ?? null
   const started = rowsComplete(gridRows)
-  // A transcript row is replaced rather than added to, so one created after the
-  // reading is a different recording than the one that was read.
-  const stale = Boolean(
-    extraction && transcript && Date.parse(transcript.created_at) > Date.parse(extraction.created_at),
-  )
+  // The transcript is replaced in place, and its created_at moves with its text
+  // (0048), so one dated after the reading is a different recording than the
+  // one that was read.
+  const stale = readingIsStale(extraction, transcript)
 
-  /** The model call. Returns false when it failed, having said why. */
-  async function read(): Promise<boolean> {
-    setStage('reading')
-    try {
-      await readRecording({
-        sessionId,
-        session,
-        items,
-        transcriptBody: transcript?.body ?? '',
-        offset: offsetOverride === null ? undefined : Number(offsetOverride),
-      })
-      await load()
-      setReadingFailed(false)
-      return true
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-      setReadingFailed(true)
-      return false
-    } finally {
-      setStage('idle')
-    }
-  }
-
-  /** Stamps the report. Separated out because it is also the fallback below. */
-  async function stamp() {
-    setStage('generating')
-    const { error: err } = await supabase.rpc('generate_report', { p_session: sessionId })
-    if (err) setError(err.message)
-    await load()
-    setStage('idle')
-  }
-
-  /**
-   * Generating the report — which now includes reading the recording.
-   *
-   * These were two buttons, and that was the whole misunderstanding: pressing
-   * Generate report stamped a timestamp in under a second and never called the
-   * model, so a teacher who never happened to press the other button got a
-   * report with no reading in it and no way to tell that was what had happened.
-   * The reading is not an optional extra step. It runs here, first, and only if
-   * it fails does the teacher get the choice of going ahead without it.
-   */
-  async function generate() {
-    setError(null)
-    if (!extraction || stale) {
-      const ok = await read()
-      if (!ok) return
-    }
-    await stamp()
-  }
-
-  /** Explicitly going ahead on the teacher's form and the numbers alone. */
-  async function generateWithoutReading() {
-    setError(null)
-    setReadingFailed(false)
-    await stamp()
-  }
+  // Generating the report, which reads the recording first. The same hook the
+  // admin's session page uses, so the button means one thing from both seats.
+  const { stage, error, readingFailed, read, generate, generateWithoutReading } =
+    useReportGeneration({
+      sessionId,
+      session,
+      items,
+      transcriptBody: transcript?.body ?? '',
+      current: Boolean(extraction) && !stale,
+      offset: offsetOverride === null ? undefined : Number(offsetOverride),
+      reload: load,
+    })
 
   // suggestOffset tries every offset up to twenty minutes against every
   // question, so this is a scan over the whole transcript rather than a lookup —
@@ -158,6 +104,22 @@ export function AfterTheTest({
   )
 
   const turns = useMemo(() => parseTranscript(transcript?.body ?? '').lines, [transcript])
+
+  // An admin can change the transcript and generate the report too (0048). When
+  // one has, the teacher is told, rather than finding a new timestamp on their
+  // own work and no name on it. Their own doing is not announced back to them.
+  const someoneElse = (id: string | null | undefined) => {
+    const who = session
+      ? whoDid(id, {
+          me: session.teacher_id,
+          teacherId: session.teacher_id,
+          teacherName: session.teacher?.full_name,
+        })
+      : null
+    return who && who !== 'you' ? who : null
+  }
+  const transcriptBy = someoneElse(transcript?.uploaded_by)
+  const generatedBy = someoneElse(report?.generated_by)
 
   /** The transcript as a Word file, named after the student and the lesson. */
   function downloadTranscript() {
@@ -240,6 +202,7 @@ export function AfterTheTest({
             {transcript.filename ?? 'Pasted in'} · {turns.length}{' '}
             {turns.length === 1 ? 'turn' : 'turns'}
             {turns.length > 0 && ` · ${formatClock(turns[turns.length - 1].at)} long`}
+            {transcriptBy && ` · last changed by ${transcriptBy}, ${formatUtc(transcript.created_at)}`}
           </summary>
           <div className="transcript-body">
             {turns.length === 0 ? (
@@ -327,7 +290,12 @@ export function AfterTheTest({
             View report
           </Link>
         )}
-        {generated && <span className="badge badge-ok">Generated {formatUtc(generated)}</span>}
+        {generated && (
+          <span className="badge badge-ok">
+            Generated {formatUtc(generated)}
+            {generatedBy && ` by ${generatedBy}`}
+          </span>
+        )}
         {/* Generating reuses a reading that is still of this transcript rather
             than spending another model call on the same recording. This is the
             way to force one — after moving the offset, usually. */}

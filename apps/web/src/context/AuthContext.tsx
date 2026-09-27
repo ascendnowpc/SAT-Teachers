@@ -16,7 +16,10 @@ interface AuthValue {
   profile: Profile | null
   loading: boolean
   isTeacher: boolean
-  /** An active admin. Reads the whole school; writes none of it. */
+  /**
+   * An active admin. Reads the whole school, and writes two things in it: a
+   * session's transcript and its report's generation (0048). Nothing else.
+   */
   isAdmin: boolean
   /**
    * A teacher account that has been created and not yet approved. 0044 writes

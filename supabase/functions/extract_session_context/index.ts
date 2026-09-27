@@ -120,7 +120,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .maybeSingle()
 
   if (!session) return json({ error: 'no such session' }, 404)
-  if (session.teacher_id !== user.user.id) return json({ error: 'not your session' }, 403)
+
+  // The session's teacher, or an admin (0048): an admin can correct the
+  // transcript and generate the report, and generating reads the recording
+  // first. Asked of the database as the caller rather than decided here —
+  // is_admin() is the same test every admin policy uses. Reading is the only
+  // thing an admin gains: everything below reads as the caller, which 0044
+  // already lets an admin do, and the one write is the reading itself.
+  if (session.teacher_id !== user.user.id) {
+    const { data: admin } = await asCaller.rpc('is_admin')
+    if (admin !== true) return json({ error: 'not your session' }, 403)
+  }
 
   // -------------------------------------------------------------- the data --
   // Loaded here rather than accepted from the client. What the model is shown

@@ -75,6 +75,7 @@ function report(sessionId: string, extra: Partial<SessionReportRow> = {}): Sessi
     teacher_reflection: null,
     form_submitted_at: null,
     generated_at: null,
+    generated_by: null,
     published_at: null,
     ...extra,
   }
