@@ -45,6 +45,12 @@ begin
      'author.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"BATU ozcelik"}');
 
+  -- A teacher account arrives pending since 0044, and a pending teacher is not
+  -- staff: RLS refused the very first question below. Approving is an admin's
+  -- job; with no JWT this is the migration role, which the identity guard
+  -- lets through.
+  update profiles set is_active = true where id = t_id;
+
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 

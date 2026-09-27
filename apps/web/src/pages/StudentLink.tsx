@@ -8,7 +8,7 @@ import { StudentStage } from './StudentStage'
  *
  * No account, no sign-in, no list to find it in: the URL is the whole of the
  * student's app, and it names exactly one session. Everything they can do with
- * it — start, answer, switch level, hand in — goes through the token RPCs,
+ * it — start, answer, hand in — goes through the token RPCs,
  * which check the token and then do precisely what the signed-in student's own
  * calls would have done.
  *

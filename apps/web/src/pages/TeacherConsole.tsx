@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AfterTheTest } from '../components/AfterTheTest'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { QuestionView } from '../components/QuestionView'
 import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
+import { useLevelTests } from '../hooks/useLevelTests'
 import { useLiveSession } from '../hooks/useLiveSession'
+import {
+  choosable,
+  nextUp,
+  placeOf,
+  standings,
+  type LevelTest,
+  type Standing,
+} from '../lib/choosing'
 import {
   DIAGNOSES,
   LEVELS,
@@ -38,6 +47,13 @@ import { StatusBadge } from './Sessions'
  * should read next to their answer.
  */
 const CONFIDENCE = ['Not sure', 'Fairly sure', 'Certain']
+
+/**
+ * An RPC on this session, then a reload. Resolves to the error it failed with,
+ * or null — most callers leave the page-level notice to say it, and a dialog
+ * that has to stay open on a failure reads it.
+ */
+type OnCall = (fn: string, args: Record<string, unknown>) => Promise<string | null>
 
 /**
  * The clock the student is watching.
@@ -84,6 +100,11 @@ function LiveClock({ item }: { item: SessionItem }) {
  *   * move them between the easy, medium and hard tests;
  *   * open the test for them, and hand it in.
  *
+ * And one thing the student's screen cannot do, on purpose: choose which
+ * question they get. The test runs itself, and the teacher can see what comes
+ * next and put any question from any of the three tests in its place (0047).
+ * The student is shown the question and nothing about where it came from.
+ *
  * And it shows the whole session rather than the level it happens to be on.
  * A student who did six easy questions and then twenty medium ones sat both,
  * and the board is grouped by test with all of it there.
@@ -95,13 +116,20 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function call(fn: string, args: Record<string, unknown>) {
+  // Only while there is still a question to choose. A finished session loads
+  // nothing it would never show.
+  const running =
+    session !== null && session.status !== 'completed' && session.status !== 'cancelled'
+  const { tests, error: testsError } = useLevelTests(running ? session.subject : null)
+
+  const call: OnCall = async (fn, args) => {
     setActionError(null)
     setBusy(true)
     const { error: err } = await supabase.rpc(fn, args)
     if (err) setActionError(err.message)
     await reload()
     setBusy(false)
+    return err?.message ?? null
   }
 
   /**
@@ -239,12 +267,21 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {over && <AfterTheTest sessionId={sessionId} session={session} items={items} />}
 
       {!over && (
-        <LevelControl
-          session={session}
-          hasOpenQuestion={open !== null}
-          busy={busy}
-          onCall={call}
-        />
+        <LevelControl session={session} hasOpenQuestion={open !== null} busy={busy} onCall={call}>
+          {/* Only once the test is running: before that there is nothing on
+              the screen to wait behind and no queue to put anything in front
+              of, and the level buttons already say where it will start. */}
+          {session.status === 'live' && (
+            <NextQuestion
+              session={session}
+              items={items}
+              tests={tests}
+              testsError={testsError}
+              busy={busy}
+              onCall={call}
+            />
+          )}
+        </LevelControl>
       )}
 
       {/* The panel is for a lesson in progress — it is the question they are
@@ -312,20 +349,25 @@ function StudentLinkCard({ session }: { session: Session }) {
  * one level — rebuild fluency before speed" is the oldest suggestion in the
  * product and this is where it gets acted on.
  *
- * The confirmation exists for one reason — a question is open and being timed,
- * and moving level abandons it — so it says that, and it does not appear when
- * there is nothing open to abandon.
+ * It is the only place the level moves now. The student's screen used to
+ * carry a switch of its own, and 0047 took it away along with any mention of
+ * which test they are on.
+ *
+ * Under the buttons, while the test runs, is what comes next and the way to
+ * choose something else — see NextQuestion.
  */
 function LevelControl({
   session,
   hasOpenQuestion,
   busy,
   onCall,
+  children,
 }: {
   session: Session
   hasOpenQuestion: boolean
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
+  children?: ReactNode
 }) {
   const [asking, setAsking] = useState<SessionLevel | null>(null)
 
@@ -360,6 +402,8 @@ function LevelControl({
         </div>
       </div>
 
+      {children}
+
       {asking && (
         <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="move-title">
           <div className="leave-box">
@@ -388,6 +432,334 @@ function LevelControl({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------- choosing --- */
+
+/**
+ * What the student gets next, and the teacher's hand on it.
+ *
+ * The test runs itself — every answer brings up the next question — and until
+ * 0047 the question it would bring up was invisible: "Queued", behind a switch
+ * on the board, in an order nobody could change. A teacher who could see the
+ * student needed a different kind of question had no way to give them one
+ * short of telling them to press Next without answering.
+ *
+ * So the next question is named here, by its test and the number the printed
+ * test gives it, and Choose a question puts any question from any of the three
+ * tests in front of the student instead.
+ */
+function NextQuestion({
+  session,
+  items,
+  tests,
+  testsError,
+  busy,
+  onCall,
+}: {
+  session: Session
+  items: SessionItem[]
+  tests: LevelTest[]
+  testsError: string | null
+  busy: boolean
+  onCall: OnCall
+}) {
+  const [choosing, setChoosing] = useState(false)
+  const open = items.some((i) => i.status === 'published')
+  const next = nextUp(items)
+  const place = next ? placeOf(tests, next.question_id) : null
+  const nextSkill = next?.questions
+    ? (skillLabel(next.questions.skill) ?? sectionLabel(next.questions.section))
+    : null
+
+  return (
+    <div className="next-row">
+      <span className="level-switch-label">
+        {!open ? (
+          // Between questions the queue has run out, or it never started. The
+          // student is looking at a screen that says they are waiting.
+          <>
+            <strong>Nothing on their screen.</strong> Choose the next question, or end the session.
+          </>
+        ) : next ? (
+          <>
+            Next up:{' '}
+            <strong>
+              {place
+                ? `${levelLabel(place.level)} test, question ${place.number}`
+                : 'the next question'}
+            </strong>
+            {nextSkill && <> · {nextSkill}</>}
+          </>
+        ) : (
+          <>Nothing queued after this one — they will wait for you once it is answered.</>
+        )}
+      </span>
+      <span className="spring" />
+      <button
+        type="button"
+        className={`btn btn-sm ${open ? 'btn-navy' : 'btn-primary'}`}
+        disabled={busy}
+        onClick={() => setChoosing(true)}
+      >
+        Choose a question
+      </button>
+
+      {choosing && (
+        <QuestionPicker
+          session={session}
+          items={items}
+          tests={tests}
+          testsError={testsError}
+          busy={busy}
+          onCall={onCall}
+          onClose={() => setChoosing(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** What has happened to a question in this session, on its row in the picker. */
+function StandingBadge({ standing }: { standing: Standing }) {
+  if (standing === 'answered') return <span className="badge badge-neutral">Answered</span>
+  if (standing === 'on_screen') return <span className="badge badge-sky">On their screen</span>
+  if (standing === 'set_aside') return <span className="badge badge-neutral">Set aside</span>
+  if (standing === 'next') return <span className="badge badge-ok">Up next</span>
+  return null
+}
+
+/**
+ * Choosing a question: a test, a question in it, and when.
+ *
+ * The three tests are tabs, and each lists its questions by the numbers the
+ * printed test uses, with what has happened to each in this session. Anything
+ * that has been in front of the student is shown and cannot be picked — a
+ * question is asked once — and everything else can, the one up next included.
+ *
+ * Picking one shows it whole, the way the student will see it, with the
+ * sentence about why it sits at its level, which is the thing being decided.
+ * The key is not on it: this is choosing, not marking.
+ *
+ * Then when. Show now puts it up straight away and sets aside the question on
+ * their screen — not counted against them, the way a level move sets it aside.
+ * Show next lets them finish the one they are on and puts this up the moment
+ * they answer, which costs them nothing. Either way they are on this
+ * question's test from then on, and it carries on from here.
+ */
+function QuestionPicker({
+  session,
+  items,
+  tests,
+  testsError,
+  busy,
+  onCall,
+  onClose,
+}: {
+  session: Session
+  items: SessionItem[]
+  tests: LevelTest[]
+  testsError: string | null
+  busy: boolean
+  onCall: OnCall
+  onClose: () => void
+}) {
+  const standing = useMemo(() => standings(items), [items])
+  const open = items.some((i) => i.status === 'published')
+
+  // Opens on the test the queue is running, which is where "the next one" is.
+  const [level, setLevel] = useState<SessionLevel>(session.level)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const test = tests.find((t) => t.level === level) ?? null
+  const index = test && picked ? test.questions.findIndex((q) => q.id === picked) : -1
+  const question = test && index >= 0 ? test.questions[index] : null
+  const already = picked ? (standing.get(picked) ?? 'free') : null
+  // An answer landing while the picker is open can take the pick away from
+  // under the teacher — it may be the question that just went up.
+  const canShow = question !== null && already !== null && choosable(already)
+
+  // What comes up after it: the next question in this test that has not been in
+  // front of them, coming round from the top — the order the server queues.
+  const after = useMemo(() => {
+    if (!test || index < 0) return null
+    const n = test.questions.length
+    for (let k = 1; k < n; k++) {
+      const at = (index + k) % n
+      if (choosable(standing.get(test.questions[at].id) ?? 'free')) return at + 1
+    }
+    return null
+  }, [test, index, standing])
+
+  async function show(now: boolean) {
+    if (!picked) return
+    setErr(null)
+    const failed = await onCall('teacher_choose_question', {
+      p_session: session.id,
+      p_question: picked,
+      p_now: now,
+    })
+    if (failed) setErr(failed)
+    else onClose()
+  }
+
+  return (
+    <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="choose-title">
+      <div className="picker-box">
+        <div className="picker-head">
+          <h2 id="choose-title">Choose a question</h2>
+          <span className="spring" />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="picker-tabs">
+          <div className="level-btns" role="tablist" aria-label="Which test">
+            {LEVELS.map((l) => {
+              const t = tests.find((x) => x.level === l)
+              const left = t
+                ? t.questions.filter((q) => choosable(standing.get(q.id) ?? 'free')).length
+                : 0
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  role="tab"
+                  aria-selected={level === l}
+                  className={`level-btn ${level === l ? 'on' : ''}`}
+                  autoFocus={level === l}
+                  onClick={() => {
+                    setLevel(l)
+                    setPicked(null)
+                  }}
+                >
+                  {levelLabel(l)}{' '}
+                  <span className="picker-left">
+                    {left}
+                    <span className="picker-left-word"> left</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {testsError && <Notice kind="error">{testsError}</Notice>}
+        {err && <Notice kind="error">{err}</Notice>}
+
+        <div className="picker-body">
+          {!test ? (
+            <p className="picker-empty">
+              {tests.length === 0 ? 'Loading the tests…' : `There is no ${level} test for this subject.`}
+            </p>
+          ) : (
+            <ol className="picker-list">
+              {test.questions.map((q, i) => {
+                const s = standing.get(q.id) ?? 'free'
+                return (
+                  <li key={q.id}>
+                    <button
+                      type="button"
+                      className={`picker-item ${picked === q.id ? 'on' : ''}`}
+                      disabled={!choosable(s)}
+                      aria-pressed={picked === q.id}
+                      onClick={() => setPicked(q.id)}
+                    >
+                      <span className="picker-num">{i + 1}</span>
+                      <span className="picker-text">
+                        <span className="picker-stem">{q.stem}</span>
+                        <span className="picker-skill">
+                          {skillLabel(q.skill) ?? sectionLabel(q.section) ?? '—'}
+                        </span>
+                      </span>
+                      <StandingBadge standing={s} />
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+
+          <div className="picker-preview">
+            {question ? (
+              <QuestionView
+                question={question}
+                number={String(index + 1)}
+                showKey={false}
+                tags={
+                  <>
+                    <DifficultyBadge level={question.difficulty} />
+                    {sectionLabel(question.section) && (
+                      <span className="badge badge-neutral">{sectionLabel(question.section)}</span>
+                    )}
+                    {skillLabel(question.skill) && (
+                      <span className="badge badge-neutral">{skillLabel(question.skill)}</span>
+                    )}
+                  </>
+                }
+                footer={
+                  question.difficulty_rationale && (
+                    <div className="q-note">
+                      <div className="section-title">Why {question.difficulty}</div>
+                      {question.difficulty_rationale}
+                    </div>
+                  )
+                }
+              />
+            ) : (
+              <p className="picker-empty">Pick a question to see it the way the student will.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="picker-foot">
+          <p className="picker-hint">
+            {!question
+              ? 'Nothing changes on their screen until you choose.'
+              : already === 'next'
+                ? 'This is already next — Show now puts it up without waiting.'
+                : open
+                  ? 'Show now sets aside the question on their screen; it is not counted against them. Show next waits until they answer it.'
+                  : 'It goes up on their screen straight away.'}
+            {question &&
+              (after !== null ? (
+                <> After it, the {levelLabel(level).toLowerCase()} test carries on from {after}.</>
+              ) : (
+                <> It is the last question left in the {levelLabel(level).toLowerCase()} test.</>
+              ))}
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!canShow || busy}
+            onClick={() => void show(true)}
+          >
+            {open ? 'Show now' : 'Show it to them'}
+          </button>
+          {open && (
+            <button
+              type="button"
+              className="btn"
+              disabled={!canShow || busy || already === 'next'}
+              onClick={() => void show(false)}
+            >
+              Show next
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -426,7 +798,7 @@ function FocusQuestion({
   /** Null for a question that was set aside rather than worked on. */
   number: number | null
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   const [selected, setSelected] = useState<OptionLabel | null>(null)
   const [struck, setStruck] = useState<OptionLabel[]>([])
@@ -635,7 +1007,7 @@ function DiagnosisPicker({
 }: {
   item: SessionItem
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   const a = item.session_item_assessments
   if (!a) return null
@@ -704,7 +1076,7 @@ function OpenEarly({
 }: {
   session: Session
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
 
@@ -729,7 +1101,7 @@ function UndoOpenEarly({
 }: {
   session: Session
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   // Nothing to put back once its time has come on its own.
   if (new Date(session.scheduled_at).getTime() <= Date.now()) return null
@@ -853,7 +1225,7 @@ function Board({
   /** Shown in full above; it does not get a second card down here. */
   focusId: string | null
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   const [showUnattempted, setShowUnattempted] = useState(false)
   const runs = useMemo(() => groupByLevel(items), [items])
@@ -1113,7 +1485,7 @@ function ItemDetail({
   /** Null for a question that was set aside rather than worked on. */
   number: number | null
   busy: boolean
-  onCall: (fn: string, args: Record<string, unknown>) => Promise<void>
+  onCall: OnCall
 }) {
   const a = item.session_item_assessments
   const question = item.questions

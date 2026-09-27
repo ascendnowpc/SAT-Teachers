@@ -19,7 +19,7 @@ npm run dev                                    # http://localhost:5173
 | --- | --- |
 | **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
-| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only |
+| **The admin portal** | One seat that sees every teacher, every session, every form and every report — read-only, but for a session's transcript and generating its report |
 | **Approve and suspend** | An admin lets a new teacher in, or closes an account — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
@@ -31,7 +31,8 @@ npm run dev                                    # http://localhost:5173
 | **The roster** | Add a student from the New session form: first name, last name, their PC. No sign-up |
 | **The link** | Every session carries one. Send it and the student is in — no account, no login |
 | **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
-| **The level** | The session starts on easy; the student *or the teacher* moves it while it runs |
+| **The level** | The session starts on easy and the teacher moves it. The student is never told which test they are on |
+| **Choosing the question** | The console names the question coming next, and the teacher can put any question from any of the three tests up instead — now, or after the one on screen |
 | **The console** | Everything the student's screen can do: open the test, see the live question, answer for them, hand it in |
 | **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
 | **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
@@ -206,18 +207,37 @@ still sign in and still open their sessions at `/exam/:id`; the link is a second
 replacement for the first.
 
 **The student** opens the session once its time has passed, and the **easy test**
-loads for them: twenty questions, one on screen at a time, each with its own clock. They answer,
-press **Next**, and the next one appears.
+loads for them, one question on screen at a time, each with its own clock. They answer, press
+**Next**, and the next one appears. Nothing on their screen says which test that is — no level in
+the header, no level switch, no "of 20" — and the questions are numbered 1, 2, 3 across the whole
+session. A student who could watch "easy" turn into "hard" started treating a diagnostic as a final
+exam, and which test they are on is the teacher's judgement about them, not something they can act
+on.
 
-**The level moves when it is wrong.** The teacher is the one who decides — they are watching the
-work and can see when it is too easy — and it can be pressed from either side: the student's own
-screen offers the single obvious move (the next test up, or the way back down from hard), and the
-console offers all three, because that is the person making the decision rather than being handed
-it mid-question. Moving loads that test and opens its first question. The question that was on
-screen is left unanswered and recorded as such, and a question already asked is never asked
-again, even coming back down. Easy → medium → hard is the path; the other direction works too,
-because "drop one level — rebuild fluency before speed" is a real instruction and had nowhere to
-be acted on.
+**The teacher chooses what comes next** (`0047`). The console names the question the next answer
+will bring up — *Next up: Medium test, question 8 · Transitions* — and **Choose a question** opens
+the three tests side by side: every question by the number the printed test gives it, what has
+happened to each in this session, and the chosen one in full with why it sits at its level. Then
+**Show now**, which puts it on the student's screen at once and sets aside the one they were on, or
+**Show next**, which lets them finish that one first and costs them nothing. Either way the student
+is on that question's test from then on, and it carries on from there — the questions after it in
+the test's order, then round to the ones before it — so a teacher who picks medium 12 because it is
+the kind of question they wanted gets 13 next, not 1. It asked for this in the teacher's own words:
+the fixed order meant the only way past a question was for the student to press Next without
+answering it.
+
+**The level moves when it is wrong**, and only the teacher moves it: the console's three buttons, or
+choosing a question from another test. Moving loads that test and opens its first question. The
+question that was on screen is set aside — voided, not counted against them — and a question
+already asked is never asked again, even coming back down. That holds for choosing too: a question
+the student has answered, or had in front of them and had set aside, cannot be chosen again.
+Easy → medium → hard is the path; the other direction works too, because "drop one level — rebuild
+fluency before speed" is a real instruction and had nowhere to be acted on.
+
+The student had a switch of their own until `0047`, because the level used to be decided out loud
+and clicked by whoever was nearer a mouse. It went with the level on their screen, and so did the
+database's half of it: `set_session_level` answers the session's teacher only, and the link's own
+`set_level_by_token` is dropped rather than left callable.
 
 **When the student's screen is not working**, the teacher's is. A phone, a school network, a
 browser that will not go full screen, a Zoom share that never starts — any of them used to leave
@@ -280,8 +300,11 @@ only the current item is `published` and everything else is `staged`, which is i
 RLS. The next one is published by `submit_answer` once the current one is answered. So loading
 twenty questions on a level move is not putting twenty questions in front of the student — it is
 putting one in front of them and nineteen out of reach, and the clock on question 3 cannot be
-spent reading question 4. That is also why the length lives on `sessions.level_size`: the student
-is shown "question 3 of 20" and has no way to count the test for themselves.
+spent reading question 4. Choosing a question is the same line held the same way: the chosen one
+is published, the queue is rebuilt behind it as staged rows, and `record_answer` checks the
+question is still open in the same statement that answers it — so a teacher setting a question
+aside at the instant the student presses Next cannot leave two questions open (`0047` has the
+race, and the reason `lock_open_item` looks twice).
 
 ## Speed
 
@@ -485,11 +508,15 @@ teacher creates a session with a student and a time      (nothing else to do)
   → Next → answering publishes the next question; repeat
   → teacher sees each answer, the eliminations, the time and the confidence
 
-  → too easy?     the teacher says so and the student presses Medium
-                  the open question is voided, the rest of easy is dropped,
+  → too easy?     the teacher presses Medium on the console
+                  the open question is set aside, the rest of easy is dropped,
                   medium's question 1 is published
   → about right?  nothing to press. keep going.
-  → too easy again?  press Hard
+  → wants a particular question?   Choose a question → a test → a question
+                  Show now: it replaces the one on their screen
+                  Show next: it comes up when they answer that one
+                  either way the test carries on from the question chosen
+  → the student sees the question. never which test it came from.
 
   → teacher publishes the results          (only now does the student learn them)
   → teacher taps one diagnosis chip per question; the system suggests the next move
@@ -513,7 +540,7 @@ see the question bank and not one session, not one form and not one report. `004
 | --- | --- |
 | **Users** | Teachers, students, and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
-| **A session** | Read-only and complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary |
+| **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary. Read-only but for two things — the admin can correct the transcript and generate the report (`0048`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
 
 Sessions are listed in exactly one place. The portal opened with an overview that counted them
@@ -530,11 +557,31 @@ session report is built on, for the same reason: a number nobody can open is a n
 check. The arithmetic is in [`lib/admin.ts`](apps/web/src/lib/admin.ts) and tested there rather
 than inside a component.
 
-**An admin reads and does not write.** `0044` adds a SELECT policy per table and no write policy
-anywhere, and every RPC that changes a session still opens with `assert_session_teacher`, so a
+**An admin reads, and writes three things.** `0044` adds a SELECT policy per table and no write
+policy anywhere, and every RPC that changes a session still opens with `assert_session_teacher`, so a
 button added to an admin screen by mistake fails at the database rather than in a code review. The
-one exception is `set_profile_active`, which is the approval, is admin-only, and refuses to touch
-the caller's own row — the last admin switching themselves off locks the role out of the product.
+exceptions are each opened on purpose, in the database first:
+
+* **`set_profile_active`** — the approval. Admin-only, and it refuses to touch the caller's own row:
+  the last admin switching themselves off locks the role out of the product.
+* **The recording** (`0048`). An admin can put a session's Fathom transcript in, replace it, or
+  correct it — insert and update on `session_transcripts`, not delete. A transcript the teacher
+  never uploaded, the wrong call pasted into the right session, a speaker label Zoom got wrong.
+* **Generating the report** (`0048`). `generate_report` takes an admin as well as the session's
+  teacher, and keeps both its refusals for both: the teacher's diagnostic form has to be in, and a
+  reading of a transcript that has since changed is refused. Generating reads the recording first,
+  from either seat — one hook, `useReportGeneration`, behind both buttons.
+
+The form stays the teacher's, and so does publishing: an admin generates the report the teacher's
+form describes, and sending it to the family is still the teacher's step. Because two seats can now
+do these things, the database records which one did: `session_reports.generated_by`, and the
+transcript's `uploaded_by` and `created_at`, which a trigger moves whenever its text changes. The
+teacher's console says so when it was an admin — "Generated … by an admin", "last changed by an
+admin" — rather than showing a new timestamp on their own work with no name on it.
+
+The edge function that reads the recording checked for the session's teacher itself, and asks
+`is_admin()` as well now. **It has to be redeployed for that to take effect** (below); until it is,
+an admin's Generate gets "not your session" from the reading and offers to generate without it.
 
 ### Off is two things
 
@@ -610,9 +657,11 @@ only when the teacher reveals — which is the only route by which any of them r
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/level_session.sql
+psql "$DATABASE_URL" -f supabase/tests/choosing.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
+psql "$DATABASE_URL" -f supabase/tests/admin_recording.sql
 ```
 
 > **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
@@ -645,8 +694,8 @@ psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
 arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
-an admin reads every profile, session and write-up and can edit none of them, nor switch
-themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
+an admin reads every profile, session and write-up and can edit none of them — the transcript
+and generating the report aside, which `admin_recording.sql` covers — nor switch themselves off; a suspended teacher loses the answer keys the moment they are suspended and cannot
 sign in again at all, while one merely waiting for approval still can; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
@@ -655,8 +704,20 @@ to the student. `level_session.sql` is the whole of the session flow: a student 
 session early or open somebody else's, opening loads the easy test, exactly one question is
 within their reach at a time, answering brings up the next in the test's order, moving level
 voids the question on screen and opens the new test at its first, what was already answered
-survives the move, no question is asked twice even coming back down, either seat can move it and
-a stranger cannot, and `set_session_paper` and `publish_item` are gone. `opening_early.sql`
+survives the move, no question is asked twice even coming back down, only the teacher can move it
+— not the student, not a stranger — and `set_session_paper`, `publish_item` and
+`set_level_by_token` are gone. `choosing.sql` is the teacher choosing: only the session's teacher,
+only while the test runs; *now* sets aside the question on screen and leaves exactly one open;
+*next* leaves it and brings the chosen one up when it is answered, or at once when nothing is up;
+the test carries on after the chosen question and comes round to the ones before it; the student
+still reads nothing staged; and nothing answered, on screen, set aside, in another subject's tests
+or in no test at all can be chosen. `admin_recording.sql` is the admin's two doors and the walls
+around them: an admin can put in and correct a transcript for a session they do not teach but not
+delete it, and it is signed and re-dated when its text changes (and not when the same text is saved
+again); an admin can generate a report once the teacher's form is in, and not before, and
+`generated_by` says who pressed it; a reading of a transcript changed since is refused after an
+admin's edit too; and an admin still cannot touch the grid or the comments, hand the form in, or
+publish. `opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
 student is in. Every row must read PASS.
@@ -664,10 +725,13 @@ student is in. Every row must read PASS.
 `rls_contract.sql` and `session_flow.sql` are written for a scratch database — they reset the
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
-`level_session.sql`, `opening_early.sql`, `authoring.sql` and `session_link.sql` leave the counters
-alone and are safe against a real one; `level_session.sql` and `session_link.sql` need the three
-tests loaded (`0026`), and `authoring.sql`'s filing section needs the mathematics easy test
-(`0040`) — without it those rows read SKIP rather than FAIL. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
+`level_session.sql`, `choosing.sql`, `opening_early.sql`, `authoring.sql`, `session_link.sql` and
+`admin_recording.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql` and
+`session_link.sql` need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
+the mathematics easy test (`0040`) — without it those rows read SKIP rather than FAIL. A teacher
+account arrives pending since `0044`, so a contract that acts as a teacher approves its own teacher
+first, as the migration role. `session_link.sql` and `authoring.sql` were written before that and
+did not, so each stopped at its first row against any database with `0044` on it — they do now. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
 add a roster student and a student cannot; a session's token is unique, opens only its own
 session, and never returns the key or the token itself; a link cannot answer another session's
 question; and only a session's own teacher can open it, answer in it or end it.
@@ -703,6 +767,12 @@ ship to every browser and the quote check would be a promise the client makes ab
 supabase secrets set GEMINI_API_KEY=...
 supabase functions deploy extract_session_context
 ```
+
+Deploy it again after any change to it or to the library files it imports — `0048`'s admin check
+lives in it, so an admin's reading of the recording is refused until it is redeployed. The deployed
+copy is not checked against the repository by anything, and it drifts: when `0048` was written, the
+live function was `4c007e9`'s, without `dbe6299` (the report's numbering and the review windows) or
+`cc8d571` (two alignment fixes). Redeploying ships those as well.
 
 And the approval notice, which needs a mail provider and the URL to call it on:
 

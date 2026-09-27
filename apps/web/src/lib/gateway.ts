@@ -1,5 +1,5 @@
 import { row, rows, supabase } from './supabase'
-import type { OptionLabel, Session, SessionItem, SessionLevel } from './types'
+import type { OptionLabel, Session, SessionItem } from './types'
 
 /**
  * How the student's screen talks to the server.
@@ -29,7 +29,8 @@ export interface SessionGateway {
   sessionId: string | null
   load(): Promise<{ session: Session | null; items: SessionItem[] }>
   start(): Promise<void>
-  setLevel(level: SessionLevel): Promise<void>
+  // No setLevel. Which test a question comes from is the teacher's decision,
+  // made on the console, and the student is not shown it (0047).
   markViewed(itemId: string): Promise<void>
   markDecided(itemId: string): Promise<void>
   /**
@@ -85,12 +86,6 @@ export function accountGateway(sessionId: string): SessionGateway {
 
     async start() {
       fail((await supabase.rpc('start_session_as_student', { p_session: sessionId })).error)
-    },
-
-    async setLevel(level) {
-      fail(
-        (await supabase.rpc('set_session_level', { p_session: sessionId, p_level: level })).error,
-      )
     },
 
     async markViewed(itemId) {
@@ -158,10 +153,6 @@ export function linkGateway(token: string): SessionGateway {
 
     async start() {
       fail((await supabase.rpc('start_session_by_token', { p_token: token })).error)
-    },
-
-    async setLevel(level) {
-      fail((await supabase.rpc('set_level_by_token', { p_token: token, p_level: level })).error)
     },
 
     async markViewed(itemId) {

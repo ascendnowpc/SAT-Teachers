@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { AdminRecording } from '../components/AdminRecording'
 import { StageBadge, Stat } from '../components/AdminUi'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { CopyButton, Notice } from '../components/ui'
@@ -12,12 +13,11 @@ import { buildReport, formatDuration, paceLabel } from '../lib/report'
 import { studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
-import { parseTranscript } from '../lib/transcript'
 import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
 /**
- * One session, read-only, all of it.
+ * One session, all of it, and read-only but for the recording and the report.
  *
  * This is what the portal is for. A session leaves its traces in six places —
  * the session row, the questions it put up, the assessment behind each answer,
@@ -26,10 +26,15 @@ import { StatusBadge } from './Sessions'
  * has three screens that each show part of it and each let them change what
  * they show.
  *
- * Nothing here can be changed. Not because a control was hidden: an admin has
- * SELECT policies and nothing else (0044), and every RPC that writes a session
- * still asks assert_session_teacher. If a button were added to this page it
- * would fail at the database, which is the right place for it to fail.
+ * Almost nothing here can be changed. Not because a control was hidden: an
+ * admin has SELECT policies (0044), and every RPC that writes a session still
+ * asks for its teacher. If a button were added to this page it would fail at
+ * the database, which is the right place for it to fail.
+ *
+ * The two exceptions were opened on purpose, in the database first (0048): an
+ * admin can put in or correct the transcript, and generate the report from the
+ * teacher's form. Both are in AdminRecording, under The recording. The form
+ * itself, and publishing the report to the family, stay the teacher's.
  */
 export function AdminSession() {
   const { id = '' } = useParams()
@@ -63,10 +68,6 @@ export function AdminSession() {
     [notes, session],
   )
   const stage = reportStage(meta)
-  const parsed = useMemo(
-    () => (transcript?.body.trim() ? parseTranscript(transcript.body) : null),
-    [transcript],
-  )
 
   if (loading) return <div className="page">Loading…</div>
 
@@ -232,42 +233,16 @@ export function AdminSession() {
       <FormView rows={formRows} reflection={meta?.teacher_reflection ?? ''} stage={stage} />
 
       <div className="section-title" style={{ marginTop: 26 }}>
-        The recording
+        The recording and the report
       </div>
-      <div className="card card-pad">
-        {!transcript ? (
-          <p className="sub">
-            No transcript has been uploaded. The form cannot be handed in without one, so this
-            session's report cannot be generated yet.
-          </p>
-        ) : (
-          <>
-            <p className="sub">
-              {transcript.filename ?? 'Pasted in'} · {transcript.source} · uploaded{' '}
-              {formatUtc(transcript.created_at)}
-              {parsed && (
-                <>
-                  {' '}
-                  · {parsed.lines.length} turns · {parsed.speakers.join(', ')}
-                </>
-              )}
-            </p>
-            {extraction ? (
-              <p className="sub" style={{ marginTop: 8 }}>
-                Read by <strong>{extraction.model}</strong> on{' '}
-                {formatUtc(extraction.created_at)}, offset {extraction.offset_seconds}s.{' '}
-                {extraction.drops.length} claim{extraction.drops.length === 1 ? '' : 's'} dropped for
-                want of a verbatim quote.
-              </p>
-            ) : (
-              <p className="sub" style={{ marginTop: 8 }}>
-                The recording has not been read by the model. A report generated now carries the
-                form and the numbers and no quotes from the call.
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      <AdminRecording
+        session={session}
+        items={items}
+        transcript={transcript}
+        extraction={extraction}
+        report={meta}
+        onChanged={loadWritten}
+      />
 
       {(meta?.summary || meta?.time_management || meta?.engagement) && (
         <>

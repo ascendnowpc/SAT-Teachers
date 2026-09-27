@@ -9,12 +9,11 @@ export const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 ]
 
 /**
- * The three tests, in the order a student climbs them.
+ * The three tests, easiest first.
  *
- * English is three tests and a session is on one of them, so the level is both
- * a question's difficulty and a session's state. One list serves both — and
- * being an array rather than a set is the point, because "the next one up" is
- * the move the whole session is built around.
+ * Each subject is three tests and a session is on one of them, so the level is
+ * both a question's difficulty and a session's state. One list serves both, and
+ * its order is the order the teacher's console offers them in.
  */
 export const LEVELS: SessionLevel[] = ['easy', 'medium', 'hard']
 
@@ -33,46 +32,6 @@ export function levelLabel(level: SessionLevel): string {
 export function difficultyLabel(difficulty: string | null): string {
   if (!difficulty) return '—'
   return DIFFICULTIES.find((d) => d.value === difficulty)?.label ?? difficulty
-}
-
-/** The level above this one, or null at the top. */
-export function nextLevel(level: SessionLevel): SessionLevel | null {
-  return LEVELS[LEVELS.indexOf(level) + 1] ?? null
-}
-
-/** The level below this one, or null at the bottom. */
-export function previousLevel(level: SessionLevel): SessionLevel | null {
-  const i = LEVELS.indexOf(level)
-  return i > 0 ? LEVELS[i - 1] : null
-}
-
-/**
- * The one level move offered on the student's screen.
- *
- * There used to be a button for every level the student was not on, which on
- * the hard test meant two of them side by side asking a question nobody was
- * asking: a student who is coping with hard is not choosing between easy and
- * medium. There is only ever one move worth offering unprompted — the next one
- * up, and at the top the one below, which is the way back off a test that has
- * turned out to be too much.
- *
- * This is now the only level control on any screen. The console used to carry
- * all three buttons beside a test in progress; a drop straight from hard to
- * easy is still a real instruction, and it is given the way it always was —
- * out loud, and clicked here.
- */
-export function levelSwitchTarget(
-  level: SessionLevel,
-): { level: SessionLevel; back: boolean } | null {
-  const up = nextLevel(level)
-  if (up) return { level: up, back: false }
-  const down = previousLevel(level)
-  return down ? { level: down, back: true } : null
-}
-
-/** What the button says: "Switch to medium", or "Switch back to medium". */
-export function levelSwitchLabel(target: { level: SessionLevel; back: boolean }): string {
-  return `Switch ${target.back ? 'back ' : ''}to ${levelLabel(target.level).toLowerCase()}`
 }
 
 export const SUBJECTS: { value: Subject; label: string }[] = [
