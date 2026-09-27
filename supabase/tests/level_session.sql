@@ -5,7 +5,7 @@
 --
 --  The workflow 0027 left standing, and the whole of it: a session is a level.
 --  The student opens it, the easy test loads, every answer brings up the next
---  question, and either of them moves the level when it is the wrong one.
+--  question, and the teacher moves the level when it is the wrong one.
 --  What has to hold:
 --
 --    * a student cannot open a session before its scheduled time, or open
@@ -15,10 +15,11 @@
 --    * exactly one question is readable at a time, which is what makes the
 --      per-question timing mean anything
 --    * answering publishes the next one, in the test's order
+--    * the level is the teacher's to move: not the student's (0047), and not
+--      a stranger's
 --    * moving level voids the question on screen, drops the rest of the old
 --      test, and opens the new test at its first question
 --    * what the student already answered survives the move
---    * the teacher can move it too, and a stranger cannot
 --    * a question already asked is never asked twice, even moving back down
 --    * leaving ends the session: unanswered questions are voided, answered
 --      ones are kept, and nothing is left open to come back to
@@ -184,10 +185,30 @@ begin
   return query select '4 loop'::text,'and the result is still withheld'::text,'null'::text,txt,
     (case when txt='null' then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ the student moves themselves up a level ============
+  -- ============ the student cannot move the level ============
+  -- It took the call from either seat until 0047. The student's screen does
+  -- not say which test they are on any more, and moving it is the teacher's.
+  begin
+    perform set_session_level(sess, 'medium');
+    txt := 'moved';
+  exception when others then txt := 'refused';
+  end;
+  return query select '5 move'::text,'the student cannot move the level'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
+
+  -- ============ the teacher moves them up a level ============
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+
   n := set_session_level(sess, 'medium');
-  return query select '5 move'::text,'the medium test loads'::text,med_n::text,n::text,
+  return query select '5 move'::text,'the teacher moves them up: the medium test loads'::text,med_n::text,n::text,
     (case when n=med_n then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
+
+  -- And what that looks like from the student's chair.
+  perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
 
   select level into txt from sessions where id = sess;
   return query select '5 move'::text,'and the session says so'::text,'medium'::text,txt,
@@ -216,7 +237,7 @@ begin
     (case when n=med_n then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
-  -- ============ the teacher can move it too ============
+  -- ============ and back down again ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
@@ -249,10 +270,18 @@ begin
           then 'absent' else 'present' end),
     (case when to_regprocedure('public.set_session_paper(uuid, uuid[])') is null
           then 'PASS' else 'FAIL' end)::text;
-  return query select '7 gone'::text,'nor can a teacher hand over a question'::text,'absent'::text,
+  -- 0023's publish_item handed a staged row over as it stood, with no check on
+  -- what else was open. Choosing a question is teacher_choose_question now
+  -- (0047), which sets aside or waits behind whatever is on the screen.
+  return query select '7 gone'::text,'0023''s way of handing over a question is gone'::text,'absent'::text,
     (case when to_regprocedure('public.publish_item(uuid)') is null
           then 'absent' else 'present' end),
     (case when to_regprocedure('public.publish_item(uuid)') is null
+          then 'PASS' else 'FAIL' end)::text;
+  return query select '7 gone'::text,'and a link cannot move the level (0047)'::text,'absent'::text,
+    (case when to_regprocedure('public.set_level_by_token(text, text)') is null
+          then 'absent' else 'present' end),
+    (case when to_regprocedure('public.set_level_by_token(text, text)') is null
           then 'PASS' else 'FAIL' end)::text;
 
   -- load_session_level does no permission checking of its own — its callers do

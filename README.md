@@ -31,7 +31,8 @@ npm run dev                                    # http://localhost:5173
 | **The roster** | Add a student from the New session form: first name, last name, their PC. No sign-up |
 | **The link** | Every session carries one. Send it and the student is in — no account, no login |
 | **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
-| **The level** | The session starts on easy; the student *or the teacher* moves it while it runs |
+| **The level** | The session starts on easy and the teacher moves it. The student is never told which test they are on |
+| **Choosing the question** | The console names the question coming next, and the teacher can put any question from any of the three tests up instead — now, or after the one on screen |
 | **The console** | Everything the student's screen can do: open the test, see the live question, answer for them, hand it in |
 | **Exam screen** | One question at a time, its own clock running, stimulus left and question right |
 | **Live loop** | Watch each answer land with its time and confidence, reveal, diagnose in one tap |
@@ -206,18 +207,37 @@ still sign in and still open their sessions at `/exam/:id`; the link is a second
 replacement for the first.
 
 **The student** opens the session once its time has passed, and the **easy test**
-loads for them: twenty questions, one on screen at a time, each with its own clock. They answer,
-press **Next**, and the next one appears.
+loads for them, one question on screen at a time, each with its own clock. They answer, press
+**Next**, and the next one appears. Nothing on their screen says which test that is — no level in
+the header, no level switch, no "of 20" — and the questions are numbered 1, 2, 3 across the whole
+session. A student who could watch "easy" turn into "hard" started treating a diagnostic as a final
+exam, and which test they are on is the teacher's judgement about them, not something they can act
+on.
 
-**The level moves when it is wrong.** The teacher is the one who decides — they are watching the
-work and can see when it is too easy — and it can be pressed from either side: the student's own
-screen offers the single obvious move (the next test up, or the way back down from hard), and the
-console offers all three, because that is the person making the decision rather than being handed
-it mid-question. Moving loads that test and opens its first question. The question that was on
-screen is left unanswered and recorded as such, and a question already asked is never asked
-again, even coming back down. Easy → medium → hard is the path; the other direction works too,
-because "drop one level — rebuild fluency before speed" is a real instruction and had nowhere to
-be acted on.
+**The teacher chooses what comes next** (`0047`). The console names the question the next answer
+will bring up — *Next up: Medium test, question 8 · Transitions* — and **Choose a question** opens
+the three tests side by side: every question by the number the printed test gives it, what has
+happened to each in this session, and the chosen one in full with why it sits at its level. Then
+**Show now**, which puts it on the student's screen at once and sets aside the one they were on, or
+**Show next**, which lets them finish that one first and costs them nothing. Either way the student
+is on that question's test from then on, and it carries on from there — the questions after it in
+the test's order, then round to the ones before it — so a teacher who picks medium 12 because it is
+the kind of question they wanted gets 13 next, not 1. It asked for this in the teacher's own words:
+the fixed order meant the only way past a question was for the student to press Next without
+answering it.
+
+**The level moves when it is wrong**, and only the teacher moves it: the console's three buttons, or
+choosing a question from another test. Moving loads that test and opens its first question. The
+question that was on screen is set aside — voided, not counted against them — and a question
+already asked is never asked again, even coming back down. That holds for choosing too: a question
+the student has answered, or had in front of them and had set aside, cannot be chosen again.
+Easy → medium → hard is the path; the other direction works too, because "drop one level — rebuild
+fluency before speed" is a real instruction and had nowhere to be acted on.
+
+The student had a switch of their own until `0047`, because the level used to be decided out loud
+and clicked by whoever was nearer a mouse. It went with the level on their screen, and so did the
+database's half of it: `set_session_level` answers the session's teacher only, and the link's own
+`set_level_by_token` is dropped rather than left callable.
 
 **When the student's screen is not working**, the teacher's is. A phone, a school network, a
 browser that will not go full screen, a Zoom share that never starts — any of them used to leave
@@ -280,8 +300,11 @@ only the current item is `published` and everything else is `staged`, which is i
 RLS. The next one is published by `submit_answer` once the current one is answered. So loading
 twenty questions on a level move is not putting twenty questions in front of the student — it is
 putting one in front of them and nineteen out of reach, and the clock on question 3 cannot be
-spent reading question 4. That is also why the length lives on `sessions.level_size`: the student
-is shown "question 3 of 20" and has no way to count the test for themselves.
+spent reading question 4. Choosing a question is the same line held the same way: the chosen one
+is published, the queue is rebuilt behind it as staged rows, and `record_answer` checks the
+question is still open in the same statement that answers it — so a teacher setting a question
+aside at the instant the student presses Next cannot leave two questions open (`0047` has the
+race, and the reason `lock_open_item` looks twice).
 
 ## Speed
 
@@ -485,11 +508,15 @@ teacher creates a session with a student and a time      (nothing else to do)
   → Next → answering publishes the next question; repeat
   → teacher sees each answer, the eliminations, the time and the confidence
 
-  → too easy?     the teacher says so and the student presses Medium
-                  the open question is voided, the rest of easy is dropped,
+  → too easy?     the teacher presses Medium on the console
+                  the open question is set aside, the rest of easy is dropped,
                   medium's question 1 is published
   → about right?  nothing to press. keep going.
-  → too easy again?  press Hard
+  → wants a particular question?   Choose a question → a test → a question
+                  Show now: it replaces the one on their screen
+                  Show next: it comes up when they answer that one
+                  either way the test carries on from the question chosen
+  → the student sees the question. never which test it came from.
 
   → teacher publishes the results          (only now does the student learn them)
   → teacher taps one diagnosis chip per question; the system suggests the next move
@@ -610,6 +637,7 @@ only when the teacher reveals — which is the only route by which any of them r
 psql "$DATABASE_URL" -f supabase/tests/rls_contract.sql
 psql "$DATABASE_URL" -f supabase/tests/session_flow.sql
 psql "$DATABASE_URL" -f supabase/tests/level_session.sql
+psql "$DATABASE_URL" -f supabase/tests/choosing.sql
 psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
@@ -655,8 +683,14 @@ to the student. `level_session.sql` is the whole of the session flow: a student 
 session early or open somebody else's, opening loads the easy test, exactly one question is
 within their reach at a time, answering brings up the next in the test's order, moving level
 voids the question on screen and opens the new test at its first, what was already answered
-survives the move, no question is asked twice even coming back down, either seat can move it and
-a stranger cannot, and `set_session_paper` and `publish_item` are gone. `opening_early.sql`
+survives the move, no question is asked twice even coming back down, only the teacher can move it
+— not the student, not a stranger — and `set_session_paper`, `publish_item` and
+`set_level_by_token` are gone. `choosing.sql` is the teacher choosing: only the session's teacher,
+only while the test runs; *now* sets aside the question on screen and leaves exactly one open;
+*next* leaves it and brings the chosen one up when it is answered, or at once when nothing is up;
+the test carries on after the chosen question and comes round to the ones before it; the student
+still reads nothing staged; and nothing answered, on screen, set aside, in another subject's tests
+or in no test at all can be chosen. `opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
 student is in. Every row must read PASS.
@@ -664,10 +698,13 @@ student is in. Every row must read PASS.
 `rls_contract.sql` and `session_flow.sql` are written for a scratch database — they reset the
 display-id counters on their way out, and `rls_contract.sql` counts the whole bank, so its two
 count rows read FAIL against a database the content migrations have been run on.
-`level_session.sql`, `opening_early.sql`, `authoring.sql` and `session_link.sql` leave the counters
-alone and are safe against a real one; `level_session.sql` and `session_link.sql` need the three
-tests loaded (`0026`), and `authoring.sql`'s filing section needs the mathematics easy test
-(`0040`) — without it those rows read SKIP rather than FAIL. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
+`level_session.sql`, `choosing.sql`, `opening_early.sql`, `authoring.sql` and `session_link.sql`
+leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql` and
+`session_link.sql` need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
+the mathematics easy test (`0040`) — without it those rows read SKIP rather than FAIL. A teacher
+account arrives pending since `0044`, so a contract that acts as a teacher approves its own teacher
+first, as the migration role. `session_link.sql` and `authoring.sql` were written before that and
+did not, so each stopped at its first row against any database with `0044` on it — they do now. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
 add a roster student and a student cannot; a session's token is unique, opens only its own
 session, and never returns the key or the token itself; a link cannot answer another session's
 question; and only a session's own teacher can open it, answer in it or end it.

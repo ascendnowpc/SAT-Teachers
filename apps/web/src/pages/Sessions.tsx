@@ -164,18 +164,23 @@ export function Sessions() {
           </Select>
         )}
 
-        <Select
-          value={filters.level}
-          aria-label="Filter by level"
-          onChange={(e) => set('level', e.target.value as SessionFilters['level'])}
-        >
-          <option value="all">Any level</option>
-          {DIFFICULTIES.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
-            </option>
-          ))}
-        </Select>
+        {/* The level is the teacher's judgement about the student, and a
+            student reading "hard test" beside their own session learns the one
+            thing their exam screen no longer tells them. */}
+        {isTeacher && (
+          <Select
+            value={filters.level}
+            aria-label="Filter by level"
+            onChange={(e) => set('level', e.target.value as SessionFilters['level'])}
+          >
+            <option value="all">Any level</option>
+            {DIFFICULTIES.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </Select>
+        )}
 
         <Select
           value={filters.subject}
@@ -243,7 +248,7 @@ export function Sessions() {
                     onSort={toggleSort}
                   />
                   <SortHead label="Session" k="title" sort={sort} onSort={toggleSort} />
-                  <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />
+                  {isTeacher && <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />}
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
                   <th>Answered</th>
                   <th aria-label="Actions" />
@@ -331,10 +336,12 @@ function SessionRow({
           {subjectLabel(s.subject)} · {s.duration_mins} min
         </div>
       </td>
-      <td>
-        <DifficultyBadge level={s.level} />
-        <span className="cell-sub">{levelLabel(s.level)} test</span>
-      </td>
+      {isTeacher && (
+        <td>
+          <DifficultyBadge level={s.level} />
+          <span className="cell-sub">{levelLabel(s.level)} test</span>
+        </td>
+      )}
       <td>
         <StatusBadge status={s.status} />
       </td>

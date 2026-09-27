@@ -42,6 +42,11 @@
 --    default privileges hand every new function in `public`. A test that
 --    calls a function and gets "not your session" cannot tell the difference.
 --
+--  0047 — the level, and the question, are the teacher's
+--    * the link's way of moving the level is gone, not merely unused
+--    * choosing a question and moving the level are signed-in only, and the
+--      two internal functions under them are reachable by nobody
+--
 --  Every row must read PASS. Cleans up after itself, and is safe to run
 --  against a real database. Needs the three level tests loaded (0026).
 -- ============================================================================
@@ -72,6 +77,12 @@ begin
     (a_id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
      'link.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
+
+  -- A teacher account arrives pending since 0044, and a pending teacher is not
+  -- staff: create_student refused the one below, and this file stopped at its
+  -- first row. Approving is an admin's job; with no JWT this is the migration
+  -- role, which the identity guard lets through.
+  update profiles set is_active = true where id in (t_id, x_id);
 
   -- ============ 1. the roster student ============
   perform set_config('request.jwt.claims', json_build_object('sub',a_id::text,'role','authenticated')::text, true);
@@ -294,7 +305,10 @@ begin
                                  'record_answer(uuid,answer_option,answer_option[],smallint,text)',
                                  'load_session_level(uuid,text)',
                                  'publish_one_item(uuid)',
-                                 'record_draft(uuid,answer_option,answer_option[],smallint)'])
+                                 'record_draft(uuid,answer_option,answer_option[],smallint)',
+                                 -- 0047's two, under the loader and the choice
+                                 'lock_open_item(uuid)',
+                                 'queue_test(uuid,uuid,int)'])
   loop
     return query select '6 grants'::text, txt || ' — internal',
       'nobody'::text,
@@ -310,10 +324,18 @@ begin
             then 'FAIL' else 'PASS' end)::text;
   end loop;
 
-  -- The seven the link is made of. anon has to reach every one.
+  -- What the link is made of. anon has to reach every one. Moving the level
+  -- is not among them: it is the teacher's since 0047, and the link's own
+  -- door to it is gone.
+  return query select '6 grants'::text, 'set_level_by_token(text,text) — dropped'::text,
+    'absent'::text,
+    (case when to_regprocedure('public.set_level_by_token(text,text)') is null
+          then 'absent' else 'present' end),
+    (case when to_regprocedure('public.set_level_by_token(text,text)') is null
+          then 'PASS' else 'FAIL' end)::text;
+
   for txt in select unnest(array['session_by_token(text)',
                                  'start_session_by_token(text)',
-                                 'set_level_by_token(text,text)',
                                  'mark_viewed_by_token(text,uuid)',
                                  'mark_decided_by_token(text,uuid)',
                                  'finish_by_token(text)',
@@ -333,6 +355,8 @@ begin
                                  'teacher_start_session(uuid)',
                                  'teacher_finish_session(uuid)',
                                  'teacher_answer_item(uuid,answer_option,answer_option[],smallint,text)',
+                                 'teacher_choose_question(uuid,uuid,boolean)',
+                                 'set_session_level(uuid,text)',
                                  'start_session_as_student(uuid)',
                                  'finish_session_as_student(uuid)',
                                  'submit_answer(uuid,answer_option,answer_option[],smallint,text)',

@@ -4,8 +4,8 @@ export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
 export type SessionStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 /**
- * Which of the three English tests a session is on. Every session starts on
- * 'easy'; the student or the teacher moves it while the session runs.
+ * Which of the three tests a session is on. Every session starts on 'easy'; the
+ * teacher moves it while the session runs. The student is never shown it.
  */
 export type SessionLevel = Difficulty
 export type ItemStatus = 'staged' | 'published' | 'answered' | 'revealed' | 'voided'
@@ -90,9 +90,12 @@ export interface Session {
    */
   access_token?: string | null
   status: SessionStatus
-  /** The test the student is on now. Starts easy and is moved during the session. */
+  /**
+   * The test the queue is running. Starts easy; the teacher moves it, with the
+   * level buttons or by choosing a question from another test. Teacher-facing only.
+   */
   level: SessionLevel
-  /** How many questions the current level holds for this session — the student's "of 20". */
+  /** How many questions of that test this session holds. No screen shows it since 0047. */
   level_size: number
   /** When a teacher waived the scheduled time. scheduled_at still says when it was arranged. */
   opened_early_at: string | null

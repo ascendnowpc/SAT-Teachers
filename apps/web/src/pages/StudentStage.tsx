@@ -8,33 +8,30 @@ import type { SessionGateway } from '../lib/gateway'
 import { clock, openState } from '../lib/countdown'
 import { askNumbers } from '../lib/report'
 import { formatUtcLong } from '../lib/time'
-import {
-  OPTION_LABELS,
-  levelLabel,
-  levelSwitchLabel,
-  levelSwitchTarget,
-  subjectLabel,
-} from '../lib/constants'
-import type { OptionLabel, Session, SessionItem, SessionLevel } from '../lib/types'
+import { OPTION_LABELS, subjectLabel } from '../lib/constants'
+import type { OptionLabel, Session, SessionItem } from '../lib/types'
 
 /**
  * The student's screen: a lobby, then a test, one question at a time.
  *
- * The test is one of three — easy, medium, hard — and the session opens on the
- * easy one. From then on exactly one question is in front of them, and it is
- * there because the server published it, not because this screen decided to
- * show it. Which is what makes the clock on each question honest: there is no
- * way to read ahead while it runs.
+ * Exactly one question is in front of them, and it is there because the server
+ * published it, not because this screen decided to show it. Which is what makes
+ * the clock on each question honest: there is no way to read ahead while it
+ * runs.
  *
- * The level is a decision on this screen too. The teacher is the one who makes
- * it — they are watching the work and they can see when it is too easy — and
- * it can be pressed from either side now: here, because the student is the one
- * at the keyboard, and on the console, because sometimes the student's screen
- * is not reaching anybody. Moving up loads the next test and opens its first
- * question; the one on screen is set aside, which the confirmation says. Set
- * aside is not unanswered — switching tests is a decision that this question
- * was not the one to spend the lesson on — so it is not counted or numbered
- * anywhere against the student.
+ * Which question that is, is the teacher's decision. The session opens on the
+ * easy test and every answer brings up the next question in it, and the teacher
+ * can put a different one up at any point — from that test or from either of
+ * the other two (0047). When they do, the question that was here is set aside:
+ * it is not counted or numbered anywhere against the student, because changing
+ * it was the teacher's call, not something the student got wrong.
+ *
+ * Nothing on this screen says which of the three tests a question came from.
+ * A student who could see "easy" turn into "hard" started treating a
+ * diagnostic as a final exam, and the level is the teacher's judgement about
+ * them rather than anything they can act on. So there is no level in the
+ * header, no level switch, and no "of 20" — the questions are counted as they
+ * come, across the whole session.
  *
  * The screen takes a gateway rather than a session id, which is what lets the
  * same code serve a signed-in student and one who arrived on a link with no
@@ -120,13 +117,11 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
-  const level = session.level
-  // Numbering runs within the test they are on. A student moved to medium after
-  // six easy questions is on question 1 of the medium test, not question 7 —
-  // the medium test is twenty questions and saying so is the honest thing.
-  const doneHere = done.filter((i) => i.questions?.difficulty === level).length
-  const total = session.level_size > 0 ? session.level_size : null
-  const number = open ? doneHere + 1 : doneHere
+  // One count across the whole session, the same numbers the teacher's board
+  // and the report use. It used to start again with every test — question 1 of
+  // 20, again, after six easy ones — which told the student the one thing the
+  // screen no longer says: that they had been moved.
+  const number = done.length + (open ? 1 : 0)
 
   const finished = !open && done.length > 0
   // Nothing open and nothing answered means the test is still waiting to be
@@ -151,18 +146,10 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
               <IconBack />
             </Link>
           ) : null}
-          <span>
-            {session.title || `${subjectLabel(session.subject)} session`}:{' '}
-            <strong>{levelLabel(level)}</strong>
-          </span>
+          <span>{session.title || `${subjectLabel(session.subject)} session`}</span>
         </div>
 
-        {open && (
-          <div className="exam-progress-plain">
-            Question {number}
-            {total !== null && ` of ${total}`}
-          </div>
-        )}
+        {open && <div className="exam-progress-plain">Question {number}</div>}
 
         <div className="exam-actions">
           {session.meeting_url && session.status !== 'completed' && (
@@ -245,133 +232,16 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
       )}
 
       {open ? (
-        <ItemPane
-          key={open.id}
-          item={open}
-          number={number}
-          total={total}
-          session={session}
-          gateway={gateway}
-          onChanged={reload}
-        />
+        <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
       ) : waiting ? (
         <Lobby session={session} gateway={gateway} onStarted={reload} />
       ) : finished ? (
-        <Finished session={session} gateway={gateway} items={done} onChanged={reload} />
+        <Finished over={over} items={done} />
       ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
           <h2>Session finished</h2>
           <p>This session has ended. Your teacher will go through it with you.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* --------------------------------------------------------------- levels --- */
-
-/**
- * Moving to another test.
- *
- * One button, not a row of them. Every level the student was not on used to get
- * its own button, which on the hard test put "Switch to easy" and "Switch to
- * medium" side by side and made the student pick between two levels they had
- * not asked about. There is only one move worth offering here: the next test up
- * while there is one, and on the hard test the way back down to medium.
- *
- * A drop straight from hard to easy is still a real instruction. It is the
- * teacher's to give and it is given out loud on the call — the console has no
- * level buttons of its own — which is not the same as putting the whole ladder
- * to a student mid-question.
- *
- * The confirmation is always asked, whether or not there is a question open to
- * abandon: switching test throws away the rest of the one they are on, and
- * that is not something to discover by having done it. What it says changes —
- * mid-question the thing being lost is the answer they were being timed on.
- */
-function LevelSwitch({
-  session,
-  gateway,
-  abandons,
-  onChanged,
-}: {
-  session: Session
-  gateway: SessionGateway
-  /** A question is open and would be set aside by the move. */
-  abandons: boolean
-  onChanged: () => Promise<void>
-}) {
-  const [asking, setAsking] = useState<SessionLevel | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function move(to: SessionLevel) {
-    setBusy(true)
-    setErr(null)
-    // Inside the click, which is the only moment a browser grants it — the
-    // student may be coming back from the end of a test, where the screen let
-    // full screen go.
-    await document.documentElement.requestFullscreen?.().catch(() => {})
-    try {
-      await gateway.setLevel(to)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not switch tests.')
-    }
-    await onChanged()
-    setBusy(false)
-    setAsking(null)
-  }
-
-  const target = levelSwitchTarget(session.level)
-
-  return (
-    <div className="level-switch">
-      {err && <Notice kind="error">{err}</Notice>}
-
-      <div className="level-switch-row">
-        <span className="level-switch-label">
-          You are on the <strong>{levelLabel(session.level).toLowerCase()}</strong> test
-        </span>
-        {target && (
-          <button
-            type="button"
-            className={`btn btn-sm ${target.back ? 'btn-ghost' : 'btn-navy'}`}
-            disabled={busy}
-            onClick={() => setAsking(target.level)}
-          >
-            {levelSwitchLabel(target)}
-          </button>
-        )}
-      </div>
-
-      {asking && (
-        <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="switch-title">
-          <div className="leave-box">
-            <h2 id="switch-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
-            <p>
-              {abandons
-                ? 'The question on your screen is set aside — it is not counted against you — and the rest of the '
-                : 'The rest of the '}
-              {levelLabel(session.level).toLowerCase()} test goes away. You pick up the{' '}
-              {levelLabel(asking).toLowerCase()} test at its first question you have not already
-              answered.
-            </p>
-            <div className="leave-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                autoFocus
-                disabled={busy}
-                onClick={() => void move(asking)}
-              >
-                {busy ? 'Switching…' : `Switch to ${levelLabel(asking).toLowerCase()}`}
-              </button>
-              <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
-                Stay on this question
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -427,10 +297,9 @@ function Lobby({
       <div className="ring" aria-hidden="true" />
       <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
       <p>
-        You start on the {levelLabel(session.level).toLowerCase()} test and answer one question at a
-        time, each timed from the moment it appears. Once you submit an answer you move on to the
-        next one and cannot go back to it. If it turns out to be the wrong level, you can switch
-        tests while you work.
+        You answer one question at a time, each timed from the moment it appears. Once you submit an
+        answer you move on to the next one and cannot go back to it. Your teacher decides what comes
+        next, so there is no set number of questions.
       </p>
       <p className="exam-when">
         {formatUtcLong(session.scheduled_at)} — {state.label}
@@ -453,36 +322,30 @@ function Lobby({
 /* ------------------------------------------------------------ finished --- */
 
 /**
- * The end of a test — which is not necessarily the end of the session.
+ * Nothing on the screen, and something answered: a pause, or the end.
  *
- * A student who has worked through the easy test and found it easy is exactly
- * the student the medium test is for, so the move up is offered here rather
- * than only mid-question. Underneath it, every question as they met it —
- * stimulus, stem, all four choices — with what they picked and, once the
- * teacher has published the results, which one was right and why. A list of
- * stems and letters told a student nothing they could learn from.
+ * While the session is live it is a pause. The questions queued behind the
+ * last answer have run out and the teacher is choosing what comes next — it
+ * appears here the moment they do, since this screen keeps looking for it.
+ * This used to offer the student the next test up; which test is the teacher's
+ * decision now, and the student is not told there are tests at all. Once the
+ * session is over it is the end, and says so.
+ *
+ * Either way, underneath is every question as they met it — stimulus, stem,
+ * all four choices — with what they picked and, once the teacher has published
+ * the results, which one was right and why. A list of stems and letters told a
+ * student nothing they could learn from.
  *
  * The key is not in the student's reach (question_keys is teacher-only), so it
  * comes from what the reveal copied onto the item itself.
  */
-function Finished({
-  session,
-  gateway,
-  items,
-  onChanged,
-}: {
-  session: Session
-  gateway: SessionGateway
-  items: SessionItem[]
-  onChanged: () => Promise<void>
-}) {
-  // 1, 2, 3 over the questions they actually worked on — a question set aside
-  // by a test switch is not one of them and takes no number.
+function Finished({ over, items }: { over: boolean; items: SessionItem[] }) {
+  // 1, 2, 3 over the questions they actually worked on — a question the
+  // teacher set aside is not one of them and takes no number.
   const numbers = useMemo(() => askNumbers(items), [items])
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
-  const over = session.status === 'completed' || session.status === 'cancelled'
 
   return (
     <div className="exam-done">
@@ -490,18 +353,26 @@ function Finished({
         {/* Not "that is the hard test". Which of the three tests a student was
             put on is the teacher's decision about them, and reading it back at
             the end tells them nothing they can do anything with. */}
-        <h2>Test submitted</h2>
-        <p>
-          {items.length} answered.{' '}
-          {out === 0
-            ? 'Your teacher will go through it with you — your results appear here when they do.'
-            : `You got ${right} of ${out} right.`}
-        </p>
+        {over ? (
+          <>
+            <h2>Test submitted</h2>
+            <p>
+              {items.length} answered.{' '}
+              {out === 0
+                ? 'Your teacher will go through it with you — your results appear here when they do.'
+                : `You got ${right} of ${out} right.`}
+            </p>
+          </>
+        ) : (
+          <>
+            <h2>Waiting for your teacher</h2>
+            <p>
+              {items.length} answered so far. Your next question appears here when your teacher
+              chooses it.
+            </p>
+          </>
+        )}
       </div>
-
-      {!over && (
-        <LevelSwitch session={session} gateway={gateway} abandons={false} onChanged={onChanged} />
-      )}
 
       {items.map((it) =>
         it.questions ? (
@@ -544,17 +415,12 @@ function Finished({
 function ItemPane({
   item,
   number,
-  total,
-  session,
   gateway,
   onChanged,
 }: {
   item: SessionItem
-  /** Where this question came in the test the student is on. */
+  /** Where this question came in the session, counting only what was worked. */
   number: number
-  /** How long that test is, or null before the server has said. */
-  total: number | null
-  session: Session
   gateway: SessionGateway
   onChanged: () => Promise<void>
 }) {
@@ -642,10 +508,12 @@ function ItemPane({
     setBusy(false)
   }, [selected, struck, confidence, gateway, item.id, onChanged])
 
-  const last = total !== null && number >= total
-
   return (
     <div className="exam-body">
+      {/* The figure as well as the passage. Nine of the mathematics questions
+          are a picture rather than a paragraph (0041), and this pane used to
+          show only the text — so a student was told a question "stands on its
+          own" while the graph it asked about was on every screen but theirs. */}
       <section className="exam-stimulus">
         {item.questions?.passage ? (
           <Passage
@@ -653,15 +521,17 @@ function ItemPane({
             underline={item.questions.passage_underline}
             className="stim"
           />
-        ) : (
+        ) : item.questions?.image_url ? null : (
           <p className="stim-empty">This question stands on its own — read it on the right.</p>
+        )}
+        {item.questions?.image_url && (
+          <img className="stim-figure" src={item.questions.image_url} alt="Figure for this question" />
         )}
       </section>
 
       <section className="exam-question">
         <div className="exam-qhead">
           <span className="qn">{String(number).padStart(2, '0')}</span>
-          {total !== null && <span className="qof">of {total}</span>}
           <span className="spring" />
           <QuestionClock itemId={item.id} running={!decided && !busy} />
           <button
@@ -751,11 +621,12 @@ function ItemPane({
             disabled={!selected || busy}
             onClick={() => void submit()}
           >
-            {busy ? 'Sending…' : !selected ? 'Pick an answer' : last ? 'Finish the test' : 'Next'}
+            {/* Always Next. "Finish the test" marked the twentieth question of
+                twenty, and there is no twentieth any more: how many there are
+                is up to the teacher, who ends the test when it is done. */}
+            {busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Next'}
           </button>
           <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
-
-          <LevelSwitch session={session} gateway={gateway} abandons onChanged={onChanged} />
         </div>
       </section>
     </div>
