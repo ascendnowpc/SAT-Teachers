@@ -337,7 +337,7 @@ export function ReportEdit() {
           rows={6}
           value={draftBody}
           onChange={(e) => setDraftBody(e.target.value)}
-          placeholder="@2:24 - Malya Rastogi (…)&#10;So we'll do it one by one, right?"
+          placeholder="2:24 - Malya Rastogi (…)&#10;  So we'll do it one by one, right?"
           aria-label="Transcript"
         />
 

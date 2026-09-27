@@ -71,6 +71,69 @@ describe('parseTranscript', () => {
   it('ignores a stamp with no speech under it', () => {
     expect(parseTranscript('@1:00 - Someone\n\n@2:00 - Someone\nreal words').lines).toHaveLength(1)
   })
+
+  // In this layout the words are not indented, so a time at the start of a
+  // spoken line is speech, as it always was.
+  it('does not start a turn at a time said at the start of a line', () => {
+    const t = parseTranscript('@1:00 - Malya Rastogi\nWe stop at\n3:30 - and not before.\n')
+    expect(t.lines).toHaveLength(1)
+    expect(t.lines[0].text).toBe('We stop at 3:30 - and not before.')
+  })
+})
+
+// Fathom's current export: the same stamps without the "@", and the words
+// indented under them. The first version looked for the "@" and nothing else,
+// so a whole lesson in this layout read as no turns at all.
+const FATHOM_NOW = `Impromptu Zoom Meeting - September 27
+VIEW RECORDING - 59 mins (No highlights):
+
+---
+
+1:33 - Malya Rastogi (rastogimalya26@gmail.com)
+  I hope you're doing well.
+
+1:39 - Miriam Hanna
+  Hello. Hi, Malya.
+  SCREEN SHARING: Malya started screen sharing - WATCH
+
+2:24 - Malya Rastogi (rastogimalya26@gmail.com)
+  So we'll do it one by one, right?
+  I just want to understand your thought process.
+
+1:02:10 - Sara Rohit
+  That is the last thing I said.
+`
+
+describe('parseTranscript, in the layout Fathom exports today', () => {
+  const t = parseTranscript(FATHOM_NOW)
+
+  it('reads the same turns as the "@" layout', () => {
+    expect(t).toEqual(parseTranscript(FATHOM))
+  })
+
+  it('reads every turn, and nothing from the header', () => {
+    expect(t.lines).toHaveLength(4)
+    expect(t.speakers).toEqual(['Malya Rastogi', 'Miriam Hanna', 'Sara Rohit'])
+    expect(t.lines[3].at).toBe(3730)
+  })
+
+  it('takes an indented line that starts with a time as speech, not a new turn', () => {
+    const said = parseTranscript('1:00 - Malya Rastogi\n  We stop at\n  3:30 - and not before.\n')
+    expect(said.lines).toHaveLength(1)
+    expect(said.lines[0].text).toBe('We stop at 3:30 - and not before.')
+  })
+
+  it('takes a stamp written with a dash other than a hyphen', () => {
+    const t2 = parseTranscript('1:00 – Malya Rastogi\n  First.\n\n1:10 — Sara Rohit\n  Second.\n')
+    expect(t2.lines.map((l) => [l.at, l.speaker])).toEqual([
+      [60, 'Malya Rastogi'],
+      [70, 'Sara Rohit'],
+    ])
+  })
+
+  it('carries a stamp with an "@" on it too', () => {
+    expect(parseTranscript('0:05 - Sara Rohit\n  Hi.\n@0:09 - Malya Rastogi\nHello.').lines).toHaveLength(2)
+  })
 })
 
 describe('windowsFor', () => {

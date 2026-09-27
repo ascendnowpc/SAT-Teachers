@@ -10,7 +10,7 @@ session ends
    │
    ├─ 1  the teacher drops the Fathom transcript on /sessions/:id/report/edit
    │
-   ├─ 2  it is parsed          →  turns: @m:ss, speaker, text
+   ├─ 2  it is parsed          →  turns: m:ss or @m:ss, speaker, text
    │
    ├─ 3  speakers get roles    →  teacher | student | someone else
    │

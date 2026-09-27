@@ -32,6 +32,7 @@ const DEPENDENCIES = [
   'extraction.ts',
   'extractionPrompt.ts',
   'gemini.ts',
+  'speakers.ts',
   'transcript.ts',
 ]
 
