@@ -6,11 +6,11 @@ import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { CopyButton, Notice } from '../components/ui'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { reportStage, STAGE_LABELS } from '../lib/admin'
-import { diagnosisLabel, levelLabel, subjectLabel } from '../lib/constants'
+import { diagnosisLabel, subjectLabel } from '../lib/constants'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
 import { buildReport, formatDuration, paceLabel } from '../lib/report'
-import { studentLink } from '../lib/sessions'
+import { levelsLabel, levelsOf, studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/types'
@@ -84,6 +84,7 @@ export function AdminSession() {
   }
 
   const accuracy = report.accuracy === null ? null : Math.round(report.accuracy * 100)
+  const notStarted = session.status === 'scheduled'
 
   return (
     <div className="page page-wide">
@@ -97,7 +98,7 @@ export function AdminSession() {
           <p className="sub">
             <StatusBadge status={session.status} />
             <span style={{ marginLeft: 8 }}>{formatUtc(session.scheduled_at)}</span> ·{' '}
-            {session.duration_mins} min · {levelLabel(session.level)} test
+            {session.duration_mins} min · {levelsLabel(levelsOf(session))}
           </p>
         </div>
         <div className="spring" />
@@ -234,27 +235,40 @@ export function AdminSession() {
           The teacher's diagnostic form
         </div>
         <span className="spring" />
-        <Link
-          className="btn btn-ghost btn-sm"
-          to={`/sessions/${session.id}/diagnostic`}
-          state={{ back: `/admin/sessions/${session.id}` }}
-        >
-          Edit the form
-        </Link>
+        {/* The write-up is of a lesson, and before the test has started there
+            is no lesson to write up — the console holds everything back until
+            then too (0052). */}
+        {!notStarted && (
+          <Link
+            className="btn btn-ghost btn-sm"
+            to={`/sessions/${session.id}/diagnostic`}
+            state={{ back: `/admin/sessions/${session.id}` }}
+          >
+            Edit the form
+          </Link>
+        )}
       </div>
       <FormView rows={formRows} reflection={meta?.teacher_reflection ?? ''} stage={stage} />
 
       <div className="section-title" style={{ marginTop: 26 }}>
         The recording and the report
       </div>
-      <AdminRecording
-        session={session}
-        items={items}
-        transcript={transcript}
-        extraction={extraction}
-        report={meta}
-        onChanged={loadWritten}
-      />
+      {notStarted ? (
+        <div className="card card-pad">
+          <p className="sub">
+            The test has not started. The transcript and the report open up once it has been sat.
+          </p>
+        </div>
+      ) : (
+        <AdminRecording
+          session={session}
+          items={items}
+          transcript={transcript}
+          extraction={extraction}
+          report={meta}
+          onChanged={loadWritten}
+        />
+      )}
 
       {(meta?.summary || meta?.time_management || meta?.engagement) && (
         <>

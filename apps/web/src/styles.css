@@ -1412,6 +1412,8 @@ tr.row-link.live-row:hover { background: #dff0fb; }
 .cell-strong { font-weight: 500; }
 .cell-sub { font-size: 12px; color: var(--muted); font-weight: 300; }
 td .cell-sub { display: block; margin-top: 2px; }
+/* A lesson that moved is listed with every test it sat, not the last one. */
+.levels-sat { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .row-actions { white-space: nowrap; text-align: right; }
 .row-actions .btn + .btn { margin-left: 6px; }
 
@@ -1470,10 +1472,13 @@ td .cell-sub { display: block; margin-top: 2px; }
 
 /* Its own box rather than a wider .leave-box: that one sets every paragraph
    in it as a confirmation's body text, and the question in the preview is
-   made of paragraphs. */
+   made of paragraphs. And more of the screen than a confirmation gets — a
+   list and a whole question side by side, both of them read rather than
+   skimmed — so it comes nearer the edges than the veil lets a dialog. */
+.picker-veil { padding: 12px; }
 .picker-box {
   background: #fff; border-radius: var(--r-lg); box-shadow: var(--shadow-lift);
-  width: 100%; max-width: 1120px; max-height: calc(100vh - 40px);
+  width: 100%; max-width: 1320px; max-height: calc(100vh - 24px);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .picker-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px 10px; }
@@ -1494,7 +1499,7 @@ td .cell-sub { display: block; margin-top: 2px; }
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
 }
 @media (min-width: 900px) {
-  .picker-body { grid-template-columns: minmax(300px, 380px) 1fr; overflow: hidden; }
+  .picker-body { grid-template-columns: minmax(320px, 440px) 1fr; overflow: hidden; }
   .picker-list, .picker-preview { overflow: auto; min-height: 0; }
   .picker-list { border-right: 1px solid var(--border); }
 }

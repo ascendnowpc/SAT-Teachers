@@ -7,11 +7,10 @@ import {
   type ReportStage,
   type Stages,
 } from '../lib/admin'
-import { levelLabel, subjectLabel } from '../lib/constants'
+import { subjectLabel } from '../lib/constants'
 import { utcParts, utcTime } from '../lib/time'
 import type { Profile, Session } from '../lib/types'
-import { StatusBadge } from '../pages/Sessions'
-import { DifficultyBadge } from './ui'
+import { LevelsSat, StatusBadge } from '../pages/Sessions'
 
 /**
  * The pieces every admin screen is made of.
@@ -246,8 +245,7 @@ export function SessionTable({
                     </div>
                   </td>
                   <td>
-                    <DifficultyBadge level={s.level} />
-                    <span className="cell-sub">{levelLabel(s.level)} test</span>
+                    <LevelsSat session={s} />
                   </td>
                   <td>
                     <StatusBadge status={s.status} />

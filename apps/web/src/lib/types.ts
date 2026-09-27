@@ -103,6 +103,14 @@ export interface Session {
   question_count: number
   /** What the student actually answered. Staged and set-aside questions are not in it. */
   answered_count: number
+  /**
+   * The tests the student answered questions on, each once, in the order they
+   * first reached it — ['medium', 'easy'] for a lesson that moved down.
+   * Maintained by trigger with answered_count (0053); read it through
+   * levelsOf, which also counts the test a live session is on. Teacher-facing
+   * only, as `level` is.
+   */
+  levels_sat?: SessionLevel[]
   started_at: string | null
   ended_at: string | null
   teacher_notes: string | null

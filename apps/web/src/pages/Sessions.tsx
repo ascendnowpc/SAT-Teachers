@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CopyButton, DifficultyBadge, Input, Notice, Select } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
-import { DIFFICULTIES, SUBJECTS, levelLabel, subjectLabel } from '../lib/constants'
+import { DIFFICULTIES, SUBJECTS, subjectLabel } from '../lib/constants'
 import {
   DEFAULT_SORT,
   NO_FILTERS,
   filterSessions,
+  levelsLabel,
+  levelsOf,
   sortSessions,
   studentLink,
   studentOptions,
@@ -338,8 +340,7 @@ function SessionRow({
       </td>
       {isTeacher && (
         <td>
-          <DifficultyBadge level={s.level} />
-          <span className="cell-sub">{levelLabel(s.level)} test</span>
+          <LevelsSat session={s} />
         </td>
       )}
       <td>
@@ -358,6 +359,26 @@ function SessionRow({
         </Link>
       </td>
     </tr>
+  )
+}
+
+/**
+ * Every test the session covered, in the order the student reached them, and
+ * the path under them in words — "Medium, then easy". One badge used to name
+ * the test the session happened to end on, which for a lesson that moved is
+ * the least of what happened in it.
+ */
+export function LevelsSat({ session }: { session: Session }) {
+  const levels = levelsOf(session)
+  return (
+    <>
+      <span className="levels-sat">
+        {levels.map((l) => (
+          <DifficultyBadge key={l} level={l} />
+        ))}
+      </span>
+      <span className="cell-sub">{levelsLabel(levels)}</span>
+    </>
   )
 }
 
