@@ -52,11 +52,16 @@
 --      assign_student_pc gives a PC to a student who has none, and lets an
 --      admin change one. A teacher cannot re-point a student who already has a
 --      PC: the first booking chose it, and moving a student's reports to
---      somebody else is an admin's decision. set_student_pc, the free-text
---      editor, goes — a PC typed in is a PC nobody can sign in as.
+--      somebody else is an admin's decision.
 --
---    * booking. A session cannot be written for a student with no PC. The
---      form asks; this is the rule for when the form is not what is asking.
+--    * NOT here: taking the old way away. The free-text create_student and
+--      set_student_pc stay, and nothing yet refuses a session for a student
+--      with no PC. The app before this one calls the first two and cannot
+--      choose a PC at all, and every student on a live roster has none — so
+--      doing both in this file would stop every booking from the moment it
+--      was applied until the new app was deployed. This file is safe under
+--      the old app and the new one alike; 0056 is the rest, once the new app
+--      is live.
 --
 --    * the email. Generating stamps session_reports.generated_at, and a trigger
 --      on that stamp queues the notify_pc_report edge function the way 0046
@@ -459,11 +464,10 @@ create policy options_pc_read on question_options
 
 -- --------------------------------------------------------------- choosing ---
 -- The PC's id now, not their name, and required. A new signature rather than a
--- new meaning for the old one: an app still sending { p_pc: 'Priya Rao' } is
--- refused by name ("could not find the function") instead of having a name
--- quietly read as an id, or an id quietly stored as a name.
-drop function if exists public.create_student(text, text, text);
-
+-- new meaning for the old one — p_pc_id, where the old one takes p_pc — so the
+-- two sit side by side until 0056 drops the old one, and an app sending
+-- { p_pc: 'Priya Rao' } reaches the function it was written for rather than
+-- having a name quietly read as an id.
 create or replace function public.create_student(
   p_first text,
   p_last  text,
@@ -544,8 +548,6 @@ grant  execute on function public.assign_student_pc(uuid, uuid) to authenticated
 comment on function public.assign_student_pc(uuid, uuid) is
   'Gives a student their PC. A teacher can choose one for a student who has none; only an admin can change one already chosen (0055).';
 
-drop function if exists public.set_student_pc(uuid, text);
-
 -- 0045's guard, with the assignment in it. A student with a sign-in of their
 -- own could otherwise point their sessions and reports at whichever PC they
 -- liked. Only their own row: the RPCs above write other people's rows, and a
@@ -579,39 +581,6 @@ begin
 end $$;
 
 revoke execute on function public.profiles_guard_identity() from public, anon, authenticated;
-
--- ---------------------------------------------------------------- booking ---
--- Whether a student has a PC, for the trigger below. Granted to the client
--- roles because the trigger runs as whoever is inserting — it has to, to know
--- who that is — and it tells them nothing a booking form does not.
-create or replace function public.student_has_pc(p_student uuid)
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = p_student and pc_id is not null);
-$$;
-
-revoke execute on function public.student_has_pc(uuid) from public;
-grant  execute on function public.student_has_pc(uuid) to anon, authenticated;
-
--- The form's rule, held where the browser cannot skip it. A booking comes from
--- a client, so the rule is for the client roles: a migration or the service
--- role writing a session is not a booking (the recorded sessions of 0012 and
--- 0043 were written that way, and the contracts write their fixtures that way).
--- Not security definer, on purpose: inside one, current_user is the owner.
-create or replace function public.sessions_need_a_pc()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  if current_user in ('anon', 'authenticated') and not student_has_pc(new.student_id) then
-    raise exception 'this student has no PC yet — choose their PC before booking the session';
-  end if;
-  return new;
-end $$;
-
-revoke execute on function public.sessions_need_a_pc() from public, anon, authenticated;
-
-drop trigger if exists sessions_need_a_pc on sessions;
-create trigger sessions_need_a_pc
-  before insert or update of student_id on sessions
-  for each row execute function public.sessions_need_a_pc();
 
 -- -------------------------------------------------------------- the email ---
 create table if not exists report_emails (

@@ -401,7 +401,7 @@ begin
   -- What the link is made of. anon has to reach every one. Moving the level
   -- is not among them: it is the teacher's since 0047, and the link's own
   -- door to it is gone.
-  -- The free-text PC's two doors, closed by 0055: a PC is chosen by id now.
+  -- The free-text PC's two doors, closed by 0056: a PC is chosen by id now.
   for txt in select unnest(array['create_student(text,text,text)', 'set_student_pc(uuid,text)']) loop
     return query select '6 grants'::text, txt || ' — dropped',
       'absent'::text,

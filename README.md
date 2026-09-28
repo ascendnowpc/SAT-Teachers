@@ -721,12 +721,12 @@ A new student is created with their PC (`create_student` takes the PC's id now, 
 student already on the roster with no PC has theirs chosen at this booking (`assign_student_pc`);
 one who has a PC shows it, fixed. A teacher cannot change a PC once chosen — moving a student moves
 every report they have to somebody else — so that is an admin's, from the booking form or the
-student's row under Users. The rule is also the database's: a session inserted by a signed-in client
-for a student with no PC is refused (`sessions_need_a_pc`). Students from before this keep the name
-that was typed until their next booking, where the form shows it as a reminder and asks for the
-real one. `profiles.pc` stays, as the PC's **name** — what every screen and search already prints —
-and a trigger keeps it in step with `profiles.pc_id`, renames included; the free-text editor
-`set_student_pc` is gone.
+student's row under Users. The rule is also the database's (`0056`): a session inserted by a
+signed-in client for a student with no PC is refused (`sessions_need_a_pc`). Students from before
+this keep the name that was typed until their next booking, where the form shows it as a reminder
+and asks for the real one. `profiles.pc` stays, as the PC's **name** — what every screen and search
+already prints — and a trigger keeps it in step with `profiles.pc_id`, renames included; the
+free-text `create_student(p_first, p_last, p_pc)` and `set_student_pc` are gone (`0056`).
 
 **What a PC reads.** Their students' sessions from the staff side, and all of each: every question
 put up and the answer to it, the times and the diagnoses, the teacher's form, the transcript, the
@@ -833,7 +833,7 @@ is given, and refused once the transcript changed after it or the form was hande
 it — for the teacher too; generating without the recording removes a stale reading and leaves a
 current one; they publish and unpublish, through the RPCs and by writing the report row, and the
 teacher still can; and another teacher, a student and an anonymous caller can do none of it.
-`pc_access.sql` is the PC (`0055`), 83 rows: `create_pc_profile` is the service role's alone, wants
+`pc_access.sql` is the PC (`0055`, `0056`), 83 rows: `create_pc_profile` is the service role's alone, wants
 both names and an unused address, and the sign-in made after it leaves the profile a PC and spends
 no student's serial; a signup asking to be a PC is a student; a teacher cannot book a student with no
 PC, chooses one for a student who has none, and cannot change one already chosen, while an admin
@@ -942,10 +942,14 @@ supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page cal
 #   on conflict (key) do update set value = excluded.value;
 ```
 
-**Order, for `0054` and `0055`.** `create_student` takes the PC's id instead of a name, and a
-session is refused for a student with no PC, so the app and the migrations go out together: merge
-(Vercel deploys the app), apply both migrations, deploy the functions — and then **add the PCs**
-under Users → PCs, because until there is one, nobody can be booked. That is the rule, not a bug.
+**Order, for `0054`–`0056`.** Two steps, so the app being served never meets a database it cannot
+use. `0054` and `0055` add everything and take nothing away: the app from before them keeps adding
+students with a typed PC and booking students who have none, and the new app works too. So apply
+those two and deploy the functions first; then merge, and Vercel deploys the app that chooses a PC;
+then **add the PCs** under Users → PCs; then apply `0056`, which drops the free-text
+`create_student` and `set_student_pc` and makes the database refuse a session for a student with no
+PC. Applied before the new app is live, `0056` would stop every booking until it was. After it,
+nobody can be booked until a PC exists — that is the rule, not a bug.
 
 **Gemini reads the recording**, and `apps/web/src/lib/gemini.ts` is the only file that knows it —
 the guard, the prompt, the schema and the report are written against a shape, not a vendor. The

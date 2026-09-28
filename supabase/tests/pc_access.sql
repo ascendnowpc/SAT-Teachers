@@ -3,7 +3,8 @@
 --
 --    psql "$DATABASE_URL" -f supabase/tests/pc_access.sql
 --
---  0055 made the PC a person who signs in. What has to hold:
+--  0055 made the PC a person who signs in, and 0056 made one compulsory.
+--  What has to hold:
 --
 --    * making one: create_pc_profile is the service role's alone; it wants
 --      both names and an address nobody has yet; the sign-in made afterwards
