@@ -1,11 +1,12 @@
 import { callFunction } from './functions'
 import type { PcResult } from './pcs'
 import { rows, supabase } from './supabase'
-import type { Profile, ReportEmail } from './types'
+import type { PcInvite, Profile, ReportEmail } from './types'
 
 /**
- * The calls behind the PC screens. Adding a PC and sending a report are the
- * edge functions' (manage_pc, notify_pc_report); the rest are reads.
+ * The calls behind the PC screens. Adding a PC, their link, joining and
+ * sending a report are the edge functions' (manage_pc, accept_pc_invite,
+ * notify_pc_report); the rest are reads.
  */
 
 export function addPc(input: { first: string; last: string; email: string }): Promise<PcResult> {
@@ -17,8 +18,25 @@ export function addPc(input: { first: string; last: string; email: string }): Pr
   })
 }
 
-export function resetPcPassword(profileId: string): Promise<PcResult> {
-  return callFunction<PcResult>('manage_pc', { action: 'reset', profile_id: profileId })
+/** Another link: a first one that ran out, or a new password for a PC who has joined. */
+export function sendPcInvite(profileId: string): Promise<PcResult> {
+  return callFunction<PcResult>('manage_pc', { action: 'invite', profile_id: profileId })
+}
+
+/** Who a link is for, without using it. Throws "expired or used" when it is dead. */
+export function openInvite(token: string): Promise<{ email: string; full_name: string; joined: boolean }> {
+  return callFunction('accept_pc_invite', { action: 'open', token })
+}
+
+/** Uses the link: sets the password and confirms the address. The page then signs in. */
+export function acceptInvite(token: string, password: string): Promise<{ email: string }> {
+  return callFunction('accept_pc_invite', { action: 'accept', token, password })
+}
+
+/** Every PC's link, for Users. Admins only; anybody else reads none. */
+export async function loadPcInvites(): Promise<Map<string, PcInvite>> {
+  const { data } = await supabase.from('pc_invites').select('*')
+  return new Map(rows<PcInvite>(data).map((i) => [i.profile_id, i]))
 }
 
 /** "Send to the PC again": the session's teacher's, or an admin's. */

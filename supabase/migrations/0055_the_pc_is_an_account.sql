@@ -6,7 +6,8 @@
 --    1. Booking a session means choosing the student's PC from a list of PCs,
 --       and it cannot be skipped. A student's first booking is where their PC
 --       is chosen; from then on the student has one.
---    2. An admin adds PCs, and each PC is emailed their sign-in.
+--    2. An admin adds PCs, and each PC is emailed a link: it opens a page with
+--       their address already on it, they choose a password, and they are in.
 --    3. A PC signs in and sees the sessions and reports of their own students
 --       — every question, the form, the transcript, the report — and nobody
 --       else's.
@@ -32,6 +33,12 @@
 --      so a role read from it is a role anybody could claim. So the signup
 --      trigger now leaves alone a profile that already exists.
 --
+--    * the invitation. The sign-in is made confirmed, with a password nobody
+--      is told, and the PC is emailed a link to choose their own (pc_invites).
+--      Following it is the proof of the address a confirmation email would
+--      have asked for, so there is no second one. The same link, sent again
+--      after they have joined, is how a PC gets a new password.
+--
 --    * reading. A PC reads what their student was shown and everything written
 --      about it — the session, the questions put up, the assessments, the
 --      form, the transcript, the reading of the recording, the report — and
@@ -45,11 +52,16 @@
 --      assign_student_pc gives a PC to a student who has none, and lets an
 --      admin change one. A teacher cannot re-point a student who already has a
 --      PC: the first booking chose it, and moving a student's reports to
---      somebody else is an admin's decision. set_student_pc, the free-text
---      editor, goes — a PC typed in is a PC nobody can sign in as.
+--      somebody else is an admin's decision.
 --
---    * booking. A session cannot be written for a student with no PC. The
---      form asks; this is the rule for when the form is not what is asking.
+--    * NOT here: taking the old way away. The free-text create_student and
+--      set_student_pc stay, and nothing yet refuses a session for a student
+--      with no PC. The app before this one calls the first two and cannot
+--      choose a PC at all, and every student on a live roster has none — so
+--      doing both in this file would stop every booking from the moment it
+--      was applied until the new app was deployed. This file is safe under
+--      the old app and the new one alike; 0056 is the rest, once the new app
+--      is live.
 --
 --    * the email. Generating stamps session_reports.generated_at, and a trigger
 --      on that stamp queues the notify_pc_report edge function the way 0046
@@ -203,6 +215,124 @@ grant  execute on function public.create_pc_profile(text, text, text) to service
 comment on function public.create_pc_profile(text, text, text) is
   'The profile half of a new PC account; manage_pc then creates the sign-in under the same id. Service role only.';
 
+-- -------------------------------------------------------- the invitation ---
+-- The link a PC is emailed, which is how they choose a password: the first
+-- time, and whenever an admin sends another. manage_pc makes it and emails it;
+-- accept_pc_invite, a function a signed-out browser calls, opens it and uses
+-- it. Both on the service role — nothing here is granted to a browser but the
+-- admin's read of the table, which is how Users says who has joined.
+--
+-- One row per PC, and a new link replaces the old one, which stops working.
+-- The row holds the link's SHA-256 and never the link: the link is as good as
+-- the password it sets, and a copy of this table should not be a way in. It
+-- works for a week and once. Opening the page does not use it — mail scanners
+-- fetch every link in a message before a person reads it, and a link one of
+-- them had spent would reach the PC dead — choosing the password does.
+--
+-- joined_at is the first time one was used: the PC has a password of their
+-- own. It survives every later link, which says "new password", not "welcome".
+create table if not exists pc_invites (
+  profile_id uuid primary key references profiles(id) on delete cascade,
+  token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),
+  issued_at  timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at    timestamptz,
+  joined_at  timestamptz
+);
+
+comment on table pc_invites is
+  'The live password link of each PC, as a SHA-256 of it: made and emailed by manage_pc, opened and used by accept_pc_invite, both on the service role. Admins read it; nobody else does (0055).';
+
+alter table pc_invites enable row level security;
+
+drop policy if exists pc_invites_admin_read on pc_invites;
+create policy pc_invites_admin_read on pc_invites
+  for select using ((select is_admin()));
+
+-- A new link for a PC, from its hash: a week to use it. The one before stops
+-- working. Only an active PC — a suspended one cannot sign in (0045), and a
+-- link to a password for a door that does not open helps nobody.
+create or replace function public.issue_pc_invite(p_profile uuid, p_token_hash text)
+returns pc_invites
+language plpgsql security definer set search_path = public as $$
+declare v_row pc_invites;
+begin
+  if not is_active_pc(p_profile) then
+    raise exception 'that is not an active PC';
+  end if;
+
+  insert into pc_invites (profile_id, token_hash, issued_at, expires_at)
+  values (p_profile, p_token_hash, now(), now() + interval '7 days')
+  on conflict (profile_id) do update
+     set token_hash = excluded.token_hash,
+         issued_at  = excluded.issued_at,
+         expires_at = excluded.expires_at,
+         used_at    = null
+  returning * into v_row;
+
+  return v_row;
+end $$;
+
+-- Who a live link is for, without using it: the page shows the address it
+-- will set a password on. Nothing when it has expired, has been used, has
+-- been replaced, or belongs to a PC who has since been suspended.
+create or replace function public.open_pc_invite(p_token_hash text)
+returns table (profile_id uuid, email text, full_name text, joined boolean)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.email, p.full_name, i.joined_at is not null
+    from pc_invites i
+    join profiles p on p.id = i.profile_id
+   where i.token_hash = p_token_hash
+     and i.used_at is null
+     and i.expires_at > now()
+     and p.role = 'pc' and p.is_active;
+$$;
+
+-- Uses a live link, once: the row is marked in the same statement that finds
+-- it, so two submissions of the same page cannot both have it. The PC's id,
+-- or null when there was nothing live to use.
+create or replace function public.take_pc_invite(p_token_hash text)
+returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_profile uuid;
+begin
+  update pc_invites i
+     set used_at = now()
+    from profiles p
+   where i.token_hash = p_token_hash
+     and i.used_at is null
+     and i.expires_at > now()
+     and p.id = i.profile_id and p.role = 'pc' and p.is_active
+  returning i.profile_id into v_profile;
+
+  return v_profile;
+end $$;
+
+-- After the password: the PC has joined, if this was the first. Or, when the
+-- auth server refused the password (too short for the project's rule, say),
+-- the link is given back so the page can be tried again with another.
+create or replace function public.settle_pc_invite(p_token_hash text, p_joined boolean)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_joined then
+    update pc_invites set joined_at = coalesce(joined_at, used_at)
+     where token_hash = p_token_hash and used_at is not null;
+  else
+    update pc_invites set used_at = null
+     where token_hash = p_token_hash and expires_at > now();
+  end if;
+end $$;
+
+revoke execute on function public.issue_pc_invite(uuid, text)      from public, anon, authenticated;
+revoke execute on function public.open_pc_invite(text)             from public, anon, authenticated;
+revoke execute on function public.take_pc_invite(text)             from public, anon, authenticated;
+revoke execute on function public.settle_pc_invite(text, boolean)  from public, anon, authenticated;
+grant  execute on function public.issue_pc_invite(uuid, text)      to service_role;
+grant  execute on function public.open_pc_invite(text)             to service_role;
+grant  execute on function public.take_pc_invite(text)             to service_role;
+grant  execute on function public.settle_pc_invite(text, boolean)  to service_role;
+
 -- ------------------------------------------------------ who, and whose -------
 -- security definer for the reason is_admin() is (0044): they read profiles and
 -- sessions from inside the policies on those tables. Granted to anon as well,
@@ -334,11 +464,10 @@ create policy options_pc_read on question_options
 
 -- --------------------------------------------------------------- choosing ---
 -- The PC's id now, not their name, and required. A new signature rather than a
--- new meaning for the old one: an app still sending { p_pc: 'Priya Rao' } is
--- refused by name ("could not find the function") instead of having a name
--- quietly read as an id, or an id quietly stored as a name.
-drop function if exists public.create_student(text, text, text);
-
+-- new meaning for the old one — p_pc_id, where the old one takes p_pc — so the
+-- two sit side by side until 0056 drops the old one, and an app sending
+-- { p_pc: 'Priya Rao' } reaches the function it was written for rather than
+-- having a name quietly read as an id.
 create or replace function public.create_student(
   p_first text,
   p_last  text,
@@ -419,8 +548,6 @@ grant  execute on function public.assign_student_pc(uuid, uuid) to authenticated
 comment on function public.assign_student_pc(uuid, uuid) is
   'Gives a student their PC. A teacher can choose one for a student who has none; only an admin can change one already chosen (0055).';
 
-drop function if exists public.set_student_pc(uuid, text);
-
 -- 0045's guard, with the assignment in it. A student with a sign-in of their
 -- own could otherwise point their sessions and reports at whichever PC they
 -- liked. Only their own row: the RPCs above write other people's rows, and a
@@ -454,39 +581,6 @@ begin
 end $$;
 
 revoke execute on function public.profiles_guard_identity() from public, anon, authenticated;
-
--- ---------------------------------------------------------------- booking ---
--- Whether a student has a PC, for the trigger below. Granted to the client
--- roles because the trigger runs as whoever is inserting — it has to, to know
--- who that is — and it tells them nothing a booking form does not.
-create or replace function public.student_has_pc(p_student uuid)
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = p_student and pc_id is not null);
-$$;
-
-revoke execute on function public.student_has_pc(uuid) from public;
-grant  execute on function public.student_has_pc(uuid) to anon, authenticated;
-
--- The form's rule, held where the browser cannot skip it. A booking comes from
--- a client, so the rule is for the client roles: a migration or the service
--- role writing a session is not a booking (the recorded sessions of 0012 and
--- 0043 were written that way, and the contracts write their fixtures that way).
--- Not security definer, on purpose: inside one, current_user is the owner.
-create or replace function public.sessions_need_a_pc()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  if current_user in ('anon', 'authenticated') and not student_has_pc(new.student_id) then
-    raise exception 'this student has no PC yet — choose their PC before booking the session';
-  end if;
-  return new;
-end $$;
-
-revoke execute on function public.sessions_need_a_pc() from public, anon, authenticated;
-
-drop trigger if exists sessions_need_a_pc on sessions;
-create trigger sessions_need_a_pc
-  before insert or update of student_id on sessions
-  for each row execute function public.sessions_need_a_pc();
 
 -- -------------------------------------------------------------- the email ---
 create table if not exists report_emails (

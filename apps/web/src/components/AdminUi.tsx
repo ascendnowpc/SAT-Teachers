@@ -10,7 +10,8 @@ import {
 } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
 import { utcParts, utcTime } from '../lib/time'
-import type { Profile, Session } from '../lib/types'
+import { inviteState } from '../lib/pcs'
+import type { PcInvite, Profile, Session } from '../lib/types'
 import { LevelsSat, StatusBadge } from '../pages/Sessions'
 
 /**
@@ -178,21 +179,24 @@ export function PeopleTable({
 }
 
 /**
- * The PCs (0055): who they are, whose PC they are, and how far their students'
- * reports have got — generated is what reaches a PC's inbox, so it is the
- * column. The controls are the two things an admin does to a PC: a new
- * password, and suspending the account (or letting it back in).
+ * The PCs (0055): who they are, whether they have joined, whose PC they are,
+ * and how far their students' reports have got — generated is what reaches a
+ * PC's inbox, so it is the column. The controls are the two things an admin
+ * does to a PC: another link (to join, or for a new password), and suspending
+ * the account (or letting it back in).
  */
 export function PcTable({
   rows,
+  invites,
   busy,
-  onReset,
+  onInvite,
   onToggle,
 }: {
   rows: PersonRow[]
+  invites: Map<string, PcInvite>
   /** The PC an action is running for. */
   busy: string | null
-  onReset: (profile: Profile) => void
+  onInvite: (profile: Profile) => void
   onToggle: (profile: Profile) => void
 }) {
   return (
@@ -210,67 +214,77 @@ export function PcTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ profile, tally, counterparts, lastAt }) => (
-              <tr key={profile.id}>
-                <td>
-                  <div className="cell-strong">
-                    {profile.full_name || 'Unnamed'}
-                    {isSuspended(profile) && <span className="badge badge-bad">Suspended</span>}
-                  </div>
-                  <div className="cell-sub">
-                    <span className="num">{profile.display_id}</span>
-                    {profile.email && <> · {profile.email}</>}
-                  </div>
-                </td>
-                <td>
-                  {counterparts.length === 0 ? (
-                    <span className="dash">—</span>
-                  ) : (
-                    <>
-                      <div className="cell-strong">{counterparts.length}</div>
-                      <div className="cell-sub">
-                        {counterparts
-                          .slice(0, 3)
-                          .map((c) => c.name)
-                          .join(', ')}
-                        {counterparts.length > 3 && ` +${counterparts.length - 3}`}
-                      </div>
-                    </>
-                  )}
-                </td>
-                <td className="num">
-                  {tally.total}
-                  <div className="cell-sub">
-                    {tally.completed} done · {tally.scheduled + tally.live} open
-                  </div>
-                </td>
-                <td className="num">
-                  {tally.generated}
-                  <div className="cell-sub">{tally.published} published</div>
-                </td>
-                <td>{dash(shortDate(lastAt))}</td>
-                <td className="row-actions">
-                  {!isSuspended(profile) && (
+            {rows.map(({ profile, tally, counterparts, lastAt }) => {
+              const joining = inviteState(invites.get(profile.id) ?? null)
+              return (
+                <tr key={profile.id}>
+                  <td>
+                    <div className="cell-strong">
+                      {profile.full_name || 'Unnamed'}
+                      {isSuspended(profile) ? (
+                        <span className="badge badge-bad">Suspended</span>
+                      ) : (
+                        joining.badge && (
+                          <span className={`badge badge-${joining.badge.tone}`}>{joining.badge.label}</span>
+                        )
+                      )}
+                    </div>
+                    <div className="cell-sub">
+                      <span className="num">{profile.display_id}</span>
+                      {profile.email && <> · {profile.email}</>}
+                    </div>
+                    <div className="cell-sub">{joining.text}</div>
+                  </td>
+                  <td>
+                    {counterparts.length === 0 ? (
+                      <span className="dash">—</span>
+                    ) : (
+                      <>
+                        <div className="cell-strong">{counterparts.length}</div>
+                        <div className="cell-sub">
+                          {counterparts
+                            .slice(0, 3)
+                            .map((c) => c.name)
+                            .join(', ')}
+                          {counterparts.length > 3 && ` +${counterparts.length - 3}`}
+                        </div>
+                      </>
+                    )}
+                  </td>
+                  <td className="num">
+                    {tally.total}
+                    <div className="cell-sub">
+                      {tally.completed} done · {tally.scheduled + tally.live} open
+                    </div>
+                  </td>
+                  <td className="num">
+                    {tally.generated}
+                    <div className="cell-sub">{tally.published} published</div>
+                  </td>
+                  <td>{dash(shortDate(lastAt))}</td>
+                  <td className="row-actions">
+                    {!isSuspended(profile) && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={busy === profile.id}
+                        onClick={() => onInvite(profile)}
+                      >
+                        {joining.action}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       disabled={busy === profile.id}
-                      onClick={() => onReset(profile)}
+                      onClick={() => onToggle(profile)}
                     >
-                      New password
+                      {isSuspended(profile) ? 'Reactivate' : 'Suspend'}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    disabled={busy === profile.id}
-                    onClick={() => onToggle(profile)}
-                  >
-                    {isSuspended(profile) ? 'Reactivate' : 'Suspend'}
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -344,9 +358,7 @@ export function SessionTable({
                     </td>
                   )}
                   <td>
-                    <div className="cell-strong">
-                      {s.title || `${subjectLabel(s.subject)} session`}
-                    </div>
+                    <div className="cell-strong">{s.title || `${subjectLabel(s.subject)} session`}</div>
                     <div className="cell-sub">
                       {subjectLabel(s.subject)} · {s.duration_mins} min
                     </div>

@@ -15,6 +15,7 @@ import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
 import { SessionReport } from './pages/SessionReport'
 import { Exam } from './pages/Exam'
+import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
 import { Pending } from './pages/Pending'
@@ -36,6 +37,10 @@ export function App() {
       </Routes>
     )
   }
+
+  // A PC's link to choose a password, for the same reason: whoever opens it
+  // cannot sign in yet, and choosing the password is what signs them in.
+  if (location.pathname === '/join') return <Join />
 
   if (loading) return <div className="center-fill">Loading…</div>
 

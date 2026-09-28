@@ -1,10 +1,10 @@
 /**
  * What a PC is sent, word for word.
  *
- * Two mails: the sign-in an admin's "Add a PC" produces (and a new password,
- * when one is asked for), and a generated report. Written here rather than
- * inside the functions that send them so that the suite reads the same words a
- * PC does — and so that a teacher's name with a "<" in it is escaped once, in
+ * Two mails: the link an admin's "Add a PC" sends, to choose a password (and
+ * the same link again, for a new one), and a generated report. Written here
+ * rather than inside the functions that send them so that the suite reads the
+ * same words a PC does — and so that a teacher's name with a "<" in it is escaped once, in
  * one place, in both.
  */
 
@@ -28,47 +28,6 @@ export function appBase(url: string | undefined | null): string {
   return (url?.trim() || 'https://sat-teachers.vercel.app').replace(/\/+$/, '')
 }
 
-// --------------------------------------------------------------- passwords --
-
-/**
- * Letters and digits a person can read off a screen and type without asking
- * which one it was: no I, l, 1, O, o or 0.
- */
-export const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-
-/** The largest multiple of the alphabet's length a byte can reach: above it, a draw is thrown away. */
-const LIMIT = 256 - (256 % PASSWORD_ALPHABET.length)
-
-function defaultRandom(n: number): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(n))
-}
-
-/**
- * A temporary password: three groups of four, like "kP7m-Qx4n-Tz9c".
- *
- * About 70 bits from the twelve characters, drawn without modulo bias. It
- * always has a lower-case letter, a capital, a digit and — in the dashes — a
- * symbol, because a project can require any of those of every password and a
- * PC account that GoTrue refused to create over it would be a strange way for
- * an admin to find out.
- */
-export function temporaryPassword(random: (n: number) => Uint8Array = defaultRandom): string {
-  for (;;) {
-    const chars: string[] = []
-    while (chars.length < 12) {
-      for (const byte of random(24)) {
-        if (byte < LIMIT && chars.length < 12) {
-          chars.push(PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length])
-        }
-      }
-    }
-    const word = chars.join('')
-    if (/[a-z]/.test(word) && /[A-Z]/.test(word) && /[0-9]/.test(word)) {
-      return `${word.slice(0, 4)}-${word.slice(4, 8)}-${word.slice(8, 12)}`
-    }
-  }
-}
-
 // ------------------------------------------------------------------ layout --
 
 const INK = '#1E2752'
@@ -90,46 +49,41 @@ function frame(inner: string): string {
   )
 }
 
-// --------------------------------------------------------------- sign-in ---
+// -------------------------------------------------------------- invitation --
 
 /**
- * A PC's sign-in, or a new password for one.
- *
- * The password is in the mail because that is what was asked for, and it is
- * temporary in the sense that matters: the account page changes it, and the
- * mail says where that is.
+ * The link to choose a password: a new PC's first, or a new one for a PC who
+ * has one already. No password is ever in a mail — the PC chooses it on the
+ * page the link opens, where their address is already filled in.
  */
-export function credentialsEmail(input: {
+export function inviteEmail(input: {
   name: string
-  email: string
-  password: string
-  appUrl: string
-  /** A new password for an account that already exists. */
-  reset?: boolean
+  link: string
+  /** The PC has chosen a password before: this one replaces it. */
+  joined?: boolean
+  /** How long the link works. */
+  days: number
 }): Email {
   const first = input.name.trim().split(/\s+/)[0] || 'there'
-  const login = `${appBase(input.appUrl)}/login`
-  const subject = input.reset
-    ? 'Your new password for Ascend Now'
-    : 'Your Ascend Now PC account'
+  const subject = input.joined ? 'Choose a new password for Ascend Now' : 'Your Ascend Now PC account'
 
-  const opening = input.reset
-    ? 'An admin has set a new password on your PC account. The old one no longer works.'
-    : 'An admin has made you a PC account on Ascend Now. When you sign in you will see the sessions and reports of the students assigned to you, and every report is emailed to you, as a PDF, the moment it is generated.'
+  const opening = input.joined
+    ? 'An admin has sent you a link to choose a new password for your PC account on Ascend Now. Your current password keeps working until you do.'
+    : 'An admin has made you a PC account on Ascend Now. Once you are in you will see the sessions and reports of the students assigned to you, and every report is emailed to you, as a PDF, the moment it is generated.'
+  const ask = input.joined
+    ? 'Choose the new one here:'
+    : 'All that is left is a password. Your email address is already filled in — choose one and you are in:'
+  const label = input.joined ? 'Choose a new password' : 'Set up my account'
+  const expiry = `The link works once, for ${input.days} days. If it has run out, ask an admin to send another.`
 
   const html = frame(`
     <p style="margin:0 0 14px">Hello ${escapeHtml(first)},</p>
-    <p style="margin:0 0 18px">${escapeHtml(opening)}</p>
-    <table role="presentation" style="border-collapse:collapse;margin:0 0 20px">
-      <tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Email</td>
-          <td style="padding:4px 0"><strong>${escapeHtml(input.email)}</strong></td></tr>
-      <tr><td style="padding:4px 16px 4px 0;color:${MUTED}">Password</td>
-          <td style="padding:4px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:16px">
-            <strong>${escapeHtml(input.password)}</strong></td></tr>
-    </table>
-    <p style="margin:0 0 20px">${button(login, 'Sign in')}</p>
-    <p style="margin:0 0 6px">Change the password once you are in: click your name at the foot of the sidebar.</p>
-    <p style="margin:0;color:${FAINT};font-size:13px">If you were not expecting this, tell whoever runs Ascend Now's platform.</p>
+    <p style="margin:0 0 14px">${escapeHtml(opening)}</p>
+    <p style="margin:0 0 18px">${escapeHtml(ask)}</p>
+    <p style="margin:0 0 20px">${button(input.link, label)}</p>
+    <p style="margin:0 0 6px;color:${MUTED};font-size:13px">${escapeHtml(expiry)}</p>
+    <p style="margin:0 0 6px;color:${MUTED};font-size:13px">Or paste this into your browser: <span style="word-break:break-all">${escapeHtml(input.link)}</span></p>
+    <p style="margin:0;color:${FAINT};font-size:13px">If you were not expecting this, you can ignore it.</p>
   `)
 
   const text = [
@@ -137,14 +91,12 @@ export function credentialsEmail(input: {
     '',
     opening,
     '',
-    `Email:    ${input.email}`,
-    `Password: ${input.password}`,
+    ask,
+    input.link,
     '',
-    `Sign in: ${login}`,
+    expiry,
     '',
-    'Change the password once you are in: click your name at the foot of the sidebar.',
-    '',
-    "If you were not expecting this, tell whoever runs Ascend Now's platform.",
+    'If you were not expecting this, you can ignore it.',
   ].join('\n')
 
   return { subject, html, text }

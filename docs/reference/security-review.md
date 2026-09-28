@@ -143,8 +143,9 @@ stating what that call is and is not:
 
 ### The PC, reviewed on its way in (`0055`)
 
-A new role with a password, read access to real students' sessions, and two functions that send
-mail — so the same questions as for `0044` and `0046`, asked before rather than after:
+A new role with a password, read access to real students' sessions, three functions that send
+mail or set a password — so the same questions as for `0044` and `0046`, asked before rather than
+after:
 
 - **Nobody makes themselves a PC.** The role is not read from anything a signup can write.
   `user_metadata` is the signup's own, and `app_metadata` — which only the service role can set —
@@ -162,7 +163,21 @@ mail — so the same questions as for `0044` and `0046`, asked before rather tha
   session id and nothing else, re-reads the report, the student's PC and the address the PC signs in
   with (auth, not the profile copy its owner can edit), and sends at most once per generation — a
   replayed call is refused by `claim_report_email`. Sending again needs the session's teacher or an
-  admin, as themselves. `manage_pc` sends only to the address it has just given the account.
+  admin, as themselves. `manage_pc` sends a PC's link only to the address that PC signs in with,
+  read from auth for the same reason.
+- **No password is ever in a mail.** A PC is emailed a link and chooses their own password on the
+  page it opens. The link is the credential, so it is treated as one: 32 random bytes, carried in
+  the URL fragment (never sent to a server, so in no access log and no `Referer`), stored only as a
+  SHA-256 in `pc_invites`, good once and for seven days, replaced by the next one, and dead the
+  moment its PC is suspended. `accept_pc_invite` runs without JWT verification — whoever calls it
+  has no account yet — and so believes nothing but the token: the address it sets a password on is
+  read from the profile, the token is spent in the same statement that finds it (two submissions
+  cannot both have it), and every refusal says the same "expired or used" whether the token was
+  spent, stale or never real. Opening the page spends nothing, so a mail scanner that fetches the
+  link first does not burn it. The address is marked confirmed when the password is set: the link
+  reaching it is the proof. Until then the sign-in has a random password nobody knows. The four
+  functions behind it are the service role's only, and only admins read the table. `pc_access.sql`
+  holds all of it.
 - **No secret in the database, as `0046`.** The trigger's call carries no token; the function is
   deployed without JWT verification because the database has none to give, and everything above is
   why that is safe.
@@ -211,10 +226,14 @@ any student's session as that student. Admin is the most trusted seat in the pro
 `0050` it can do to any session whatever its teacher can, publishing included — and this is what
 that means.
 
-**A PC's first password travels by email.** That is what was asked for — the sign-in, by email —
-and the password is temporary in the sense that the Account page changes it and the email says so,
-but nothing forces the change. Forcing it (a flag cleared when the PC sets their own) is a small
-follow-up if wanted. The admin's "New password" replaces it, and suspending the PC bans the sign-in.
+**A PC's link is as good as their password for a week.** Whoever holds an unspent link can set the
+PC's password — that is what a link is — so a forwarded invitation is a forwarded sign-in until it
+is used or replaced. The page does not ask for anything the mailbox holder would not have; a second
+factor is the fix if that ever matters. An admin who sends one to the wrong address can kill it by
+sending another or suspending the PC.
+
+**`accept_pc_invite` has no rate limit of its own.** The token space (2^256) makes guessing
+pointless, and the platform's function limits apply, but nothing counts failures per caller.
 
 **A PC reads the transcript and the reading of the recording.** Deliberate — "all the details" was
 the ask, and a PC is staff to the family — but it is a recording of a lesson, and it is now read by

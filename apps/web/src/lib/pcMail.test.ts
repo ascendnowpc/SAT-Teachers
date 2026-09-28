@@ -1,91 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import {
-  PASSWORD_ALPHABET,
-  appBase,
-  credentialsEmail,
-  escapeHtml,
-  reportEmail,
-  temporaryPassword,
-} from './pcMail'
+import { appBase, escapeHtml, inviteEmail, reportEmail } from './pcMail'
 
-describe('temporaryPassword', () => {
-  it('is three groups of four', () => {
-    for (let i = 0; i < 50; i++) {
-      expect(temporaryPassword()).toMatch(/^[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}$/)
-    }
-  })
-
-  it('has none of the characters people misread', () => {
-    for (let i = 0; i < 200; i++) expect(temporaryPassword()).not.toMatch(/[IlOo01]/)
-  })
-
-  // A project can require each of these of every password; GoTrue would refuse
-  // to make the account otherwise.
-  it('always has a lower-case letter, a capital, a digit and a symbol', () => {
-    for (let i = 0; i < 200; i++) {
-      const p = temporaryPassword()
-      expect(p).toMatch(/[a-z]/)
-      expect(p).toMatch(/[A-Z]/)
-      expect(p).toMatch(/[0-9]/)
-      expect(p).toMatch(/-/)
-    }
-  })
-
-  it('draws again rather than bias the alphabet or drop a class', () => {
-    const at = (c: string) => PASSWORD_ALPHABET.indexOf(c)
-    // First draw: every byte above the cut-off, so none of it is usable. Then a
-    // word of capitals only. Then one with every class — so it has to throw two
-    // draws away before it can answer.
-    const draws = [
-      new Uint8Array(24).fill(255),
-      new Uint8Array(24).fill(at('A')),
-      Uint8Array.from({ length: 24 }, (_, i) => [at('A'), at('a'), at('2'), at('B')][i % 4]),
-    ]
-    let n = 0
-    const p = temporaryPassword(() => {
-      if (n >= draws.length) throw new Error('asked for more draws than the test has')
-      return draws[n++]
-    })
-    expect(p).toBe('Aa2B-Aa2B-Aa2B')
-    expect(n).toBe(3)
-  })
-
-  it('differs from one call to the next', () => {
-    const seen = new Set(Array.from({ length: 100 }, () => temporaryPassword()))
-    expect(seen.size).toBe(100)
-  })
-})
-
-describe('credentialsEmail', () => {
+describe('inviteEmail', () => {
   const input = {
     name: 'Priya Rao',
-    email: 'priya@ascendnow.info',
-    password: 'kP7m-Qx4n-Tz9c',
-    appUrl: 'https://sat-teachers.vercel.app/',
+    link: 'https://sat-teachers.vercel.app/join#token=abc',
+    days: 7,
   }
 
-  it('gives the address, the password and where to sign in', () => {
-    const mail = credentialsEmail(input)
+  it('is a link to choose a password, and no password', () => {
+    const mail = inviteEmail(input)
     expect(mail.subject).toBe('Your Ascend Now PC account')
     for (const body of [mail.html, mail.text]) {
-      expect(body).toContain('priya@ascendnow.info')
-      expect(body).toContain('kP7m-Qx4n-Tz9c')
-      expect(body).toContain('https://sat-teachers.vercel.app/login')
+      expect(body).toContain('https://sat-teachers.vercel.app/join#token=abc')
       expect(body).toContain('Hello Priya')
+      expect(body).toMatch(/works once, for 7 days/)
+      expect(body).not.toMatch(/password:/i)
     }
-    expect(mail.text).toMatch(/Change the password once you are in/)
+    expect(mail.html).toContain('Set up my account')
+    expect(mail.text).toMatch(/Your email address is already filled in/)
   })
 
   it('says so when it is a new password rather than a new account', () => {
-    const mail = credentialsEmail({ ...input, reset: true })
-    expect(mail.subject).toBe('Your new password for Ascend Now')
-    expect(mail.text).toContain('The old one no longer works.')
+    const mail = inviteEmail({ ...input, joined: true })
+    expect(mail.subject).toBe('Choose a new password for Ascend Now')
+    expect(mail.text).toContain('Your current password keeps working until you do.')
+    expect(mail.html).toContain('Choose a new password')
   })
 
   it('escapes what it did not write', () => {
-    const mail = credentialsEmail({ ...input, name: '<b>Priya</b> Rao', password: 'a<b>c&d' })
+    const mail = inviteEmail({ ...input, name: '<b>Priya</b> Rao', link: 'https://x.test/join#token=a&b' })
     expect(mail.html).not.toContain('<b>Priya</b>')
-    expect(mail.html).toContain('a&lt;b&gt;c&amp;d')
+    expect(mail.html).toContain('href="https://x.test/join#token=a&amp;b"')
   })
 })
 

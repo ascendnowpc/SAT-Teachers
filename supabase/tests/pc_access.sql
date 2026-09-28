@@ -3,7 +3,8 @@
 --
 --    psql "$DATABASE_URL" -f supabase/tests/pc_access.sql
 --
---  0055 made the PC a person who signs in. What has to hold:
+--  0055 made the PC a person who signs in, and 0056 made one compulsory.
+--  What has to hold:
 --
 --    * making one: create_pc_profile is the service role's alone; it wants
 --      both names and an address nobody has yet; the sign-in made afterwards
@@ -26,6 +27,11 @@
 --      report without generating does not; the log is read by the session's
 --      teacher, its PC and an admin, and written by no client; a generation
 --      is claimed once, again on request, and a failed one can be retried
+--    * the link: only an active PC is sent one, for a week; a new one kills
+--      the old; opening it spends nothing, using it spends it once, a refused
+--      password gives it back; joining is remembered through later links; an
+--      expired link or a suspended PC's opens nothing; admins read the links
+--      and nobody else does, and no client writes one
 --
 --  Every row must read PASS. It cleans up after itself and is safe against a
 --  real database: it is one statement, so a failure rolls back what it made,
@@ -135,7 +141,11 @@ begin
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
   for txt in select unnest(array['create_pc_profile(text,text,text)',
-                                 'claim_report_email(uuid,timestamp with time zone,uuid,text,boolean)']) loop
+                                 'claim_report_email(uuid,timestamp with time zone,uuid,text,boolean)',
+                                 'issue_pc_invite(uuid,text)',
+                                 'open_pc_invite(text)',
+                                 'take_pc_invite(text)',
+                                 'settle_pc_invite(text,boolean)']) loop
     ok := has_function_privilege('anon', 'public.'||txt, 'execute')
        or has_function_privilege('authenticated', 'public.'||txt, 'execute');
     return query select '1 making'::text, txt || ' — service role only', 'no client'::text,
@@ -467,6 +477,123 @@ begin
   select count(*) into n from report_emails where session_id = sess;
   return query select '7 email'::text,'nor the student'::text,'0'::text,n::text,(case when n=0 then 'PASS' else 'FAIL' end)::text;
   perform __pc_off();
+
+  -- ============ 8. the link ============
+  perform __pc_off();
+  declare
+    h1 text := encode(sha256('pcx-link-1'::bytea), 'hex');
+    h2 text := encode(sha256('pcx-link-2'::bytea), 'hex');
+    h3 text := encode(sha256('pcx-link-3'::bytea), 'hex');
+    h4 text := encode(sha256('pcx-link-4'::bytea), 'hex');
+    inv pc_invites;
+    who uuid;
+  begin
+    inv := issue_pc_invite(priya.id, h1);
+    return query select '8 link'::text,'a PC is sent a link that works for a week'::text,'7 days, not joined'::text,
+      extract(day from inv.expires_at - inv.issued_at)::int || ' days, ' ||
+        (case when inv.joined_at is null then 'not joined' else 'joined' end),
+      (case when inv.expires_at - inv.issued_at = interval '7 days' and inv.joined_at is null and inv.used_at is null
+            then 'PASS' else 'FAIL' end)::text;
+
+    select string_agg(o.email || ', ' || o.full_name || ', ' || o.joined, ';') into txt from open_pc_invite(h1) o;
+    return query select '8 link'::text,'opening it says whose it is'::text,
+      'pcx.priya@example.test, Priya Rao, false'::text, coalesce(txt,'(nothing)'),
+      (case when txt = 'pcx.priya@example.test, Priya Rao, false' then 'PASS' else 'FAIL' end)::text;
+    select count(*) into n from open_pc_invite(h1);
+    return query select '8 link'::text,'and spends nothing: it opens again'::text,'1'::text,n::text,
+      (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+    begin perform issue_pc_invite(gone.id, h4); txt := 'issued';
+    exception when others then txt := 'refused'; end;
+    return query select '8 link'::text,'a suspended PC is sent none'::text,'refused'::text,txt,
+      (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+    begin perform issue_pc_invite(t_id, h4); txt := 'issued';
+    exception when others then txt := 'refused'; end;
+    return query select '8 link'::text,'nor is a teacher'::text,'refused'::text,txt,
+      (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+    begin perform issue_pc_invite(omar.id, 'not a hash'); txt := 'issued';
+    exception when others then txt := 'refused'; end;
+    return query select '8 link'::text,'and the table keeps a hash, never a link'::text,'refused'::text,txt,
+      (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+    perform issue_pc_invite(priya.id, h2);
+    select count(*) into n from open_pc_invite(h1);
+    return query select '8 link'::text,'a new link kills the one before'::text,'0'::text,n::text,
+      (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+    who := take_pc_invite(h2);
+    return query select '8 link'::text,'using it names the PC'::text,priya.id::text,coalesce(who::text,'(null)'),
+      (case when who = priya.id then 'PASS' else 'FAIL' end)::text;
+    who := take_pc_invite(h2);
+    select count(*) into n from open_pc_invite(h2);
+    return query select '8 link'::text,'once: it neither uses nor opens again'::text,'(null), 0'::text,
+      coalesce(who::text,'(null)') || ', ' || n,
+      (case when who is null and n = 0 then 'PASS' else 'FAIL' end)::text;
+
+    perform settle_pc_invite(h2, false);
+    select count(*) into n from open_pc_invite(h2);
+    return query select '8 link'::text,'a password the auth server refused gives the link back'::text,'1'::text,n::text,
+      (case when n=1 then 'PASS' else 'FAIL' end)::text;
+
+    who := take_pc_invite(h2);
+    perform settle_pc_invite(h2, true);
+    select * into inv from pc_invites where profile_id = priya.id;
+    return query select '8 link'::text,'a password set is a PC joined'::text,'joined'::text,
+      (case when inv.joined_at is not null then 'joined' else 'not joined' end),
+      (case when inv.joined_at is not null and inv.joined_at = inv.used_at then 'PASS' else 'FAIL' end)::text;
+
+    perform issue_pc_invite(priya.id, h3);
+    select string_agg(o.joined::text, ',') into txt from open_pc_invite(h3) o;
+    select count(*) into n from pc_invites where profile_id = priya.id and joined_at is not null and used_at is null;
+    return query select '8 link'::text,'a later link is for a new password: joining is remembered'::text,
+      'true, 1'::text, coalesce(txt,'(nothing)') || ', ' || n,
+      (case when txt = 'true' and n = 1 then 'PASS' else 'FAIL' end)::text;
+
+    update pc_invites set issued_at = now() - interval '8 days', expires_at = now() - interval '1 day'
+     where profile_id = priya.id;
+    select count(*) into n from open_pc_invite(h3);
+    who := take_pc_invite(h3);
+    return query select '8 link'::text,'an expired link opens nothing and cannot be used'::text,'0, (null)'::text,
+      n || ', ' || coalesce(who::text,'(null)'),
+      (case when n = 0 and who is null then 'PASS' else 'FAIL' end)::text;
+    perform settle_pc_invite(h3, false);
+    select count(*) into n from open_pc_invite(h3);
+    return query select '8 link'::text,'nor is it given back'::text,'0'::text,n::text,
+      (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
+    perform issue_pc_invite(omar.id, h4);
+    update profiles set is_active = false, suspended_at = now() where id = omar.id;
+    select count(*) into n from open_pc_invite(h4);
+    who := take_pc_invite(h4);
+    return query select '8 link'::text,'a PC suspended after the link was sent cannot use it'::text,'0, (null)'::text,
+      n || ', ' || coalesce(who::text,'(null)'),
+      (case when n = 0 and who is null then 'PASS' else 'FAIL' end)::text;
+    update profiles set is_active = true, suspended_at = null where id = omar.id;
+
+    perform __pc_seat(a_id);
+    select count(*) into n from pc_invites where profile_id in (priya.id, omar.id);
+    return query select '8 link'::text,'an admin reads the links'::text,'2'::text,n::text,
+      (case when n=2 then 'PASS' else 'FAIL' end)::text;
+    update pc_invites set expires_at = now() + interval '1 year' where profile_id = priya.id;
+    get diagnostics n = row_count;
+    begin
+      insert into pc_invites (profile_id, token_hash, expires_at) values (gone.id, h1, now() + interval '1 day');
+      txt := 'written';
+    exception when others then txt := 'refused'; end;
+    return query select '8 link'::text,'but cannot write one, nor stretch one'::text,'refused, 0 changed'::text,
+      txt || ', ' || n || ' changed',
+      (case when txt = 'refused' and n = 0 then 'PASS' else 'FAIL' end)::text;
+
+    for who in select unnest(array[priya.id, t_id, s_id]) loop
+      perform __pc_seat(who);
+      select count(*) into n from pc_invites;
+      return query select '8 link'::text,
+        (case who when priya.id then 'a PC does not read even their own'
+                  when t_id then 'a teacher reads none' else 'a student reads none' end)::text,
+        '0'::text, n::text, (case when n=0 then 'PASS' else 'FAIL' end)::text;
+    end loop;
+    perform __pc_off();
+  end;
 
   -- Cleanup. Nothing queued here may be sent, and the address goes back.
   delete from net.http_request_queue where url = 'https://functions.example.test/functions/v1/notify_pc_report';

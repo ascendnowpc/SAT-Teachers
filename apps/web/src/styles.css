@@ -1731,9 +1731,10 @@ tr.miss-row { background: #fdf6f5; }
 /* A student's PC in the admin's table: a select sized to a name, not a form. */
 .pc-select { width: auto; min-width: 150px; max-width: 220px; padding: 6px 32px 6px 10px; font-size: 13px; }
 
-/* The sign-in an admin hands over when the email did not go. */
+/* The link an admin hands over when the email did not go. */
 .credentials { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .credentials code {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13.5px;
   background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--ink);
 }
+.credentials .invite-link { word-break: break-all; min-width: 0; flex: 1 1 320px; }

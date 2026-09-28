@@ -6,9 +6,8 @@ import { supabase } from '../lib/supabase'
 /**
  * Your own account: who the platform thinks you are, and your password.
  *
- * A PC arrives with a password somebody else chose and emailed to them, which
- * is a password that has been in an inbox. This is where they make it theirs —
- * and anybody else can change theirs here too, since nothing about changing a
+ * Anybody can change their password here: a PC who chose theirs on the join
+ * page and wants another, and a teacher, since nothing about changing a
  * password is particular to a PC.
  */
 export function Account() {
