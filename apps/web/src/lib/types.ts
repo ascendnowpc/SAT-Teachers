@@ -1,4 +1,10 @@
-export type Role = 'admin' | 'teacher' | 'student'
+/**
+ * 'pc' is a student's PC (0055): an account an admin makes, chosen for a
+ * student at their first booking, which reads that student's sessions and
+ * reports and is emailed each report as it is generated. Not staff: a PC reads
+ * no bank, no answer key and nobody else's students.
+ */
+export type Role = 'admin' | 'teacher' | 'student' | 'pc'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
@@ -24,8 +30,14 @@ export interface Profile {
   display_id: string
   full_name: string
   email: string | null
-  /** The student's PC, as the teachers write it. Null for teachers and for students added before it was asked for. */
+  /**
+   * The student's PC, by name — what every screen prints beside them. Kept in
+   * step with pc_id by the database (0055); on a student nobody has chosen a
+   * PC for yet, whatever was typed before PCs had accounts.
+   */
   pc: string | null
+  /** The student's PC, the person: a profile of role 'pc'. Null until chosen. */
+  pc_id: string | null
   is_active: boolean
   /**
    * When an admin took the account away (0045). An inactive account with this
@@ -116,7 +128,7 @@ export interface Session {
   teacher_notes: string | null
   created_at: string
   teacher?: Pick<Profile, 'id' | 'full_name' | 'display_id'> | null
-  student?: (Pick<Profile, 'id' | 'full_name' | 'display_id'> & { pc?: string | null }) | null
+  student?: (Pick<Profile, 'id' | 'full_name' | 'display_id'> & { pc?: string | null; pc_id?: string | null }) | null
 }
 
 export interface Assessment {
@@ -219,4 +231,22 @@ export interface SessionReportRow {
   /** Who pressed it: the session's teacher or an admin (0048). Null before then. */
   generated_by: string | null
   published_at: string | null
+}
+
+/**
+ * One generated report's email to the student's PC (0055): one row per
+ * generation, written by the notify_pc_report function and read by the
+ * session's teacher, its PC and the admins.
+ */
+export interface ReportEmail {
+  session_id: string
+  /** Which generation of the report the email carried. */
+  generated_at: string
+  pc_id: string | null
+  sent_to: string | null
+  status: 'sending' | 'sent' | 'failed' | 'skipped'
+  /** Why it failed or was skipped. */
+  detail: string | null
+  attempts: number
+  updated_at: string
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
 import { Field, Input, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
@@ -22,6 +22,10 @@ function readable(message: string): string {
 export function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  // Where they were going before being sent here: a link from an email is a
+  // link to a session, and signing in should arrive at it.
+  const from = (useLocation().state as { from?: { pathname?: string; search?: string } } | null)?.from
+  const next = from?.pathname && from.pathname !== '/login' ? `${from.pathname}${from.search ?? ''}` : '/'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -34,7 +38,7 @@ export function Login() {
     setBusy(true)
     try {
       await signIn(email, password)
-      navigate('/', { replace: true })
+      navigate(next, { replace: true })
     } catch (err) {
       setError(err instanceof Error ? readable(err.message) : 'Could not sign in.')
     } finally {

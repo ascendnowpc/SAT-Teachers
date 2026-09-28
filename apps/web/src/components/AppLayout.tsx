@@ -47,14 +47,18 @@ export function AppLayout() {
           <div className="spring" />
 
           <div className="side-user">
-            <span className="avatar">{initials(profile.full_name, profile.display_id)}</span>
-            <span className="meta">
-              <span className="name">{profile.full_name || 'Unnamed'}</span>
-              <span className="id">{profile.display_id}</span>
-            </span>
-          <button type="button" onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
-            <IconLogout />
-          </button>
+            {/* Your name opens your account and password — what a PC is told
+                to click when their sign-in arrives by email. */}
+            <NavLink to="/account" className="side-account" title="Account and password">
+              <span className="avatar">{initials(profile.full_name, profile.display_id)}</span>
+              <span className="meta">
+                <span className="name">{profile.full_name || 'Unnamed'}</span>
+                <span className="id">{profile.display_id}</span>
+              </span>
+            </NavLink>
+            <button type="button" onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
+              <IconLogout />
+            </button>
           </div>
         </div>
       </aside>

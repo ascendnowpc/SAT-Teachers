@@ -32,6 +32,7 @@ declare
   sess uuid;
   n    int;
   ok   boolean;
+  pc   profiles;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -52,6 +53,10 @@ begin
   -- by somebody who already owns the project, which is the whole of 0044's
   -- answer to "who lets the first admin in".
   update profiles set role = 'admin', is_active = true where id = a_id;
+
+  -- A student is booked with their PC or not at all (0055).
+  pc := create_pc_profile('Pat', 'Coordinator', 'rlscheck.pc@example.test');
+  update profiles set pc_id = pc.id where id = s_id;
 
   return query select 'signup'::text, 'requested role is coerced, not trusted'::text,
     'student'::text,
@@ -298,7 +303,7 @@ begin
   delete from sessions where id = sess;
   delete from questions where created_by = t_id;
   -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
-  delete from profiles where id in (t_id, s_id, a_id);
+  delete from profiles where id in (t_id, s_id, a_id, pc.id);
   delete from auth.users where id in (t_id, s_id, a_id);
 end $fn$;
 

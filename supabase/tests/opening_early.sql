@@ -28,6 +28,7 @@ declare
   s_id uuid := gen_random_uuid();
   o_id uuid := gen_random_uuid();          -- a second student, not on the session
   sess uuid; n int; txt text; v_sched timestamptz;
+  pc profiles;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -42,6 +43,10 @@ begin
     (o_id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
      'early.other@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
+
+  -- A student is booked with their PC or not at all (0055).
+  pc := create_pc_profile('Pat', 'Coordinator', 'early.pc@example.test');
+  update profiles set pc_id = pc.id where id = s_id;
 
   -- ============ TEACHER: a session three hours off ============
   -- There is nothing to prepare — the easy test loads when the student opens
@@ -119,7 +124,7 @@ begin
   -- the note in level_session.sql for why they are not rewound.
   delete from sessions where id=sess;
   -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
-  delete from profiles where id in (t_id,s_id,o_id);
+  delete from profiles where id in (t_id,s_id,o_id,pc.id);
   delete from auth.users where id in (t_id,s_id,o_id);
 end $fn$;
 

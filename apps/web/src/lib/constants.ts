@@ -1,4 +1,4 @@
-import type { Diagnosis, Difficulty, OptionLabel, SessionLevel, Subject } from './types'
+import type { Diagnosis, Difficulty, OptionLabel, SessionLevel, Subject } from './types.ts'
 
 export const OPTION_LABELS: OptionLabel[] = ['A', 'B', 'C', 'D']
 

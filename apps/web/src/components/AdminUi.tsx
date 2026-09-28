@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   STAGE_LABELS,
@@ -71,11 +72,14 @@ export function PeopleTable({
   rows,
   kind,
   href,
+  pcCell,
 }: {
   rows: PersonRow[]
   kind: 'teacher' | 'student'
   /** Given for teachers, whose rows open a page of their own. */
   href?: (profile: Profile) => string
+  /** Given for students on an admin's page: the PC, and the control that changes it (0055). */
+  pcCell?: (profile: Profile) => ReactNode
 }) {
   const teachers = kind === 'teacher'
 
@@ -87,6 +91,7 @@ export function PeopleTable({
             <tr>
               <th>{teachers ? 'Teacher' : 'Student'}</th>
               <th>{teachers ? 'Students' : 'Teachers'}</th>
+              {pcCell && <th>PC</th>}
               <th>Sessions</th>
               <th>Answered</th>
               <th>Published</th>
@@ -131,6 +136,7 @@ export function PeopleTable({
                     </>
                   )}
                 </td>
+                {pcCell && <td>{pcCell(profile)}</td>}
                 <td className="num">
                   {tally.total}
                   <div className="cell-sub">
@@ -162,6 +168,107 @@ export function PeopleTable({
                     </Link>
                   </td>
                 )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The PCs (0055): who they are, whose PC they are, and how far their students'
+ * reports have got — generated is what reaches a PC's inbox, so it is the
+ * column. The controls are the two things an admin does to a PC: a new
+ * password, and suspending the account (or letting it back in).
+ */
+export function PcTable({
+  rows,
+  busy,
+  onReset,
+  onToggle,
+}: {
+  rows: PersonRow[]
+  /** The PC an action is running for. */
+  busy: string | null
+  onReset: (profile: Profile) => void
+  onToggle: (profile: Profile) => void
+}) {
+  return (
+    <div className="board">
+      <div className="board-scroll">
+        <table className="board-table people-table">
+          <thead>
+            <tr>
+              <th>PC</th>
+              <th>Students</th>
+              <th>Sessions</th>
+              <th>Reports</th>
+              <th>Last</th>
+              <th aria-label="Actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ profile, tally, counterparts, lastAt }) => (
+              <tr key={profile.id}>
+                <td>
+                  <div className="cell-strong">
+                    {profile.full_name || 'Unnamed'}
+                    {isSuspended(profile) && <span className="badge badge-bad">Suspended</span>}
+                  </div>
+                  <div className="cell-sub">
+                    <span className="num">{profile.display_id}</span>
+                    {profile.email && <> · {profile.email}</>}
+                  </div>
+                </td>
+                <td>
+                  {counterparts.length === 0 ? (
+                    <span className="dash">—</span>
+                  ) : (
+                    <>
+                      <div className="cell-strong">{counterparts.length}</div>
+                      <div className="cell-sub">
+                        {counterparts
+                          .slice(0, 3)
+                          .map((c) => c.name)
+                          .join(', ')}
+                        {counterparts.length > 3 && ` +${counterparts.length - 3}`}
+                      </div>
+                    </>
+                  )}
+                </td>
+                <td className="num">
+                  {tally.total}
+                  <div className="cell-sub">
+                    {tally.completed} done · {tally.scheduled + tally.live} open
+                  </div>
+                </td>
+                <td className="num">
+                  {tally.generated}
+                  <div className="cell-sub">{tally.published} published</div>
+                </td>
+                <td>{dash(shortDate(lastAt))}</td>
+                <td className="row-actions">
+                  {!isSuspended(profile) && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={busy === profile.id}
+                      onClick={() => onReset(profile)}
+                    >
+                      New password
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={busy === profile.id}
+                    onClick={() => onToggle(profile)}
+                  >
+                    {isSuspended(profile) ? 'Reactivate' : 'Suspend'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

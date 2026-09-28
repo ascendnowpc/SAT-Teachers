@@ -51,24 +51,9 @@ export function ClaimLine({ claim, label }: { claim: Claim; label?: string }) {
   )
 }
 
-/**
- * Whether there is anything to show for this question.
- *
- * The recording's findings, and also the note the teacher typed against the
- * question during the lesson — that is something said about it too, and
- * filtering on the recording alone dropped it off the page entirely on a
- * question the recording happened to miss.
- */
-export function hasFindings(question: QuestionSection): boolean {
-  const r = question.reading
-  return Boolean(
-    question.teacherNote ||
-      r?.studentReasoning ||
-      r?.misunderstanding ||
-      r?.vocabularyGap ||
-      (r?.teacherFeedback.length ?? 0) > 0,
-  )
-}
+// Lives beside the document it reads, so the report page and the PDF emailed
+// to the PC decide the same way which questions have something to show.
+export { hasFindings } from '../lib/reportDoc'
 
 /**
  * One question: the answer row, then what was said about it.

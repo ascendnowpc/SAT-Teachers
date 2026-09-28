@@ -141,6 +141,32 @@ stating what that call is and is not:
 - `app_config`, which holds the URL, has RLS on and **no policies at all**, so no client role can
   read it.
 
+### The PC, reviewed on its way in (`0055`)
+
+A new role with a password, read access to real students' sessions, and two functions that send
+mail — so the same questions as for `0044` and `0046`, asked before rather than after:
+
+- **Nobody makes themselves a PC.** The role is not read from anything a signup can write.
+  `user_metadata` is the signup's own, and `app_metadata` — which only the service role can set —
+  is written by GoTrue in an UPDATE after the INSERT, where the signup trigger cannot see it (measured
+  against GoTrue v2.197). A PC is a profile made first by `create_pc_profile`, which only the service
+  role may execute, called by `manage_pc` after it has asked `is_admin()` as the caller; the sign-in is
+  then made under that profile's id, and the trigger leaves an existing profile alone. A public signup
+  cannot name its own id, so it cannot land on one. `pc_access.sql` asserts a signup asking to be a PC
+  is a student.
+- **A PC reads their students and nothing else.** Every PC policy is SELECT only and goes through
+  `is_pc()` (active, so a suspended PC reads nothing) and the student's `pc_id`. Not the answer-key
+  table, not a staged question, not the bank, not another PC's students. A student cannot point
+  their own `pc_id` anywhere: the identity guard refuses it.
+- **Mail goes where the database says, never where a request says.** `notify_pc_report` takes a
+  session id and nothing else, re-reads the report, the student's PC and the address the PC signs in
+  with (auth, not the profile copy its owner can edit), and sends at most once per generation — a
+  replayed call is refused by `claim_report_email`. Sending again needs the session's teacher or an
+  admin, as themselves. `manage_pc` sends only to the address it has just given the account.
+- **No secret in the database, as `0046`.** The trigger's call carries no token; the function is
+  deployed without JWT verification because the database has none to give, and everything above is
+  why that is safe.
+
 ## What is still open
 
 These are recorded rather than fixed, because each one is a product decision rather than a bug,
@@ -184,3 +210,12 @@ useful — it is how the portal offers to re-send a student's link — but it me
 any student's session as that student. Admin is the most trusted seat in the product — since
 `0050` it can do to any session whatever its teacher can, publishing included — and this is what
 that means.
+
+**A PC's first password travels by email.** That is what was asked for — the sign-in, by email —
+and the password is temporary in the sense that the Account page changes it and the email says so,
+but nothing forces the change. Forcing it (a flag cleared when the PC sets their own) is a small
+follow-up if wanted. The admin's "New password" replaces it, and suspending the PC bans the sign-in.
+
+**A PC reads the transcript and the reading of the recording.** Deliberate — "all the details" was
+the ask, and a PC is staff to the family — but it is a recording of a lesson, and it is now read by
+somebody who was not in it.

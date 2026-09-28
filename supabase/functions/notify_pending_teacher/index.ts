@@ -1,5 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 
+import { transportFrom } from '../../../apps/web/src/lib/mail.ts'
+import { appBase, escapeHtml } from '../../../apps/web/src/lib/pcMail.ts'
+import { CORS, json } from '../_shared/http.ts'
+import { sendMail } from '../_shared/send.ts'
+
 /**
  * Telling the admins that somebody is waiting.
  *
@@ -21,37 +26,17 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
  * Nothing about anybody else is in the mail, and it goes only to addresses
  * that are admins in this database, never to an address from the request.
  *
- * ## Why Resend
+ * ## How it is sent
  *
  * Supabase's own SMTP settings send the auth emails and nothing else; a
- * transactional mail to a third party needs a provider. Resend is one HTTPS
- * call with an API key, which is the whole of the integration — `RESEND_API_KEY`
- * and, optionally, `MAIL_FROM`. Without the key the function is a no-op that
+ * transactional mail to a third party needs a way out of its own. This one
+ * goes the way every mail from these functions goes (_shared/send.ts): SMTP
+ * with an app password when SMTP_HOST, SMTP_USER and SMTP_PASS are set, and
+ * Resend when RESEND_API_KEY is. Without either the function is a no-op that
  * says so rather than an error: an approval queue that nobody was emailed about
  * is a slower workflow, not a broken one, and a signup must never fail because
  * a mail provider is down.
  */
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  })
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -96,28 +81,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const to = (admins ?? []).map((a) => a.email as string).filter(Boolean)
   if (to.length === 0) return json({ sent: false, reason: 'no admin has an email address' })
 
-  const key = Deno.env.get('RESEND_API_KEY')
-  if (!key) {
+  const transport = transportFrom((key) => Deno.env.get(key))
+  if (transport.kind === 'none') {
     // Not an error. The queue in the portal is the source of truth; this mail
     // is a nudge towards it, and a missing nudge must not fail a signup.
-    console.log(`pending teacher ${person.display_id}; no RESEND_API_KEY, so no mail sent`)
-    return json({ sent: false, reason: 'RESEND_API_KEY is not set' })
+    console.log(`pending teacher ${person.display_id}; ${transport.reason}`)
+    return json({ sent: false, reason: transport.reason })
   }
 
-  const from = Deno.env.get('MAIL_FROM') ?? 'Ascend Now <onboarding@resend.dev>'
-  const appUrl = Deno.env.get('APP_URL') ?? ''
   const name = escapeHtml(person.full_name || 'Somebody')
   const email = escapeHtml(person.email ?? 'no email on the account')
-  const link = appUrl ? `${appUrl.replace(/\/$/, '')}/admin/users` : ''
+  const link = `${appBase(Deno.env.get('APP_URL'))}/admin/users`
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from,
-      to,
-      subject: `${person.full_name || 'A teacher'} is waiting for approval`,
-      html: `
+  const sent = await sendMail(transport, {
+    to,
+    subject: `${person.full_name || 'A teacher'} is waiting for approval`,
+    text: [
+      `${person.full_name || 'Somebody'} (${person.email ?? 'no email on the account'}) has made a teacher account and is waiting for approval.`,
+      '',
+      'They can see nothing at all until an admin approves them.',
+      '',
+      `Review it in Users: ${link}`,
+    ].join('\n'),
+    html: `
         <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1E2752;line-height:1.55">
           <h2 style="margin:0 0 12px;font-size:18px">A teacher account is waiting</h2>
           <p style="margin:0 0 6px"><strong>${name}</strong> — ${email}</p>
@@ -126,20 +112,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
             They can see nothing at all until an admin approves them — not a session, not a
             question, not a student — because a teacher account reads every answer key in the bank.
           </p>
-          ${
-            link
-              ? `<p style="margin:0"><a href="${link}" style="background:#CEE177;color:#1E2752;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Review it in Users</a></p>`
-              : `<p style="margin:0;color:#8796C6">Open Users in the admin portal to approve or ignore it.</p>`
-          }
+          <p style="margin:0"><a href="${link}" style="background:#CEE177;color:#1E2752;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Review it in Users</a></p>
         </div>
       `,
-    }),
   })
 
-  if (!response.ok) {
-    const detail = await response.text()
-    return json({ sent: false, reason: `the mail provider refused it: ${detail}` }, 502)
-  }
-
+  if (!sent.sent) return json({ sent: false, reason: sent.reason }, 502)
   return json({ sent: true, to })
 })

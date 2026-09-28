@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
+import { Account } from './pages/Account'
 import { AdminSession } from './pages/AdminSession'
 import { AdminTeacher } from './pages/AdminTeacher'
 import { AdminUsers } from './pages/AdminUsers'
@@ -27,8 +28,8 @@ export function App() {
   // holds it. It is matched before anything asks who is signed in, because the
   // answer is "nobody" and that is the whole idea: no gate, no redirect to a
   // login, and no waiting on an auth check that is going to come back empty.
-  const { pathname } = useLocation()
-  if (pathname.startsWith('/s/')) {
+  const location = useLocation()
+  if (location.pathname.startsWith('/s/')) {
     return (
       <Routes>
         <Route path="/s/:token" element={<StudentLink />} />
@@ -43,7 +44,10 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Where they were going comes along, so a link in an email — a PC's
+            report, say — lands on the session once they have signed in
+            rather than on the dashboard. */}
+        <Route path="*" element={<Navigate to="/login" replace state={{ from: location }} />} />
       </Routes>
     )
   }
@@ -57,8 +61,17 @@ export function App() {
   // errors rather than a smaller product.
   if (isPending) return <Pending />
 
+  // Signed in while still on the sign-in page: on to wherever they were going
+  // when they were sent to it. The sign-in page asks for the same thing, but
+  // this router can win the race to render first, and "/login" is not one of
+  // its pages.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+  const onward = from?.pathname && from.pathname !== '/login' ? `${from.pathname}${from.search ?? ''}` : '/'
+
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to={onward} replace />} />
+
       {/* The exam sits outside the shell on purpose: while a paper is open the
           student should see the paper and nothing else. */}
       <Route path="/exam/:id" element={<Exam />} />
@@ -68,6 +81,7 @@ export function App() {
         <Route path="/sessions" element={<Sessions />} />
         <Route path="/sessions/:id" element={<SessionRoom />} />
         <Route path="/sessions/:id/report" element={<SessionReport />} />
+        <Route path="/account" element={<Account />} />
         {isAdmin && (
           <>
             <Route path="/admin/users" element={<AdminUsers />} />

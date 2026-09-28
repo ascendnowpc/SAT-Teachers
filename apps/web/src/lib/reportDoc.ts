@@ -173,6 +173,25 @@ export function buildReportDoc(input: {
 
 // ------------------------------------------------------------- read-backs --
 
+/**
+ * Whether there is anything to show for this question.
+ *
+ * The recording's findings, and also the note the teacher typed against the
+ * question during the lesson — that is something said about it too, and
+ * filtering on the recording alone dropped it off the page entirely on a
+ * question the recording happened to miss.
+ */
+export function hasFindings(question: QuestionSection): boolean {
+  const r = question.reading
+  return Boolean(
+    question.teacherNote ||
+      r?.studentReasoning ||
+      r?.misunderstanding ||
+      r?.vocabularyGap ||
+      (r?.teacherFeedback.length ?? 0) > 0,
+  )
+}
+
 /** Every question where the teacher actually said something, in paper order. */
 export function questionsWithFeedback(doc: ReportDoc): QuestionSection[] {
   return doc.questions.filter((q) => (q.reading?.teacherFeedback.length ?? 0) > 0)

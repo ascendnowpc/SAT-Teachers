@@ -28,12 +28,18 @@ interface AuthValue {
    * in the bank, so this is a real state a real person sits in.
    */
   isPending: boolean
+  /**
+   * An active PC (0055): reads the sessions and reports of the students
+   * assigned to them, and nothing else. Not staff — no bank, no answer keys,
+   * no other students.
+   */
+  isPc: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (args: {
     email: string
     password: string
     fullName: string
-    role: Exclude<Role, 'admin'>
+    role: Exclude<Role, 'admin' | 'pc'>
   }) => Promise<{ needsConfirmation: boolean }>
   signOut: () => Promise<void>
 }
@@ -125,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isTeacher: (profile?.role === 'teacher' || profile?.role === 'admin') && profile.is_active,
       isAdmin: profile?.role === 'admin' && profile.is_active,
       isPending: profile?.role === 'teacher' && !profile.is_active,
+      isPc: profile?.role === 'pc' && profile.is_active,
       signIn,
       signUp,
       signOut,
