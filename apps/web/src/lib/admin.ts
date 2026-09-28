@@ -74,6 +74,8 @@ export interface Tally {
   answered: number
   /** Completed sessions whose report has not been published. */
   outstanding: number
+  /** Sessions whose report has been generated, published ones included. */
+  generated: number
   published: number
 }
 
@@ -86,6 +88,7 @@ function emptyTally(): Tally {
     cancelled: 0,
     answered: 0,
     outstanding: 0,
+    generated: 0,
     published: 0,
   }
 }
@@ -95,6 +98,7 @@ function count(tally: Tally, session: Session, stage: ReportStage): void {
   tally[session.status] += 1
   tally.answered += session.answered_count ?? 0
   if (stage === 'published') tally.published += 1
+  if (stage === 'generated' || stage === 'published') tally.generated += 1
   if (isOutstanding(session.status, stage)) tally.outstanding += 1
 }
 
@@ -189,6 +193,48 @@ export function studentRows(
   }
 
   return [...rows.values()].sort(byActivity)
+}
+
+/**
+ * Every PC, with their students and those students' sessions (0055).
+ *
+ * The counterparts are the students assigned to them — all of them, including
+ * one whose sessions have not happened yet — and the tally is those students'
+ * sessions, whoever taught them: what a PC is answerable for is their students,
+ * not a teacher's timetable. A PC nobody has been given yet still has a row,
+ * for the same reason an unused teacher account does.
+ */
+export function pcRows(
+  profiles: Profile[],
+  sessions: Session[],
+  stages: Stages,
+  now = Date.now(),
+): PersonRow[] {
+  const rows = new Map<string, PersonRow>()
+  for (const p of profiles) {
+    if (p.role === 'pc') rows.set(p.id, blank(p))
+  }
+
+  const pcOf = new Map<string, string>()
+  for (const p of profiles) {
+    if (p.role !== 'student' || !p.pc_id) continue
+    const row = rows.get(p.pc_id)
+    if (!row) continue
+    pcOf.set(p.id, p.pc_id)
+    remember(row, p.id, p.full_name)
+  }
+
+  for (const s of sessions) {
+    const row = rows.get(pcOf.get(s.student_id) ?? '')
+    if (!row) continue
+    count(row.tally, s, stageOf(stages, s.id))
+    mark(row, s, now)
+  }
+
+  return [...rows.values()].sort((a, b) => {
+    if (a.counterparts.length !== b.counterparts.length) return b.counterparts.length - a.counterparts.length
+    return a.profile.full_name.localeCompare(b.profile.full_name)
+  })
 }
 
 /**

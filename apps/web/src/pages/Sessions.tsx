@@ -39,7 +39,10 @@ const SESSION_SELECT =
  * that student on the hard test — where a heading never could.
  */
 export function Sessions() {
-  const { isTeacher, isAdmin } = useAuth()
+  const { isTeacher, isAdmin, isPc } = useAuth()
+  // A PC reads the list from the staff side: their students, and the teachers
+  // who taught them (0055). They open a session to read it; they book nothing.
+  const staff = isTeacher || isPc
   const navigate = useNavigate()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -64,9 +67,13 @@ export function Sessions() {
   }, [load])
 
   const students = useMemo(() => studentOptions(sessions), [sessions])
-  // An admin's list spans the whole school, so it needs the other axis too.
-  // A teacher's is all their own sessions and the filter would hold one name.
-  const teachers = useMemo(() => (isAdmin ? teacherOptions(sessions) : []), [sessions, isAdmin])
+  // An admin's list spans the whole school, so it needs the other axis too, and
+  // a PC's spans every teacher their students have had. A teacher's is all
+  // their own sessions and the filter would hold one name.
+  const teachers = useMemo(
+    () => (isAdmin || isPc ? teacherOptions(sessions) : []),
+    [sessions, isAdmin, isPc],
+  )
   const shown = useMemo(
     () => sortSessions(filterSessions(sessions, filters), sort),
     [sessions, filters, sort],
@@ -98,7 +105,9 @@ export function Sessions() {
               ? isAdmin
                 ? 'Every session in the school. Narrow by teacher, student, or anything else you are looking for.'
                 : 'Every session you have run or scheduled. Search a student, or narrow by what you are looking for.'
-              : 'Your tutoring sessions. Open one once its time has come.'}
+              : isPc
+                ? 'Every session of the students you are PC to. Open one to read it and its report.'
+                : 'Your tutoring sessions. Open one once its time has come.'}
           </p>
         </div>
         <div className="spring" />
@@ -117,7 +126,7 @@ export function Sessions() {
           type="search"
           value={filters.query}
           placeholder={
-            isTeacher ? 'Search a student, teacher, PC, id or title…' : 'Search a teacher or a title…'
+            staff ? 'Search a student, teacher, PC, id or title…' : 'Search a teacher or a title…'
           }
           aria-label="Search sessions"
           onChange={(e) => set('query', e.target.value)}
@@ -136,7 +145,7 @@ export function Sessions() {
           <option value="cancelled">Cancelled</option>
         </Select>
 
-        {isAdmin && teachers.length > 1 && (
+        {(isAdmin || isPc) && teachers.length > 1 && (
           <Select
             value={filters.teacher}
             aria-label="Filter by teacher"
@@ -151,7 +160,7 @@ export function Sessions() {
           </Select>
         )}
 
-        {isTeacher && students.length > 1 && (
+        {staff && students.length > 1 && (
           <Select
             value={filters.student}
             aria-label="Filter by student"
@@ -169,7 +178,7 @@ export function Sessions() {
         {/* The level is the teacher's judgement about the student, and a
             student reading "hard test" beside their own session learns the one
             thing their exam screen no longer tells them. */}
-        {isTeacher && (
+        {staff && (
           <Select
             value={filters.level}
             aria-label="Filter by level"
@@ -217,7 +226,9 @@ export function Sessions() {
             <p>
               {isTeacher
                 ? 'Create a session with a student and send them the link. That is the whole of it.'
-                : 'Once a teacher schedules a session with you, it will show up here.'}
+                : isPc
+                  ? 'None of your students has a session yet. A student becomes yours when a teacher books them with you as their PC.'
+                  : 'Once a teacher schedules a session with you, it will show up here.'}
             </p>
             {isTeacher && (
               <Link className="btn btn-primary" to="/sessions/new">
@@ -244,13 +255,13 @@ export function Sessions() {
                 <tr>
                   <SortHead label="When" k="when" sort={sort} onSort={toggleSort} />
                   <SortHead
-                    label={isTeacher ? 'Student' : 'Teacher'}
+                    label={staff ? 'Student' : 'Teacher'}
                     k="student"
                     sort={sort}
                     onSort={toggleSort}
                   />
                   <SortHead label="Session" k="title" sort={sort} onSort={toggleSort} />
-                  {isTeacher && <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />}
+                  {staff && <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />}
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
                   <th>Answered</th>
                   <th aria-label="Actions" />
@@ -258,7 +269,7 @@ export function Sessions() {
               </thead>
               <tbody>
                 {shown.map((s) => (
-                  <SessionRow key={s.id} session={s} isTeacher={isTeacher} onOpen={navigate} />
+                  <SessionRow key={s.id} session={s} staff={staff} canLink={isTeacher} onOpen={navigate} />
                 ))}
               </tbody>
             </table>
@@ -293,18 +304,22 @@ function SortHead({
 
 function SessionRow({
   session: s,
-  isTeacher,
+  staff,
+  canLink,
   onOpen,
 }: {
   session: Session
-  isTeacher: boolean
+  /** Read from the staff side: the student is the counterpart, and the row opens the session. */
+  staff: boolean
+  /** Offer the student's link. A teacher's; a PC books and sends nothing. */
+  canLink: boolean
   onOpen: (to: string) => void
 }) {
   // Every session time in the product is written in UTC, so a teacher and a
   // student in different countries mean the same moment by it.
   const when = utcParts(s.scheduled_at)
-  const counterpart = isTeacher ? s.student : s.teacher
-  const to = isTeacher ? `/sessions/${s.id}` : `/exam/${s.id}`
+  const counterpart = staff ? s.student : s.teacher
+  const to = staff ? `/sessions/${s.id}` : `/exam/${s.id}`
   const token = s.access_token ?? null
 
   return (
@@ -325,7 +340,7 @@ function SessionRow({
             <div className="cell-strong">{counterpart.full_name}</div>
             <div className="cell-sub">
               <span className="num">{counterpart.display_id}</span>
-              {isTeacher && s.student?.pc && <> · {s.student.pc}</>}
+              {staff && s.student?.pc && <> · {s.student.pc}</>}
             </div>
           </>
         ) : (
@@ -338,7 +353,7 @@ function SessionRow({
           {subjectLabel(s.subject)} · {s.duration_mins} min
         </div>
       </td>
-      {isTeacher && (
+      {staff && (
         <td>
           <LevelsSat session={s} />
         </td>
@@ -353,7 +368,7 @@ function SessionRow({
         {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
       </td>
       <td className="row-actions">
-        {isTeacher && token && <CopyButton value={studentLink(token)} label="Student link" />}
+        {canLink && token && <CopyButton value={studentLink(token)} label="Student link" />}
         <Link className="btn btn-ghost btn-sm" to={to} onClick={(e) => e.stopPropagation()}>
           Open
         </Link>

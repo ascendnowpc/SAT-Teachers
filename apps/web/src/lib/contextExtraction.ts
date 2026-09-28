@@ -1,5 +1,6 @@
 import { inferRoles, suggestOffset, type Role } from './analysis'
 import type { Drop, Extraction } from './extraction.ts'
+import { readFunctionError } from './functions'
 import { askOrder } from './report'
 import { supabase } from './supabase'
 import { DEFAULT_OFFSET_SECONDS, parseTranscript, windowsFor } from './transcript'
@@ -118,17 +119,6 @@ export async function readRecording(input: {
   }
   if (!data) throw new Error('the reading came back empty')
   return data
-}
-
-async function readFunctionError(error: unknown): Promise<string | null> {
-  const response = (error as { context?: Response })?.context
-  if (!response || typeof response.json !== 'function') return null
-  try {
-    const body = await response.json()
-    return typeof body?.error === 'string' ? body.error : null
-  } catch {
-    return null
-  }
 }
 
 /** The stored reading, or null when the recording has not been read yet. */

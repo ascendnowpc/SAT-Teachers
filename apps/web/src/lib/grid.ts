@@ -1,7 +1,7 @@
-import { SKILLS, sectionLabel } from './constants'
+import { SKILLS, sectionLabel } from './constants.ts'
 import { DOMAINS, domainOrder } from './domains.ts'
-import type { Report } from './report'
-import type { Subject } from './types'
+import type { Report } from './report.ts'
+import type { Subject } from './types.ts'
 
 /**
  * The teacher evaluation grid.

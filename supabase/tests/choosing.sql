@@ -50,6 +50,7 @@ declare
   med6 uuid; med7 uuid; med8 uuid;
   hard3 uuid; math1 uuid; stray uuid;
   n int; txt text; want text;
+  pc profiles;
 begin
   -- Read as the migration role: question_set_items is teacher-only, and these
   -- are the expectations, not something either seat is being tested on.
@@ -91,6 +92,10 @@ begin
   -- A teacher account arrives pending (0044). Approving it is an admin's job;
   -- with no JWT this is the migration role, which the guard lets through.
   update profiles set is_active = true where id in (t_id, x_id);
+
+  -- A student is booked with their PC or not at all (0055).
+  pc := create_pc_profile('Pat', 'Coordinator', 'choose.pc@example.test');
+  update profiles set pc_id = pc.id where id = s_id;
 
   -- ============ a session, not yet started ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
@@ -362,7 +367,7 @@ begin
   -- note in level_session.sql for why they are not rewound.
   delete from sessions where id = sess;
   -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
-  delete from profiles where id in (t_id, x_id, s_id);
+  delete from profiles where id in (t_id, x_id, s_id, pc.id);
   delete from auth.users where id in (t_id, x_id, s_id);
 end $fn$;
 

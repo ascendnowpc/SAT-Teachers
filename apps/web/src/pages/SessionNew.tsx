@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom'
 import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
 import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
 import { LEVELS, SUBJECTS } from '../lib/constants'
+import { loadPcs } from '../lib/pcApi'
+import { choosable } from '../lib/pcs'
 import { studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { defaultUtcSlot, utcInputToIso } from '../lib/time'
@@ -18,8 +21,17 @@ import type { Profile, QuestionSet, Session, Subject } from '../lib/types'
  * typed in here — first name, last name, and the PC they sit under. The second
  * kind is written straight to the roster and has no account at all, because
  * they do not need one: what they get is a link.
+ *
+ * The PC is chosen from the list, and a session is not booked without one
+ * (0055). A student's first booking is where their PC is chosen — for a new
+ * student and for one already on the roster who has none — and from then on
+ * the student has that PC: it is shown here, fixed, and only an admin can
+ * change it, because changing it moves every report the student has to
+ * somebody else. The PC reads the student's sessions and is emailed each
+ * report as it is generated.
  */
 export function SessionNew() {
+  const { isAdmin } = useAuth()
   const [students, setStudents] = useState<Profile[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
 
@@ -28,7 +40,12 @@ export function SessionNew() {
   const [studentId, setStudentId] = useState('')
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
-  const [pc, setPc] = useState('')
+
+  /** Every PC; the ones that can be chosen are the active ones. */
+  const [pcs, setPcs] = useState<Profile[]>([])
+  const [pcsRead, setPcsRead] = useState(false)
+  /** The PC this booking is under: chosen here, or the student's own. */
+  const [pcId, setPcId] = useState('')
 
   const [subject, setSubject] = useState<Subject>('english')
   const [title, setTitle] = useState('')
@@ -89,6 +106,19 @@ export function SessionNew() {
 
   useEffect(() => {
     let active = true
+    void loadPcs().then(({ pcs: list, error: err }) => {
+      if (!active) return
+      if (err) setError(err)
+      setPcs(list)
+      setPcsRead(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
     void supabase
       .from('profiles')
       .select('*')
@@ -117,6 +147,31 @@ export function SessionNew() {
     [students],
   )
 
+  const pcOptions = useMemo<ComboboxOption[]>(
+    () =>
+      pcs.filter(choosable).map((p) => ({
+        value: p.id,
+        label: p.full_name,
+        hint: [p.display_id, p.email].filter(Boolean).join(' · '),
+      })),
+    [pcs],
+  )
+
+  const chosen = mode === 'existing' ? (students.find((s) => s.id === studentId) ?? null) : null
+  /** The chosen student already has a PC: their first booking chose it. */
+  const assigned = chosen?.pc_id ? (pcs.find((p) => p.id === chosen.pc_id) ?? null) : null
+  const locked = Boolean(chosen?.pc_id) && !isAdmin
+
+  // The student's own PC comes up with them. Picking another student, or
+  // switching to a new one, starts the choice again.
+  useEffect(() => {
+    setPcId(mode === 'existing' ? (chosen?.pc_id ?? '') : '')
+  }, [mode, chosen?.id, chosen?.pc_id])
+
+  const noPcs = pcsRead && pcOptions.length === 0
+  // Fixed and already on the row, or chosen here from the ones that can be.
+  const pcReady = locked || pcOptions.some((o) => o.value === pcId)
+
   // Both names, because the display id is built from them: three letters of
   // the given name and the first of the surname. Without a surname
   // build_display_id falls back to the fourth letter of the given name, so
@@ -124,7 +179,10 @@ export function SessionNew() {
   // longer says who it belongs to. create_student refuses it too.
   const namedNewStudent = first.trim() !== '' && last.trim() !== ''
   const canSubmit =
-    !busy && scheduledAt !== '' && (mode === 'existing' ? studentId !== '' : namedNewStudent)
+    !busy &&
+    scheduledAt !== '' &&
+    pcReady &&
+    (mode === 'existing' ? studentId !== '' : namedNewStudent)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -137,18 +195,32 @@ export function SessionNew() {
       if (!teacherId) throw new Error('Your session expired. Sign in again.')
 
       // The student first, because a session cannot be written without one —
-      // and if this fails nothing has been half-created.
+      // and if this fails nothing has been half-created. Their PC with them:
+      // the database will not book a student who has none (0055).
       let student = students.find((s) => s.id === studentId) ?? null
       if (mode === 'new') {
         const { data, error: err } = await supabase.rpc('create_student', {
           p_first: first.trim(),
           p_last: last.trim(),
-          p_pc: pc.trim() || null,
+          p_pc_id: pcId,
         })
         if (err) throw new Error(err.message)
         student = row<Profile>(data)
         if (!student) throw new Error('The student could not be created.')
         setStudents((prev) => [...prev, student as Profile])
+      } else if (student && pcId && student.pc_id !== pcId) {
+        // Their first booking, which is where a PC is chosen — or an admin
+        // changing the one they have.
+        const { data, error: err } = await supabase.rpc('assign_student_pc', {
+          p_student: student.id,
+          p_pc_id: pcId,
+        })
+        if (err) throw new Error(err.message)
+        const updated = row<Profile>(data)
+        if (updated) {
+          student = updated
+          setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+        }
       }
       if (!student) throw new Error('Pick a student for this session.')
       if (bankRead && !runnable.includes(subject)) {
@@ -253,16 +325,20 @@ export function SessionNew() {
                   />
                 </Field>
               </div>
-              <Field label="PC">
-                <Input
-                  value={pc}
-                  onChange={(e) => setPc(e.target.value)}
-                  placeholder="Priya Rao"
-                  autoComplete="off"
-                />
-              </Field>
             </>
           )}
+
+          <PcField
+            options={pcOptions}
+            value={pcId}
+            onChange={setPcId}
+            loading={!pcsRead}
+            locked={locked}
+            assigned={assigned}
+            student={chosen}
+            isAdmin={isAdmin}
+            noPcs={noPcs}
+          />
         </div>
 
         <div className="card card-pad">
@@ -376,5 +452,87 @@ function Created({ session }: { session: Session }) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The student's PC: chosen from the list, required, and fixed once chosen.
+ *
+ * What it says depends on where the student is up to. A new student, or one
+ * with no PC yet, is having theirs chosen now — that is the rule, and the
+ * field says so. One who has a PC shows it, and a teacher cannot change it
+ * here; an admin can. A student from before PCs had accounts may have a name
+ * typed against them, which is offered as a reminder rather than a choice,
+ * since it is nobody who can sign in.
+ */
+function PcField({
+  options,
+  value,
+  onChange,
+  loading,
+  locked,
+  assigned,
+  student,
+  isAdmin,
+  noPcs,
+}: {
+  options: ComboboxOption[]
+  value: string
+  onChange: (id: string) => void
+  loading: boolean
+  locked: boolean
+  assigned: Profile | null
+  student: Profile | null
+  isAdmin: boolean
+  noPcs: boolean
+}) {
+  if (noPcs && !locked) {
+    return (
+      <Notice kind="error">
+        There are no PCs to choose from yet, and a session cannot be booked without the student’s PC.{' '}
+        {isAdmin ? (
+          <>
+            Add one under <Link to="/admin/users?tab=pcs">Users → PCs</Link>.
+          </>
+        ) : (
+          'Ask an admin to add one under Users.'
+        )}
+      </Notice>
+    )
+  }
+
+  if (locked) {
+    return (
+      <Field
+        label="PC"
+        hint={
+          assigned && !assigned.is_active
+            ? `${assigned.full_name} is suspended, so reports are not emailed to anyone. An admin can choose another PC for this student.`
+            : 'Chosen at their first session. Only an admin can change it.'
+        }
+      >
+        <Input value={assigned?.full_name ?? student?.pc ?? 'Their PC'} disabled readOnly />
+      </Field>
+    )
+  }
+
+  const typedBefore = student && !student.pc_id && student.pc ? student.pc : null
+  const hint = student?.pc_id
+    ? 'Changing it moves this student’s sessions and reports to the PC you choose.'
+    : typedBefore
+      ? `Their first session with a PC chosen from the list — it was written down before as “${typedBefore}”.`
+      : 'Chosen now, at the student’s first session, and theirs from then on. The PC reads their sessions and is emailed each report.'
+
+  return (
+    <Field label="PC" required hint={hint}>
+      <Combobox
+        options={options}
+        value={value}
+        onChange={onChange}
+        disabled={loading}
+        placeholder={loading ? 'Loading…' : 'Choose their PC'}
+        emptyText="No PC matches"
+      />
+    </Field>
   )
 }

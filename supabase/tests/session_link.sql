@@ -14,6 +14,11 @@
 --      surname's initial and a first name alone silently changes what that
 --      letter means
 --
+--  0055 — and comes with their PC
+--    * the PC is chosen by id and is required: none, or somebody who is not a
+--      PC, is refused
+--    * the name printed beside the student is the PC's own
+--
 --  0033 — the session is a link
 --    * every session has a token, and no two share one
 --    * a wrong token is refused, and says nothing about what exists
@@ -68,6 +73,7 @@ declare
   tok   text; tok2 text;
   item  uuid; foreign_item uuid;
   body  jsonb; n int; txt text; v_draft text;
+  pc    profiles;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -89,10 +95,15 @@ begin
   -- role, which the identity guard lets through.
   update profiles set is_active = true where id in (t_id, x_id);
 
+  -- Both students here are booked, and a student is booked with their PC or
+  -- not at all (0055). The roster one gets theirs from create_student below.
+  pc := create_pc_profile('Pat', 'Coordinator', 'link.pc@example.test');
+  update profiles set pc_id = pc.id where id = a_id;
+
   -- ============ 1. the roster student ============
   perform set_config('request.jwt.claims', json_build_object('sub',a_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
-  begin perform create_student('Not','Allowed', null); txt := 'created';
+  begin perform create_student('Not','Allowed', pc.id); txt := 'created';
   exception when others then txt := 'refused'; end;
   return query select '1 roster'::text,'a student cannot add a student'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
@@ -101,23 +112,37 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
-  select * from create_student('Amara', 'Okonkwo', 'Priya Rao') into roster;
+  select * from create_student('Amara', 'Okonkwo', pc.id) into roster;
   return query select '1 roster'::text,'the teacher adds one'::text,'Amara Okonkwo'::text,roster.full_name,
     (case when roster.full_name='Amara Okonkwo' then 'PASS' else 'FAIL' end)::text;
   -- The same shape signup produces: four letters, the year, a serial per role.
   return query select '1 roster'::text,'with a display id of the usual shape'::text,'AMAO26-n'::text,
     roster.display_id,
     (case when roster.display_id ~ '^AMAO[0-9]{2}-[0-9]+$' then 'PASS' else 'FAIL' end)::text;
-  return query select '1 roster'::text,'and the PC as written'::text,'Priya Rao'::text,coalesce(roster.pc,'(null)'),
-    (case when roster.pc='Priya Rao' then 'PASS' else 'FAIL' end)::text;
+  -- The PC is a person now (0055): the row points at them, and the name the
+  -- screens print beside the student is theirs, not something typed.
+  return query select '1 roster'::text,'with their PC, by name'::text,'Pat Coordinator'::text,
+    coalesce(roster.pc,'(null)') || (case when roster.pc_id = pc.id then '' else ' (not linked)' end),
+    (case when roster.pc = 'Pat Coordinator' and roster.pc_id = pc.id then 'PASS' else 'FAIL' end)::text;
+
+  begin perform create_student('Amara', 'Okonkwo', null); txt := 'created';
+  exception when others then txt := 'refused'; end;
+  return query select '1 roster'::text,'without a PC it is refused'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
+
+  -- Somebody's id is not a PC because it was sent as one.
+  begin perform create_student('Amara', 'Okonkwo', x_id); txt := 'created';
+  exception when others then txt := 'refused'; end;
+  return query select '1 roster'::text,'and so is a teacher sent as the PC'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   -- A first name alone would build AMAR26 rather than AMAO26 — a code whose
   -- fourth letter no longer means the surname.
-  begin perform create_student('Amara', '', null); txt := 'created';
+  begin perform create_student('Amara', '', pc.id); txt := 'created';
   exception when others then txt := 'refused'; end;
   return query select '1 roster'::text,'a first name alone is refused'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
-  begin perform create_student('', 'Okonkwo', null); txt := 'created';
+  begin perform create_student('', 'Okonkwo', pc.id); txt := 'created';
   exception when others then txt := 'refused'; end;
   return query select '1 roster'::text,'and so is a surname alone'::text,'refused'::text,txt,
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
@@ -376,6 +401,14 @@ begin
   -- What the link is made of. anon has to reach every one. Moving the level
   -- is not among them: it is the teacher's since 0047, and the link's own
   -- door to it is gone.
+  -- The free-text PC's two doors, closed by 0055: a PC is chosen by id now.
+  for txt in select unnest(array['create_student(text,text,text)', 'set_student_pc(uuid,text)']) loop
+    return query select '6 grants'::text, txt || ' — dropped',
+      'absent'::text,
+      (case when to_regprocedure('public.'||txt) is null then 'absent' else 'present' end),
+      (case when to_regprocedure('public.'||txt) is null then 'PASS' else 'FAIL' end)::text;
+  end loop;
+
   return query select '6 grants'::text, 'set_level_by_token(text,text) — dropped'::text,
     'absent'::text,
     (case when to_regprocedure('public.set_level_by_token(text,text)') is null
@@ -399,8 +432,8 @@ begin
 
   -- And the ones that need a signed-in caller. anon must not reach them even
   -- to be refused; authenticated must, or the app cannot work.
-  for txt in select unnest(array['create_student(text,text,text)',
-                                 'set_student_pc(uuid,text)',
+  for txt in select unnest(array['create_student(text,text,uuid)',
+                                 'assign_student_pc(uuid,uuid)',
                                  'teacher_start_session(uuid)',
                                  'teacher_finish_session(uuid)',
                                  'teacher_answer_item(uuid,answer_option,answer_option[],smallint,text)',
@@ -434,7 +467,7 @@ begin
   -- note in level_session.sql for why they are not rewound.
   delete from sessions where id in (sess, other);
   -- 0032 dropped the cascade from auth.users, so the profiles go by hand now.
-  delete from profiles where id in (roster.id, t_id, x_id, a_id);
+  delete from profiles where id in (roster.id, t_id, x_id, a_id, pc.id);
   delete from auth.users where id in (t_id, x_id, a_id);
 end $fn$;
 

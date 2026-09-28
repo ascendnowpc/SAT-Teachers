@@ -9,6 +9,7 @@ import {
   rate,
   reportStage,
   schoolTally,
+  pcRows,
   stagesBySession,
   studentRows,
   teacherRows,
@@ -23,6 +24,7 @@ function profile(id: string, role: Profile['role'], extra: Partial<Profile> = {}
     full_name: id.toUpperCase(),
     email: `${id}@example.test`,
     pc: null,
+    pc_id: null,
     is_active: true,
     suspended_at: null,
     created_at: '2026-01-01T00:00:00Z',
@@ -358,5 +360,49 @@ describe('sessionsByStudent', () => {
     expect(group.name).toBe('Amara Osei')
     expect(group.displayId).toBe('AMAO26-3')
     expect(group.pc).toBe('PC-9')
+  })
+})
+
+describe('pcRows', () => {
+  // Two PCs, one with two students and one with none; a third student has no
+  // PC at all. The PC's tally is their students' sessions, whoever taught them.
+  const profiles = [
+    profile('p1', 'pc', { full_name: 'Priya Rao' }),
+    profile('p2', 'pc', { full_name: 'Omar Haddad' }),
+    profile('s1', 'student', { pc_id: 'p1', full_name: 'Amara Osei' }),
+    profile('s2', 'student', { pc_id: 'p1', full_name: 'Jo Kim' }),
+    profile('s3', 'student'),
+    profile('t1', 'teacher'),
+    profile('t2', 'teacher'),
+  ]
+  const sessions = [
+    session('a', 't1', 's1', '2026-03-01T10:00:00Z'),
+    session('b', 't2', 's1', '2026-03-08T10:00:00Z'),
+    session('c', 't1', 's3', '2026-03-09T10:00:00Z'),
+  ]
+  const stages = stagesBySession([
+    report('a', { status: 'published', published_at: '2026-03-02T00:00:00Z', generated_at: '2026-03-01T12:00:00Z' }),
+    report('b', { generated_at: '2026-03-08T12:00:00Z', form_submitted_at: '2026-03-08T11:00:00Z' }),
+  ])
+
+  it('lists every PC, the one with no students too', () => {
+    const rows = pcRows(profiles, sessions, stages)
+    expect(rows.map((r) => r.profile.id)).toEqual(['p1', 'p2'])
+    expect(rows[1].counterparts).toEqual([])
+    expect(rows[1].tally.total).toBe(0)
+  })
+
+  it('counts their students, and their students’ sessions whoever taught them', () => {
+    const [priya] = pcRows(profiles, sessions, stages)
+    expect(priya.counterparts.map((c) => c.name)).toEqual(['Amara Osei', 'Jo Kim'])
+    expect(priya.tally.total).toBe(2)
+    expect(priya.tally.generated).toBe(2)
+    expect(priya.tally.published).toBe(1)
+    expect(priya.lastAt).toBe('2026-03-08T10:00:00Z')
+  })
+
+  it('is found by a student’s name, as the other tables are', () => {
+    const rows = pcRows(profiles, sessions, stages)
+    expect(filterPeople(rows, 'jo kim').map((r) => r.profile.id)).toEqual(['p1'])
   })
 })

@@ -28,7 +28,8 @@ npm run dev                                    # http://localhost:5173
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
-| **The roster** | Add a student from the New session form: first name, last name, their PC. No sign-up |
+| **The roster** | Add a student from the New session form: first name, last name, and their PC, chosen from the list. No sign-up |
+| **PCs** | Accounts an admin adds, emailed their sign-in. A student's PC is chosen at their first booking and cannot be skipped; the PC reads that student's sessions and reports, and is emailed every report as a PDF with a link to the session |
 | **The link** | Every session carries one. Send it and the student is in — no account, no login |
 | **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
 | **The level** | The session starts on easy and the teacher moves it. The student is never told which test they are on |
@@ -192,10 +193,11 @@ There is nothing to prepare.
 of it. No paper to build, nothing to stage, nothing to hand over during the lesson.
 
 **The student is a roster row, not an account.** If the teacher already has them, they pick them
-by name, id or PC. If not, they type first name, last name and PC into the same form and
-the student is created as the session is — `create_student` (0032), teacher-only. There is no
-student sign-up any more, and `profiles.id` no longer references `auth.users`, because a roster
-student has no auth user to point at.
+by name, id or PC. If not, they type first name and last name into the same form, choose their PC
+from the list, and the student is created as the session is — `create_student` (0032, 0055),
+teacher-only. There is no student sign-up any more, and `profiles.id` no longer references
+`auth.users`, because a roster student has no auth user to point at. **No session is booked without
+the student's PC** — see [PCs](#pcs).
 
 **The session is a link.** Every session carries a 64-character token and the form hands it back
 the moment the session exists: `/s/<token>`. Opening it puts the student straight into their own
@@ -557,7 +559,7 @@ see the question bank and not one session, not one form and not one report. `004
 
 | | |
 | --- | --- |
-| **Users** | Teachers, students, and the queue of teacher accounts waiting to be verified |
+| **Users** | Teachers, students, PCs (added, given a new password or suspended here, and changed on a student's row), and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
 | **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary — and the way into all of it: the console, the form, the transcript, generating, and the report's editor, where it is published (`0050`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
@@ -670,6 +672,71 @@ The rest of the pass over the schema, the grants, the edge function and what is 
 was found, what `0044` fixed and what is still open — is in
 [`docs/reference/security-review.md`](docs/reference/security-review.md).
 
+## PCs
+
+A student's PC used to be a line of text typed into the booking form — a name that identified
+somebody to the teachers and to nobody else. It is a person now (`0054`, `0055`): somebody who signs
+in, is chosen from a list, reads their students' sessions, and is sent every report.
+
+```
+admin adds a PC under Users → PCs            first name, last name, email
+  → the PC is emailed their sign-in          the address and a temporary password
+teacher books a student's first session
+  → chooses the student's PC from the list   required: the form will not book without it
+  → that PC is the student's from now on     shown, fixed, on every later booking
+report generated                             by the teacher or an admin, from the console
+  → the PC is emailed the PDF                and a link to the session, within seconds
+  → the console says so                      "PC emailed — Priya Rao, 14:32 UTC", or why not
+PC signs in                                  or follows the link in the email
+  → their students' sessions and reports     read only; nobody else's
+```
+
+**Adding one.** Users → **PCs** → *Add a PC*. The `manage_pc` edge function checks the caller is an
+admin, then makes the account in two steps, profile first (`create_pc_profile`, service role only)
+and the sign-in second, under the same id. It has to be that way round: GoTrue writes a new user's
+`app_metadata` in an UPDATE after the INSERT, so the signup trigger never sees a role there — a PC
+made the other way round arrived as a student and spent a student's serial — and `user_metadata`
+is whatever a signup says it is, so a role read from it is a role anybody could claim. The signup
+trigger now leaves alone a profile that already exists. The PC is emailed their address and a
+temporary password, which they change from *Account* (their name at the foot of the sidebar). If
+the mail cannot go — no mail provider set up yet, or the server said no — the account is still
+made and the password is shown to the admin once, to hand over. *New password* on a PC's row does
+the same again; *Suspend* is the approval switch every account has (`0045`), which also stops the
+emails.
+
+**Choosing one.** The New session form has a **PC** field, and nothing books until it is filled.
+A new student is created with their PC (`create_student` takes the PC's id now, not a name); a
+student already on the roster with no PC has theirs chosen at this booking (`assign_student_pc`);
+one who has a PC shows it, fixed. A teacher cannot change a PC once chosen — moving a student moves
+every report they have to somebody else — so that is an admin's, from the booking form or the
+student's row under Users. The rule is also the database's: a session inserted by a signed-in client
+for a student with no PC is refused (`sessions_need_a_pc`). Students from before this keep the name
+that was typed until their next booking, where the form shows it as a reminder and asks for the
+real one. `profiles.pc` stays, as the PC's **name** — what every screen and search already prints —
+and a trigger keeps it in step with `profiles.pc_id`, renames included; the free-text editor
+`set_student_pc` is gone.
+
+**What a PC reads.** Their students' sessions from the staff side, and all of each: every question
+put up and the answer to it, the times and the diagnoses, the teacher's form, the transcript, the
+reading of the recording, the report, and whether its email reached them. A session opens on the
+admin's session page, from their seat — the same traces, and none of the controls. They read no
+answer-key table (the report takes the key from the item once the results are published, when the
+student has it too), no staged question, no bank and no other PC's students; they write nothing and
+run nothing, because every write in the schema asks for a teacher or an admin and nothing adds one.
+A signed-out PC following the link in an email signs in and lands on that session.
+
+**The email.** Generating stamps `session_reports.generated_at`, and a trigger on that stamp queues
+the `notify_pc_report` edge function the way `0046` queues the pending-teacher notice: `pg_net`, no
+secret, any failure swallowed — a report never fails to generate for want of an email. The function
+reads everything again on the service role (the report really was generated, the student's PC, and
+the address they sign in with), builds the PDF — the report page's own computation (`buildReport`,
+`buildGrid`, `buildReportDoc`), laid out by `lib/reportPdf.ts` and drawn with pdf-lib — and sends it
+with a link to the session. Every generation gets one row in `report_emails` (*sent*, *failed* with
+the reason, or *skipped* with why), which is what the console, the admin's page and the PC show, and
+what makes it send once: a replayed call finds the generation already claimed. *Send it again* on
+the console is the session's teacher's and an admin's, as themselves. Generating again sends the new
+report, marked as replacing the one before.
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -692,6 +759,7 @@ psql "$DATABASE_URL" -f supabase/tests/opening_early.sql
 psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 psql "$DATABASE_URL" -f supabase/tests/admin_access.sql
+psql "$DATABASE_URL" -f supabase/tests/pc_access.sql
 ```
 
 > **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
@@ -753,7 +821,19 @@ is given, and refused once the transcript changed after it or the form was hande
 it — for the teacher too; generating without the recording removes a stale reading and leaves a
 current one; they publish and unpublish, through the RPCs and by writing the report row, and the
 teacher still can; and another teacher, a student and an anonymous caller can do none of it.
-`opening_early.sql`
+`pc_access.sql` is the PC (`0055`), 59 rows: `create_pc_profile` is the service role's alone, wants
+both names and an unused address, and the sign-in made after it leaves the profile a PC and spends
+no student's serial; a signup asking to be a PC is a student; a teacher cannot book a student with no
+PC, chooses one for a student who has none, and cannot change one already chosen, while an admin
+can; nobody chooses a teacher or a suspended PC; the name follows the PC, renames included, and a
+student cannot choose their own; staff read the PCs and a student does not; a PC reads their
+student, the teachers who taught them, the session, the asked questions and their options, the
+assessments, the form, the transcript, the reading and the report — and not a staged question, the
+answer key, another PC's student or a question nobody put to theirs; a PC changes nothing and runs
+nothing, and a suspended one reads nothing; generating queues the email and saving the report does
+not; the log is read by the teacher, the PC and an admin and written by no client; a generation is
+claimed once, again on request, and a failed one can be retried. Every contract that books a
+session gives its student a PC first, the way the booking form does. `opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
 student is in. Every row must read PASS.
@@ -808,26 +888,47 @@ Deploy it again after any change to it or to the library files it imports. The d
 not checked against the repository by anything, and it drifts: `0048` put the admin's check into
 it and left the live copy at `4c007e9`'s, so for as long as it stayed there an admin's Generate got
 "not your session" from the reading — which is how the first admin to use it met the wall. It was
-redeployed with `0050`. `node tools/bundle-edge-function.mjs` flattens it and the library files it
-imports into one directory for a deploy through the Management API, which resolves files flat.
+redeployed with `0050`. `node tools/bundle-edge-function.mjs` flattens every function and the library
+and `_shared/` files it imports into `dist/edge/<function>/` for a deploy through the Management
+API, which resolves files flat (`node tools/bundle-edge-function.mjs manage_pc` does one). The files
+are found by following the imports, not listed by hand.
 
-And the approval notice, which needs a mail provider and the URL to call it on:
+**Mail.** Three functions send mail — the approval notice, a PC's sign-in and a report to a PC —
+and they all send it one way (`_shared/send.ts`). Supabase's own mailer cannot do it: it sends its
+auth templates and nothing else, carries no attachment, and without a custom SMTP server refuses
+every address outside the project's team. So the functions speak SMTP themselves, with an **app
+password** on the sending account, on port **465** — TLS from the first byte, because hosted
+functions may not open 25 or 587 at all. For a Google Workspace or Gmail account (2-step
+verification on, then *Security → App passwords*):
 
 ```bash
-supabase secrets set RESEND_API_KEY=...
-supabase secrets set MAIL_FROM='Ascend Now <no-reply@yourdomain>'   # optional
-supabase secrets set APP_URL=https://sat-teachers.vercel.app        # optional, for the link
-supabase functions deploy notify_pending_teacher --no-verify-jwt
+supabase secrets set SMTP_HOST=smtp.gmail.com
+supabase secrets set SMTP_USER=reports@ascendnow.info            # the account the app password is for
+supabase secrets set SMTP_PASS='abcd efgh ijkl mnop'              # the app password; the spaces are dropped
+supabase secrets set MAIL_FROM='Ascend Now <reports@ascendnow.info>'  # optional: that account or a verified alias
+supabase secrets set APP_URL=https://sat-teachers.vercel.app     # optional; this is the default, for links
+```
 
-# once per project, so the trigger knows where to call:
+`SMTP_PORT` defaults to 465. `RESEND_API_KEY` still works instead of the three SMTP secrets. With
+neither, nothing is sent and nothing breaks: the approval queue is still in the portal, a PC's
+password is shown to the admin once, and a report's email is recorded as not sent with the reason,
+with *Send it to the PC* on the console for once it is set up.
+
+```bash
+supabase functions deploy notify_pending_teacher --no-verify-jwt
+supabase functions deploy notify_pc_report --no-verify-jwt   # the database calls it, with no token
+supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
+
+# once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
 #   values ('functions_url', 'https://<ref>.supabase.co/functions/v1')
 #   on conflict (key) do update set value = excluded.value;
 ```
 
-Without `RESEND_API_KEY` the function answers 200 saying so and sends nothing — the queue in the
-portal is the source of truth and the mail is a nudge towards it, so a missing provider is a
-slower workflow rather than a broken signup.
+**Order, for `0054` and `0055`.** `create_student` takes the PC's id instead of a name, and a
+session is refused for a student with no PC, so the app and the migrations go out together: merge
+(Vercel deploys the app), apply both migrations, deploy the functions — and then **add the PCs**
+under Users → PCs, because until there is one, nobody can be booked. That is the rule, not a bug.
 
 **Gemini reads the recording**, and `apps/web/src/lib/gemini.ts` is the only file that knows it —
 the guard, the prompt, the schema and the report are written against a shape, not a vendor. The

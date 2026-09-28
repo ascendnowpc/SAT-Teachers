@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DiagnosticGrid } from './DiagnosticGrid'
+import { PcDelivery } from './PcDelivery'
 import { Notice } from './ui'
 import { useAuth } from '../context/AuthContext'
 import { useReadAgain } from '../hooks/useReadAgain'
@@ -319,6 +320,15 @@ export function AfterTheTest({
           </button>
         )}
       </div>
+
+      {/* Generating emails the report to the student's PC (0055); this says
+          whether it arrived, and sends it again when asked. */}
+      <PcDelivery
+        sessionId={sessionId}
+        generatedAt={generated}
+        pcName={session?.student?.pc ?? null}
+        canResend
+      />
 
       {readingFailed && (
         <div className="step-actions">

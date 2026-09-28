@@ -42,6 +42,7 @@ declare
   easy_n int; med_n int;
   easy_1 text; easy_2 text; med_1 text;
   n int; txt text;
+  pc profiles;
 begin
   -- Read as the migration role, before any RLS is in play: question_sets is
   -- teacher-only and these are the expectations the assertions below compare
@@ -87,6 +88,10 @@ begin
     (o_id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
      'level.other@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
+
+  -- A student is booked with their PC or not at all (0055).
+  pc := create_pc_profile('Pat', 'Coordinator', 'level.pc@example.test');
+  update profiles set pc_id = pc.id where id = s_id;
 
   -- ============ TEACHER: a session next hour, and nothing else ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
@@ -326,7 +331,7 @@ begin
   -- hand the next signup an id somebody already has.
   delete from sessions where id=sess;
   -- 0032 dropped the cascade from auth.users, so the profiles go by hand.
-  delete from profiles where id in (t_id,s_id,o_id);
+  delete from profiles where id in (t_id,s_id,o_id,pc.id);
   delete from auth.users where id in (t_id,s_id,o_id);
 end $fn$;
 

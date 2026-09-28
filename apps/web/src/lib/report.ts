@@ -1,6 +1,6 @@
 import { askNumbers, askOrder } from './asked.ts'
-import { DIAGNOSES, sectionLabel, skillLabel } from './constants'
-import type { Diagnosis, SessionItem } from './types'
+import { DIAGNOSES, sectionLabel, skillLabel } from './constants.ts'
+import type { Diagnosis, SessionItem } from './types.ts'
 
 /**
  * The session report, computed from the session's own rows.

@@ -1,6 +1,6 @@
-import { sectionLabel } from './constants'
-import { DOMAIN_SKILL_FOCUS, DOMAIN_TARGETS, domainOrder } from './grid'
-import type { DomainNote, Subject } from './types'
+import { sectionLabel } from './constants.ts'
+import { DOMAIN_SKILL_FOCUS, DOMAIN_TARGETS, domainOrder } from './grid.ts'
+import type { DomainNote, Subject } from './types.ts'
 
 /**
  * The teacher's diagnostic form — the English reflection grid, filled in.

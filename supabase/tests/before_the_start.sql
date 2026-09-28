@@ -28,6 +28,7 @@ declare
   s_id uuid := gen_random_uuid();
   sess uuid; it uuid;
   n int; txt text;
+  pc profiles;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -39,6 +40,10 @@ begin
     (s_id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
      'start.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Zixi Test"}');
+
+  -- A student is booked with their PC or not at all (0055).
+  pc := create_pc_profile('Pat', 'Coordinator', 'start.pc@example.test');
+  update profiles set pc_id = pc.id where id = s_id;
 
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
@@ -156,7 +161,7 @@ begin
 
   -- Cleanup, as level_session.sql does it.
   delete from sessions where id = sess;
-  delete from profiles where id in (t_id, s_id);
+  delete from profiles where id in (t_id, s_id, pc.id);
   delete from auth.users where id in (t_id, s_id);
 end $fn$;
 

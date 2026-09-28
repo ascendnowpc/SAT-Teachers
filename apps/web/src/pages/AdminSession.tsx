@@ -2,17 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AdminRecording } from '../components/AdminRecording'
 import { StageBadge, Stat } from '../components/AdminUi'
+import { PcDelivery } from '../components/PcDelivery'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
 import { CopyButton, Notice } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { reportStage, STAGE_LABELS } from '../lib/admin'
-import { diagnosisLabel, subjectLabel } from '../lib/constants'
+import { diagnosisLabel, sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
 import { buildReport, formatDuration, paceLabel } from '../lib/report'
 import { levelsLabel, levelsOf, studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
+import { parseTranscript } from '../lib/transcript'
 import type { DomainNote, SessionReportRow, SessionTranscript } from '../lib/types'
 import { StatusBadge } from './Sessions'
 
@@ -31,9 +34,17 @@ import { StatusBadge } from './Sessions'
  * run the session or publish its results; the diagnostic form; the transcript
  * and generating the report, here (AdminRecording); and the report's editor,
  * where it is published.
+ *
+ * It is also what a PC sees of their student's session (0055), at the
+ * session's own address: the same six traces, read, and none of the ways in.
+ * A PC runs nothing and writes nothing — the database refuses them either way
+ * — so the buttons that would are simply not there, and where the admin has
+ * the transcript editor and Generate the PC has the transcript, the report and
+ * whether it was emailed to them.
  */
 export function AdminSession() {
   const { id = '' } = useParams()
+  const { isAdmin } = useAuth()
   const { session, items, loading, error } = useLiveSession(id, { withAssessments: true })
   const report = useMemo(() => buildReport(items), [items])
 
@@ -70,8 +81,8 @@ export function AdminSession() {
   if (!session) {
     return (
       <div className="page">
-        <Link className="back-link" to="/admin/users">
-          <IconBack /> Users
+        <Link className="back-link" to={isAdmin ? '/admin/users' : '/sessions'}>
+          <IconBack /> {isAdmin ? 'Users' : 'Sessions'}
         </Link>
         <div className="card">
           <div className="empty">
@@ -88,9 +99,15 @@ export function AdminSession() {
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to={`/admin/teachers/${session.teacher_id}`}>
-        <IconBack /> {session.teacher?.full_name ?? 'The teacher'}
-      </Link>
+      {isAdmin ? (
+        <Link className="back-link" to={`/admin/teachers/${session.teacher_id}`}>
+          <IconBack /> {session.teacher?.full_name ?? 'The teacher'}
+        </Link>
+      ) : (
+        <Link className="back-link" to="/sessions">
+          <IconBack /> Sessions
+        </Link>
+      )}
 
       <div className="page-head">
         <div>
@@ -104,10 +121,12 @@ export function AdminSession() {
         <div className="spring" />
         {/* The teacher's own console, which works from this seat too (0050):
             running the session, answering for the student, publishing the
-            results, the diagnoses. */}
-        <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}`}>
-          Open the console
-        </Link>
+            results, the diagnoses. Not a PC's: they read. */}
+        {isAdmin && (
+          <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}`}>
+            Open the console
+          </Link>
+        )}
         {/* The report as the teacher and the parent read it. It is the same page
             the teacher opens, which is the point: an admin checking a report
             should be reading the report, not a summary of it. */}
@@ -129,22 +148,14 @@ export function AdminSession() {
           <div className="cell-strong">{session.student?.full_name ?? '—'}</div>
           <div className="cell-sub">
             <span className="num">{session.student?.display_id}</span>
-            {session.student?.pc && <> · {session.student.pc}</>}
+            {session.student?.pc && <> · PC {session.student.pc}</>}
           </div>
         </div>
-        <div className="card card-pad">
-          <div className="section-title">The student's link</div>
-          {session.access_token ? (
-            <>
-              <div className="cell-sub" style={{ marginBottom: 8 }}>
-                Opens this session and nothing else, with no account.
-              </div>
-              <CopyButton value={studentLink(session.access_token)} label="Copy the link" />
-            </>
-          ) : (
-            <div className="cell-sub">Not issued.</div>
-          )}
-        </div>
+        {isAdmin ? (
+          <LinkCard token={session.access_token ?? null} />
+        ) : (
+          <ReportCard sessionId={session.id} stage={stage} />
+        )}
       </div>
 
       <div className="stats">
@@ -198,8 +209,8 @@ export function AdminSession() {
                       )}
                     </td>
                     <td className="cell-sub">
-                      {a.section ?? '—'}
-                      {a.skill && <> · {a.skill}</>}
+                      {sectionLabel(a.section) ?? '—'}
+                      {a.skill && <> · {skillLabel(a.skill)}</>}
                     </td>
                     <td>
                       {a.correct ? (
@@ -238,7 +249,7 @@ export function AdminSession() {
         {/* The write-up is of a lesson, and before the test has started there
             is no lesson to write up — the console holds everything back until
             then too (0052). */}
-        {!notStarted && (
+        {!notStarted && isAdmin && (
           <Link
             className="btn btn-ghost btn-sm"
             to={`/sessions/${session.id}/diagnostic`}
@@ -259,7 +270,7 @@ export function AdminSession() {
             The test has not started. The transcript and the report open up once it has been sat.
           </p>
         </div>
-      ) : (
+      ) : isAdmin ? (
         <AdminRecording
           session={session}
           items={items}
@@ -268,6 +279,8 @@ export function AdminSession() {
           report={meta}
           onChanged={loadWritten}
         />
+      ) : (
+        <RecordingRead session={session} transcript={transcript} report={meta} />
       )}
 
       {(meta?.summary || meta?.time_management || meta?.engagement) && (
@@ -399,5 +412,118 @@ function FormView({
         </div>
       )}
     </>
+  )
+}
+
+/** The student's way in, for the admin to send again. */
+function LinkCard({ token }: { token: string | null }) {
+  return (
+    <div className="card card-pad">
+      <div className="section-title">The student's link</div>
+      {token ? (
+        <>
+          <div className="cell-sub" style={{ marginBottom: 8 }}>
+            Opens this session and nothing else, with no account.
+          </div>
+          <CopyButton value={studentLink(token)} label="Copy the link" />
+        </>
+      ) : (
+        <div className="cell-sub">Not issued.</div>
+      )}
+    </div>
+  )
+}
+
+/** Where the report is up to, from a PC's seat, and the way to it. */
+function ReportCard({ sessionId, stage }: { sessionId: string; stage: ReturnType<typeof reportStage> }) {
+  return (
+    <div className="card card-pad">
+      <div className="section-title">The report</div>
+      <div className="cell-sub" style={{ marginBottom: 8 }}>
+        <StageBadge stage={stage} />
+      </div>
+      <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/report`}>
+        Open the report
+      </Link>
+    </div>
+  )
+}
+
+function formatClock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+/**
+ * The recording and the report, from a PC's seat: the transcript to read, and
+ * whether the report was generated and emailed to them. What the admin edits
+ * here, the PC reads.
+ */
+function RecordingRead({
+  session,
+  transcript,
+  report,
+}: {
+  session: { id: string; student?: { pc?: string | null } | null }
+  transcript: SessionTranscript | null
+  report: SessionReportRow | null
+}) {
+  const turns = useMemo(() => parseTranscript(transcript?.body ?? '').lines, [transcript])
+
+  return (
+    <div className="card card-pad">
+      <div className="step-head">
+        <div className="section-title" style={{ marginBottom: 0 }}>
+          The report
+        </div>
+        <span className="spring" />
+        {report?.generated_at && <span className="badge badge-ok">Generated {formatUtc(report.generated_at)}</span>}
+        {report?.published_at && <span className="badge badge-ok">Published {formatUtc(report.published_at)}</span>}
+      </div>
+      {report?.generated_at ? (
+        <>
+          <PcDelivery
+            sessionId={session.id}
+            generatedAt={report.generated_at}
+            pcName={session.student?.pc ?? null}
+            canResend={false}
+          />
+          <div className="step-actions pc-delivery">
+            <Link className="btn btn-primary btn-sm" to={`/sessions/${session.id}/report`}>
+              Open the report
+            </Link>
+          </div>
+        </>
+      ) : (
+        <p className="sub" style={{ marginTop: 8 }}>
+          The report has not been generated yet. It is emailed to you, as a PDF, the moment it is.
+        </p>
+      )}
+
+      <div className="section-title step-sub">Fathom transcript</div>
+      {transcript?.body ? (
+        <details className="transcript-read">
+          <summary>
+            {transcript.filename ?? 'Pasted in'} · {turns.length} {turns.length === 1 ? 'turn' : 'turns'}
+            {turns.length > 0 && ` · ${formatClock(turns[turns.length - 1].at)} long`}
+          </summary>
+          <div className="transcript-body">
+            {turns.length === 0 ? (
+              <pre>{transcript.body}</pre>
+            ) : (
+              turns.map((line, k) => (
+                <p key={k} className="transcript-turn">
+                  <span className="who">
+                    {formatClock(line.at)} · {line.speaker}
+                  </span>
+                  {line.text}
+                </p>
+              ))
+            )}
+          </div>
+        </details>
+      ) : (
+        <p className="sub">No transcript has been put in for this session yet.</p>
+      )}
+    </div>
   )
 }

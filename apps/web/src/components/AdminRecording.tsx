@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import { parseTranscript } from '../lib/transcript'
 import type { Session, SessionItem, SessionReportRow, SessionTranscript } from '../lib/types'
+import { PcDelivery } from './PcDelivery'
 import { Field, Notice, Textarea } from './ui'
 
 /**
@@ -295,6 +296,13 @@ export function AdminRecording({
               </Link>
             )}
           </div>
+
+          <PcDelivery
+            sessionId={session.id}
+            generatedAt={report.generated_at}
+            pcName={session.student?.pc ?? null}
+            canResend
+          />
 
           {gen.readingFailed && (
             <div className="step-actions">
