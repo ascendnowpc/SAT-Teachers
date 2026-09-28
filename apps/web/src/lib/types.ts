@@ -234,6 +234,20 @@ export interface SessionReportRow {
 }
 
 /**
+ * A PC's password link (0055's pc_invites), as an admin reads it. The link
+ * itself is never stored — only its hash, which is of no use to anybody.
+ */
+export interface PcInvite {
+  profile_id: string
+  token_hash: string
+  issued_at: string
+  expires_at: string
+  used_at: string | null
+  /** The first time the PC chose a password: they have joined. */
+  joined_at: string | null
+}
+
+/**
  * One generated report's email to the student's PC (0055): one row per
  * generation, written by the notify_pc_report function and read by the
  * session's teacher, its PC and the admins.

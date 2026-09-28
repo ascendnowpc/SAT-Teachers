@@ -1,32 +1,40 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4'
 
+import { INVITE_DAYS, inviteLink, newToken, tokenHash } from '../../../apps/web/src/lib/invite.ts'
 import { transportFrom } from '../../../apps/web/src/lib/mail.ts'
-import { credentialsEmail, temporaryPassword } from '../../../apps/web/src/lib/pcMail.ts'
+import { inviteEmail } from '../../../apps/web/src/lib/pcMail.ts'
 import { CORS, json } from '../_shared/http.ts'
 import { sendMail } from '../_shared/send.ts'
 
 /**
- * Adding a PC, and giving one a new password. An admin's, from Users.
+ * Adding a PC, and sending one a link to choose a password. An admin's, from
+ * Users.
  *
  *   POST /functions/v1/manage_pc  { action: 'create', first_name, last_name, email }
- *   POST /functions/v1/manage_pc  { action: 'reset', profile_id }
- *     →  { profile, emailed, reason?, password? }
+ *   POST /functions/v1/manage_pc  { action: 'invite', profile_id }
+ *     →  { profile, emailed, reason?, link?, joined, expires_at }
  *
  * A PC is somebody who signs in, so making one makes a sign-in, which only the
  * service role can do — and that is why this is a function and not an RPC.
  * It checks its caller is an admin, as the caller, the way every admin door in
  * the schema does (is_admin), and only then acts on the service role.
  *
- * Two steps, in this order (0055 says why): the profile first, through
- * create_pc_profile, then the sign-in under the profile's id with a temporary
- * password. If the sign-in cannot be made, the profile goes again — a PC who
- * cannot sign in is a name on a list that will never read anything.
+ * Creating is two steps, in this order (0055 says why): the profile first,
+ * through create_pc_profile, then the sign-in under the profile's id —
+ * confirmed, and with a password nobody is ever told. If the sign-in cannot be
+ * made, the profile goes again: a PC who cannot sign in is a name on a list
+ * that will never read anything.
  *
- * Then the mail with the email address and the password. If there is no way
- * to send it (no SMTP secrets yet, or the server said no), the account is still
- * made and the password comes back in the response instead, once, for the
- * admin to hand over themselves. It is never stored anywhere: not in the
- * database, not in a log, and not in the response when the mail did go.
+ * Then the link. It opens the join page with the PC's address on it, they
+ * choose their password there (accept_pc_invite), and they are in; following
+ * a link that came to the address is the proof of it, so nothing asks them to
+ * confirm it again. 'invite' sends another: to a PC whose first one ran out,
+ * or to one who has joined and needs a new password.
+ *
+ * If the mail cannot go (no SMTP secrets yet, or the server said no), the PC
+ * is still made and the link comes back in the response instead, once, for the
+ * admin to hand over. The link is never stored — pc_invites keeps its SHA-256
+ * — and it is not in the response when the mail did go.
  */
 
 interface CreateBody {
@@ -36,9 +44,45 @@ interface CreateBody {
   email?: string
 }
 
-interface ResetBody {
-  action: 'reset'
+interface InviteBody {
+  action: 'invite'
   profile_id?: string
+}
+
+/**
+ * A password nobody is told: 32 random bytes, until the link replaces it. The
+ * tail is for a project that requires a lower-case letter, a capital, a digit
+ * and a symbol of every password — the auth server asks it of this one too,
+ * and a PC it refused to make would be a strange way to find that out.
+ */
+function unguessable(): string {
+  return `${newToken()}-aA1`
+}
+
+/**
+ * The address a PC signs in with — the auth server's, not the copy on the
+ * profile, which its owner can edit (notify_pc_report reads the same one) —
+ * making the sign-in if it is missing. Missing is the one way a PC can be left
+ * without one: the second step of making them failed and so did taking the
+ * profile back.
+ */
+async function signInAddress(
+  db: SupabaseClient,
+  profile: { id: string; email: string | null; full_name: string },
+): Promise<{ email: string } | { error: string }> {
+  const { data, error } = await db.auth.admin.getUserById(profile.id)
+  if (data?.user?.email) return { email: data.user.email }
+  if (error && !/not.?found/i.test(error.message)) return { error: error.message }
+  if (!profile.email) return { error: `${profile.full_name} has no email address` }
+  const { error: createError } = await db.auth.admin.createUser({
+    id: profile.id,
+    email: profile.email,
+    password: unguessable(),
+    email_confirm: true,
+    user_metadata: { full_name: profile.full_name },
+    app_metadata: { role: 'pc' },
+  } as Parameters<typeof db.auth.admin.createUser>[0])
+  return createError ? { error: createError.message } : { email: profile.email }
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -61,9 +105,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!user?.user) return json({ error: 'not signed in' }, 401)
 
   const { data: admin } = await asCaller.rpc('is_admin')
-  if (admin !== true) return json({ error: 'only an admin can add a PC or change their password' }, 403)
+  if (admin !== true) return json({ error: 'only an admin can add a PC or send them a link' }, 403)
 
-  let body: CreateBody | ResetBody
+  let body: CreateBody | InviteBody
   try {
     body = await req.json()
   } catch {
@@ -74,18 +118,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const transport = transportFrom((key) => Deno.env.get(key))
   const appUrl = Deno.env.get('APP_URL') ?? ''
 
-  /** Sends the sign-in, and says what the admin needs to know about it. */
-  async function deliver(
-    profile: { full_name: string },
-    email: string,
-    password: string,
-    reset: boolean,
-  ): Promise<{ emailed: boolean; reason?: string; password?: string }> {
-    const mail = credentialsEmail({ name: profile.full_name, email, password, appUrl, reset })
+  /** Makes a new link, sends it to the address given, and says what the admin needs to know about it. */
+  async function invite(profile: { id: string; full_name: string }, email: string) {
+    const token = newToken()
+    const { data: row, error } = await db.rpc('issue_pc_invite', {
+      p_profile: profile.id,
+      p_token_hash: await tokenHash(token),
+    })
+    if (error || !row) return { error: error?.message ?? 'the link could not be made' }
+
+    const joined = row.joined_at !== null
+    const link = inviteLink(appUrl, token)
+    const base = { joined, expires_at: row.expires_at as string }
+
+    const mail = inviteEmail({ name: profile.full_name, link, joined, days: INVITE_DAYS })
     const sent = await sendMail(transport, { to: [email], ...mail })
-    if (sent.sent) return { emailed: true }
-    console.log(`PC sign-in for ${email} not emailed: ${sent.reason}`)
-    return { emailed: false, reason: sent.reason, password }
+    if (sent.sent) return { ...base, emailed: true }
+    console.log(`PC link for ${email} not emailed: ${sent.reason}`)
+    return { ...base, emailed: false, reason: sent.reason, link }
   }
 
   // ----------------------------------------------------------------- create --
@@ -97,11 +147,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     })
     if (error || !profile) return json({ error: error?.message ?? 'the PC could not be added' }, 400)
 
-    const password = temporaryPassword()
     const { error: signInError } = await db.auth.admin.createUser({
       id: profile.id,
       email: profile.email,
-      password,
+      password: unguessable(),
       email_confirm: true,
       user_metadata: { full_name: profile.full_name },
       app_metadata: { role: 'pc' },
@@ -112,11 +161,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ error: `the sign-in could not be made: ${signInError.message}` }, 400)
     }
 
-    return json({ profile, ...(await deliver(profile, profile.email, password, false)) })
+    const sent = await invite(profile, profile.email)
+    // The PC is made either way; without a link they are one "Send the
+    // invitation" away from joining, and the list says so.
+    if ('error' in sent) return json({ profile, emailed: false, reason: sent.error, joined: false })
+    return json({ profile, ...sent })
   }
 
-  // ------------------------------------------------------------------ reset --
-  if (body.action === 'reset') {
+  // ----------------------------------------------------------------- invite --
+  if (body.action === 'invite') {
     if (!body.profile_id) return json({ error: 'profile_id is required' }, 400)
 
     const { data: profile } = await db
@@ -126,35 +179,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .maybeSingle()
 
     if (!profile || profile.role !== 'pc') return json({ error: 'no such PC' }, 404)
-    // A suspended account is banned at the auth server (0045); a new password
-    // would be a password for a door that does not open.
+    // A suspended account is banned at the auth server (0045); a password for
+    // a door that does not open helps nobody.
     if (!profile.is_active) return json({ error: `${profile.full_name} is suspended — reactivate them first` }, 409)
 
-    const password = temporaryPassword()
-    const { data: updated, error } = await db.auth.admin.updateUserById(profile.id, { password })
+    const address = await signInAddress(db, profile)
+    if ('error' in address) return json({ error: `the sign-in could not be made: ${address.error}` }, 400)
 
-    let email = updated?.user?.email ?? profile.email
-    if (error) {
-      // The one way a PC can be left without a sign-in: the second step of
-      // making them failed and so did taking the profile back. Make it now.
-      if (!/not.?found/i.test(error.message) || !profile.email) {
-        return json({ error: `the password could not be changed: ${error.message}` }, 400)
-      }
-      const { error: createError } = await db.auth.admin.createUser({
-        id: profile.id,
-        email: profile.email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: profile.full_name },
-        app_metadata: { role: 'pc' },
-      } as Parameters<typeof db.auth.admin.createUser>[0])
-      if (createError) return json({ error: `the sign-in could not be made: ${createError.message}` }, 400)
-      email = profile.email
-    }
-
-    if (!email) return json({ error: `${profile.full_name} has no email address` }, 409)
-    return json({ profile, ...(await deliver(profile, email, password, true)) })
+    const sent = await invite(profile, address.email)
+    if ('error' in sent) return json({ error: sent.error }, 400)
+    return json({ profile, ...sent })
   }
 
-  return json({ error: "action is 'create' or 'reset'" }, 400)
+  return json({ error: "action is 'create' or 'invite'" }, 400)
 })

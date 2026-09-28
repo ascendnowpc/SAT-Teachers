@@ -1,15 +1,15 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PcTable, PeopleTable, Stat } from '../components/AdminUi'
 import { CopyButton, Field, Input, Notice } from '../components/ui'
 import { useSchool } from '../hooks/useSchool'
 import { filterPeople, isSuspended, pcRows, pendingTeachers, studentRows, teacherRows } from '../lib/admin'
 import { isEmailAddress } from '../lib/mail'
-import { addPc, resetPcPassword } from '../lib/pcApi'
+import { addPc, loadPcInvites, sendPcInvite } from '../lib/pcApi'
 import { choosable, type PcResult } from '../lib/pcs'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
-import type { Profile } from '../lib/types'
+import type { PcInvite, Profile } from '../lib/types'
 
 type Tab = 'teachers' | 'students' | 'pcs'
 const TABS: Tab[] = ['teachers', 'students', 'pcs']
@@ -32,8 +32,9 @@ const TABS: Tab[] = ['teachers', 'students', 'pcs']
  *
  * The PCs are the third table (0055): the accounts an admin makes, one per PC,
  * which read their students' sessions and are emailed each report. They are
- * added here, given a new password here, and suspended here; and a student's
- * PC is changed from the students' table.
+ * added here — which emails them a link to choose a password — sent another
+ * link here, and suspended here; and a student's PC is changed from the
+ * students' table.
  */
 export function AdminUsers() {
   const { profiles, sessions, stages, loading, error, reload } = useSchool()
@@ -49,6 +50,16 @@ export function AdminUsers() {
   const students = useMemo(() => studentRows(profiles, sessions, stages), [profiles, sessions, stages])
   const pcs = useMemo(() => pcRows(profiles, sessions, stages), [profiles, sessions, stages])
   const pcProfiles = useMemo(() => profiles.filter((p) => p.role === 'pc'), [profiles])
+
+  // Who has joined, from the links (0055's pc_invites). Only the PCs tab asks.
+  const [invites, setInvites] = useState<Map<string, PcInvite>>(new Map())
+  const loadInvites = useCallback(async () => setInvites(await loadPcInvites()), [])
+  useEffect(() => {
+    if (tab === 'pcs') void loadInvites()
+  }, [tab, loadInvites])
+  const reloadPcs = useCallback(async () => {
+    await Promise.all([reload(), loadInvites()])
+  }, [reload, loadInvites])
 
   const all = tab === 'teachers' ? teachers : tab === 'students' ? students : pcs
   const shown = useMemo(() => filterPeople(all, query), [all, query])
@@ -102,7 +113,7 @@ export function AdminUsers() {
         </button>
       </div>
 
-      {tab === 'pcs' && <AddPc onAdded={reload} />}
+      {tab === 'pcs' && <AddPc onAdded={reloadPcs} />}
       {tab === 'students' && unassigned > 0 && (
         <p className="sub" style={{ marginBottom: 12 }}>
           {unassigned} {unassigned === 1 ? 'student has' : 'students have'} no PC yet. Each gets one at
@@ -156,7 +167,7 @@ export function AdminUsers() {
           </div>
         </div>
       ) : tab === 'pcs' ? (
-        <PcList rows={shown} onChanged={reload} />
+        <PcList rows={shown} invites={invites} onChanged={reloadPcs} />
       ) : (
         <PeopleTable
           rows={shown}
@@ -240,22 +251,35 @@ function ApprovalQueue({ pending, onDone }: { pending: Profile[]; onDone: () => 
 }
 
 /**
- * What an admin is told once a PC has been made or given a new password.
+ * What an admin is told once a PC has been made or sent a link.
  *
  * When the email went, where it went. When it did not — no mail provider set
- * up yet, or the server said no — the account is still made, and the password
- * is on this screen once, for the admin to hand over. It is not stored
- * anywhere to show again: a new one is a click away.
+ * up yet, or the server said no — the PC is still made, and the link is on
+ * this screen once, for the admin to send themselves. It is not stored
+ * anywhere to show again: another is a click away, and it replaces this one.
  */
-function Credentials({ result, reset }: { result: PcResult; reset: boolean }) {
+function InviteResult({ result, again }: { result: PcResult; again: boolean }) {
   const name = result.profile.full_name
   const email = result.profile.email ?? ''
-  const done = reset ? `${name} has a new password` : `${name} is a PC now`
+  const what = result.joined ? 'a link to choose a new password' : 'a link to set up their account'
+  const done = again ? `${name} has a new link` : `${name} is a PC now`
+  const until = result.expires_at ? ` It works once, until ${formatUtc(result.expires_at)}.` : ''
 
   if (result.emailed) {
     return (
       <Notice kind="ok">
-        {done}. Their sign-in went to <strong>{email}</strong>.
+        {done}. {result.joined ? 'A link to choose a new password' : 'The link to set up their account'} went
+        to <strong>{email}</strong>.{until}
+      </Notice>
+    )
+  }
+
+  if (!result.link) {
+    return (
+      <Notice kind="info">
+        <strong>{done}, but no link could be made</strong>
+        {result.reason ? ` — ${result.reason}` : ''}. Use <em>Send the invitation</em> on their row to try
+        again.
       </Notice>
     )
   }
@@ -264,25 +288,18 @@ function Credentials({ result, reset }: { result: PcResult; reset: boolean }) {
     <Notice kind="info">
       <p style={{ marginBottom: 8 }}>
         <strong>{done}, but the email did not go</strong>
-        {result.reason ? ` — ${result.reason}` : ''}. Give them these yourself. They are shown this once.
+        {result.reason ? ` — ${result.reason}` : ''}. Send {email || 'them'} {what} yourself. It is shown this
+        once.{until}
       </p>
       <div className="credentials">
-        <span>
-          Email <code>{email}</code>
-        </span>
-        <span>
-          Password <code>{result.password}</code>
-        </span>
-        <CopyButton
-          value={`Email: ${email}\nPassword: ${result.password ?? ''}\nSign in: ${window.location.origin}/login`}
-          label="Copy both"
-        />
+        <code className="invite-link">{result.link}</code>
+        <CopyButton value={result.link} label="Copy the link" />
       </div>
     </Notice>
   )
 }
 
-/** Adding a PC: their name and the address their sign-in goes to. */
+/** Adding a PC: their name and the address their link goes to. */
 function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -316,13 +333,14 @@ function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
     <form className="card card-pad approvals" onSubmit={onSubmit} noValidate>
       <div className="section-title">Add a PC</div>
       <p className="sub" style={{ marginBottom: 14, maxWidth: '64ch' }}>
-        They are emailed their sign-in — this address and a temporary password — and once they are in
-        they see the sessions and reports of the students they are PC to. Teachers choose a student’s
-        PC from this list when they book the student’s first session.
+        They are emailed a link that opens a page with this address filled in: they choose a password
+        and they are in, with nothing more to confirm. From then on they see the sessions and reports
+        of the students they are PC to. Teachers choose a student’s PC from this list when they book
+        the student’s first session.
       </p>
 
       {error && <Notice kind="error">{error}</Notice>}
-      {result && <Credentials result={result} reset={false} />}
+      {result && <InviteResult result={result} again={false} />}
 
       <div className="grid-2">
         <Field label="First name" required>
@@ -342,28 +360,41 @@ function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
         />
       </Field>
       <button type="submit" className="btn btn-primary" disabled={!ready}>
-        {busy ? 'Adding…' : 'Add the PC and email their sign-in'}
+        {busy ? 'Adding…' : 'Add the PC and email their invitation'}
       </button>
     </form>
   )
 }
 
 /** The PCs, with the two things an admin does to one. */
-function PcList({ rows, onChanged }: { rows: ReturnType<typeof pcRows>; onChanged: () => Promise<void> }) {
+function PcList({
+  rows,
+  invites,
+  onChanged,
+}: {
+  rows: ReturnType<typeof pcRows>
+  invites: Map<string, PcInvite>
+  onChanged: () => Promise<void>
+}) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PcResult | null>(null)
 
-  async function reset(pc: Profile) {
-    if (!window.confirm(`Send ${pc.full_name} a new password? The one they have stops working.`)) return
+  async function invite(pc: Profile) {
+    const joined = invites.get(pc.id)?.joined_at != null
+    const ask = joined
+      ? `Email ${pc.full_name} a link to choose a new password? Their current one keeps working until they use it.`
+      : `Email ${pc.full_name} a new link to set up their account? Any link sent before stops working.`
+    if (!window.confirm(ask)) return
     setBusy(pc.id)
     setError(null)
     setResult(null)
     try {
-      setResult(await resetPcPassword(pc.id))
+      setResult(await sendPcInvite(pc.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
+    await onChanged()
     setBusy(null)
   }
 
@@ -389,8 +420,14 @@ function PcList({ rows, onChanged }: { rows: ReturnType<typeof pcRows>; onChange
   return (
     <>
       {error && <Notice kind="error">{error}</Notice>}
-      {result && <Credentials result={result} reset />}
-      <PcTable rows={rows} busy={busy} onReset={(p) => void reset(p)} onToggle={(p) => void toggle(p)} />
+      {result && <InviteResult result={result} again />}
+      <PcTable
+        rows={rows}
+        invites={invites}
+        busy={busy}
+        onInvite={(p) => void invite(p)}
+        onToggle={(p) => void toggle(p)}
+      />
     </>
   )
 }

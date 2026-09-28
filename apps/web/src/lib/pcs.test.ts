@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SENDING_GRACE_MS, choosable, deliveryLine } from './pcs'
-import type { Profile, ReportEmail } from './types'
+import { SENDING_GRACE_MS, choosable, deliveryLine, inviteState } from './pcs'
+import type { PcInvite, Profile, ReportEmail } from './types'
 
 const generated = '2026-08-28T16:00:00Z'
 const at = (iso: string, plusMs = 0) => Date.parse(iso) + plusMs
@@ -89,5 +89,43 @@ describe('choosable', () => {
     expect(choosable(pc({}))).toBe(true)
     expect(choosable(pc({ is_active: false, suspended_at: '2026-02-01T00:00:00Z' }))).toBe(false)
     expect(choosable(pc({ role: 'teacher' }))).toBe(false)
+  })
+})
+
+describe('inviteState', () => {
+  const invite = (over: Partial<PcInvite> = {}): PcInvite => ({
+    profile_id: 'p',
+    token_hash: 'f'.repeat(64),
+    issued_at: '2026-08-20T10:00:00Z',
+    expires_at: '2026-08-27T10:00:00Z',
+    used_at: null,
+    joined_at: null,
+    ...over,
+  })
+  // August: ICU writes September "Sept" in some versions and "Sep" in others.
+  const now = Date.parse('2026-08-21T10:00:00Z')
+
+  it('says a PC with a live link is invited, until when', () => {
+    expect(inviteState(invite(), now)).toEqual({
+      joined: false,
+      badge: { tone: 'sky', label: 'Invited' },
+      text: 'Invited 20 Aug · the link works until 27 Aug',
+      action: 'Send the link again',
+    })
+  })
+
+  it('says when the link has run out, and offers a new one', () => {
+    const state = inviteState(invite(), Date.parse('2026-08-28T00:00:00Z'))
+    expect(state.badge).toEqual({ tone: 'bad', label: 'Link expired' })
+    expect(state.action).toBe('Send a new link')
+  })
+
+  it('says a PC who has chosen a password has joined, whatever link came after', () => {
+    const state = inviteState(invite({ joined_at: '2026-08-20T12:00:00Z', used_at: null }), now)
+    expect(state).toEqual({ joined: true, badge: null, text: 'Joined 20 Aug', action: 'Send a password link' })
+  })
+
+  it('says so when no link was ever made', () => {
+    expect(inviteState(null, now).badge?.label).toBe('Not invited')
   })
 })

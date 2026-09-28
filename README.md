@@ -29,7 +29,7 @@ npm run dev                                    # http://localhost:5173
 | **Sections** | Subject, the four SAT sections the teachers assess against, and the skill within each |
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
 | **The roster** | Add a student from the New session form: first name, last name, and their PC, chosen from the list. No sign-up |
-| **PCs** | Accounts an admin adds, emailed their sign-in. A student's PC is chosen at their first booking and cannot be skipped; the PC reads that student's sessions and reports, and is emailed every report as a PDF with a link to the session |
+| **PCs** | Accounts an admin adds, emailed a link to choose their password. A student's PC is chosen at their first booking and cannot be skipped; the PC reads that student's sessions and reports, and is emailed every report as a PDF with a link to the session |
 | **The link** | Every session carries one. Send it and the student is in — no account, no login |
 | **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
 | **The level** | The session starts on easy and the teacher moves it. The student is never told which test they are on |
@@ -559,7 +559,7 @@ see the question bank and not one session, not one form and not one report. `004
 
 | | |
 | --- | --- |
-| **Users** | Teachers, students, PCs (added, given a new password or suspended here, and changed on a student's row), and the queue of teacher accounts waiting to be verified |
+| **Users** | Teachers, students, PCs (added, sent a new link or suspended here, and changed on a student's row), and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
 | **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary — and the way into all of it: the console, the form, the transcript, generating, and the report's editor, where it is published (`0050`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
@@ -680,7 +680,8 @@ in, is chosen from a list, reads their students' sessions, and is sent every rep
 
 ```
 admin adds a PC under Users → PCs            first name, last name, email
-  → the PC is emailed their sign-in          the address and a temporary password
+  → the PC is emailed a link                 it opens a page with their address filled in
+PC chooses a password on that page           and is in: no confirmation email, no second step
 teacher books a student's first session
   → chooses the student's PC from the list   required: the form will not book without it
   → that PC is the student's from now on     shown, fixed, on every later booking
@@ -697,12 +698,23 @@ and the sign-in second, under the same id. It has to be that way round: GoTrue w
 `app_metadata` in an UPDATE after the INSERT, so the signup trigger never sees a role there — a PC
 made the other way round arrived as a student and spent a student's serial — and `user_metadata`
 is whatever a signup says it is, so a role read from it is a role anybody could claim. The signup
-trigger now leaves alone a profile that already exists. The PC is emailed their address and a
-temporary password, which they change from *Account* (their name at the foot of the sidebar). If
-the mail cannot go — no mail provider set up yet, or the server said no — the account is still
-made and the password is shown to the admin once, to hand over. *New password* on a PC's row does
-the same again; *Suspend* is the approval switch every account has (`0045`), which also stops the
-emails.
+trigger now leaves alone a profile that already exists. The sign-in is made confirmed, with a
+password nobody is told.
+
+**Joining.** The PC is emailed a link, `/join#token=…`, which opens a page with their address
+already filled in and not editable; they choose a password and are signed straight in. Nothing asks
+them to confirm the address afterwards — the link reaching it was the confirmation. The token is 32
+random bytes, carried after the `#` so no server logs it; `pc_invites` keeps its SHA-256, never the
+token. It works once and for a week, and a new one replaces the old. Opening the page spends nothing
+(mail scanners open every link in a message before a person does); choosing the password spends it,
+through the `accept_pc_invite` function, which a signed-out browser calls and which believes nothing
+but the token. Users shows each PC as *Invited*, *Link expired* or *Joined*. *Send the link again*
+on an unjoined PC's row makes a new one; on a PC who has joined it is *Send a password link*, the
+same page with "choose a new password", and their old password works until they use it. If the mail
+cannot go — no mail provider set up yet, or the server said no — the PC is still made and the link is
+shown to the admin once, to send themselves. *Suspend* is the approval switch every account has
+(`0045`); it also stops the emails and kills any link. A PC who wants to change their password
+while signed in does it from *Account* (their name at the foot of the sidebar).
 
 **Choosing one.** The New session form has a **PC** field, and nothing books until it is filled.
 A new student is created with their PC (`create_student` takes the PC's id now, not a name); a
@@ -821,7 +833,7 @@ is given, and refused once the transcript changed after it or the form was hande
 it — for the teacher too; generating without the recording removes a stale reading and leaves a
 current one; they publish and unpublish, through the RPCs and by writing the report row, and the
 teacher still can; and another teacher, a student and an anonymous caller can do none of it.
-`pc_access.sql` is the PC (`0055`), 59 rows: `create_pc_profile` is the service role's alone, wants
+`pc_access.sql` is the PC (`0055`), 83 rows: `create_pc_profile` is the service role's alone, wants
 both names and an unused address, and the sign-in made after it leaves the profile a PC and spends
 no student's serial; a signup asking to be a PC is a student; a teacher cannot book a student with no
 PC, chooses one for a student who has none, and cannot change one already chosen, while an admin
@@ -832,7 +844,11 @@ assessments, the form, the transcript, the reading and the report — and not a 
 answer key, another PC's student or a question nobody put to theirs; a PC changes nothing and runs
 nothing, and a suspended one reads nothing; generating queues the email and saving the report does
 not; the log is read by the teacher, the PC and an admin and written by no client; a generation is
-claimed once, again on request, and a failed one can be retried. Every contract that books a
+claimed once, again on request, and a failed one can be retried; a link goes only to an active PC,
+works for a week, dies when another is sent, opens without being spent, is spent once, comes back if
+the password was refused, and opens nothing once expired or once its PC is suspended; joining
+outlasts later links; admins read the links and nobody else does, and no client writes one. Every
+contract that books a
 session gives its student a PC first, the way the booking form does. `opening_early.sql`
 covers the waiver: the scheduled time is a real gate, only the session's own teacher can lift it,
 lifting it rewrites neither `scheduled_at` nor the status, and it cannot be taken back once the
@@ -893,7 +909,7 @@ and `_shared/` files it imports into `dist/edge/<function>/` for a deploy throug
 API, which resolves files flat (`node tools/bundle-edge-function.mjs manage_pc` does one). The files
 are found by following the imports, not listed by hand.
 
-**Mail.** Three functions send mail — the approval notice, a PC's sign-in and a report to a PC —
+**Mail.** Three functions send mail — the approval notice, a PC's link and a report to a PC —
 and they all send it one way (`_shared/send.ts`). Supabase's own mailer cannot do it: it sends its
 auth templates and nothing else, carries no attachment, and without a custom SMTP server refuses
 every address outside the project's team. So the functions speak SMTP themselves, with an **app
@@ -911,13 +927,14 @@ supabase secrets set APP_URL=https://sat-teachers.vercel.app     # optional; thi
 
 `SMTP_PORT` defaults to 465. `RESEND_API_KEY` still works instead of the three SMTP secrets. With
 neither, nothing is sent and nothing breaks: the approval queue is still in the portal, a PC's
-password is shown to the admin once, and a report's email is recorded as not sent with the reason,
+link is shown to the admin once, and a report's email is recorded as not sent with the reason,
 with *Send it to the PC* on the console for once it is set up.
 
 ```bash
 supabase functions deploy notify_pending_teacher --no-verify-jwt
 supabase functions deploy notify_pc_report --no-verify-jwt   # the database calls it, with no token
 supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
+supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
 
 # once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
