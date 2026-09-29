@@ -208,28 +208,28 @@ key, the token itself, or a question that is still staged. Students who already 
 still sign in and still open their sessions at `/exam/:id`; the link is a second door, not a
 replacement for the first.
 
-**The student** opens the session once its time has passed, and the **easy test**
-loads for them, one question on screen at a time, each with its own clock. They answer, press
-**Next**, and the next one appears. Nothing on their screen says which test that is — no level in
-the header, no level switch, no "of 20" — and the questions are numbered 1, 2, 3 across the whole
-session. A student who could watch "easy" turn into "hard" started treating a diagnostic as a final
+**The student** opens the session once its time has passed and waits for their teacher: nothing
+is on their screen until the teacher shows a question (`0057`). One question is on screen at a
+time, each with its own clock. They answer, press **Submit answer**, and wait again — there is no
+Next button and no way to move on alone. Nothing on their screen says which test a question came
+from — no level in the header, no level switch, no "of 20" — and the questions are numbered 1, 2, 3
+across the whole session. A student who could watch "easy" turn into "hard" started treating a diagnostic as a final
 exam, and which test they are on is the teacher's judgement about them, not something they can act
 on.
 
-**The teacher chooses what comes next** (`0047`). The console names the question the next answer
-will bring up — *Next up: Medium test, question 8 · Transitions* — and **Choose a question** opens
-the three tests side by side: every question by the number the printed test gives it, what has
-happened to each in this session, and the chosen one in full with why it sits at its level. Then
-**Show now**, which puts it on the student's screen at once and sets aside the one they were on, or
-**Show next**, which lets them finish that one first and costs them nothing. Either way the student
-is on that question's test from then on, and it carries on from there — the questions after it in
-the test's order, then round to the ones before it — so a teacher who picks medium 12 because it is
-the kind of question they wanted gets 13 next, not 1. It asked for this in the teacher's own words:
-the fixed order meant the only way past a question was for the student to press Next without
-answering it.
+**The teacher shows every question** (`0047`, `0057`). **Choose a question** opens the three
+tests side by side: every question by the number the printed test gives it, what has happened to
+each in this session, and the chosen one in full with why it sits at its level. **Show it to them**
+puts it on the student's screen; with a question still up it reads **Show now**, and the one they
+were on is set aside. Nothing is queued behind it: starting the test puts nothing up, and neither
+does an answer, so the student only ever sees a question the teacher chose. Until `0057` the test
+ran itself — the easy test loaded at the start and every answer brought up the next question in a
+queue — and the teacher reached in when they wanted something else; the lessons are not run that
+way, so the queue is gone.
 
 **The level moves when it is wrong**, and only the teacher moves it: the console's three buttons, or
-choosing a question from another test. Moving loads that test and opens its first question. The
+choosing a question from another test. A level button puts up the first question of that test the
+student has not had in front of them, and nothing after it. The
 question that was on screen is set aside — voided, not counted against them — and a question
 already asked is never asked again, even coming back down. That holds for choosing too: a question
 the student has answered, or had in front of them and had set aside, cannot be chosen again.
@@ -247,9 +247,9 @@ the teacher blind and the session stuck, because starting the test, answering, m
 handing in were all things only the student could do. The console does all four now (0034). It
 shows the question the student is on in full — stimulus, stem, all four choices — and **Answer
 for the student** enters what they said out loud. That is not a second kind of answer: it goes on
-the student's own item, is graded against the same key, stops the same clock and opens their next
-question, because the report reads one data set and a second kind of answer in it would be a lie
-about the lesson.
+the student's own item, is graded against the same key and stops the same clock, because the
+report reads one data set and a second kind of answer in it would be a lie about the lesson. The
+next question is still the teacher's to show.
 
 **Routes.** Every screen is a place: `/questions` (the bank, opening on the three tests),
 `/tests/:id` (read one), `/sessions` (the table), `/sessions/:id` (the console). There is no
@@ -276,8 +276,8 @@ The test runs full screen, asked for inside the click that starts it — the onl
 grants it. Leaving full screen is not blocked (no browser allows that, and none should), so it is
 treated as what it is: the screen asks them to come back or to finish.
 
-Nor can they wander off: while a question is open, the browser's back button and a refresh are
-both caught, and leaving is a decision the screen asks about first. Saying yes submits the test
+Nor can they wander off: while the test is live — between questions too — the browser's back
+button and a refresh are both caught, and leaving is a decision the screen asks about first. Saying yes submits the test
 as it stands — `finish_session_as_student` completes the session and voids every question they
 never answered, including the one on screen. A test you can leave and come back to is not a test,
 and the per-question clock would mean nothing.
@@ -298,15 +298,13 @@ built for: without it, a level the student was moved off before answering anythi
 the console entirely.
 
 One question is in front of the student at a time and it is the *server* that holds that line:
-only the current item is `published` and everything else is `staged`, which is invisible under
-RLS. The next one is published by `submit_answer` once the current one is answered. So loading
-twenty questions on a level move is not putting twenty questions in front of the student — it is
-putting one in front of them and nineteen out of reach, and the clock on question 3 cannot be
-spent reading question 4. Choosing a question is the same line held the same way: the chosen one
-is published, the queue is rebuilt behind it as staged rows, and `record_answer` checks the
-question is still open in the same statement that answers it — so a teacher setting a question
-aside at the instant the student presses Next cannot leave two questions open (`0047` has the
-race, and the reason `lock_open_item` looks twice).
+only the current item is `published`, and a `staged` row is invisible under RLS. Since `0057`
+nothing is staged at all — the teacher's choice inserts one row and publishes it, and
+`submit_answer` publishes nothing — so the clock on question 3 cannot be spent reading question 4
+because question 4 does not exist until the teacher shows it. `record_answer` checks the question
+is still open in the same statement that answers it, so a teacher setting a question aside at the
+instant the student submits cannot leave two questions open (`0047` has the race, and the reason
+`lock_open_item` looks twice).
 
 ## Speed
 
@@ -812,16 +810,16 @@ cannot self-promote or author questions; a queued question is invisible and unan
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible
 to the student. `level_session.sql` is the whole of the session flow: a student cannot open a
-session early or open somebody else's, opening loads the easy test, exactly one question is
-within their reach at a time, answering brings up the next in the test's order, moving level
-voids the question on screen and opens the new test at its first, what was already answered
+session early or open somebody else's, opening puts nothing up until the teacher shows a
+question, exactly one question is within their reach at a time, answering puts nothing up, moving
+level voids the question on screen and puts up the new test's first, what was already answered
 survives the move, no question is asked twice even coming back down, only the teacher can move it
 — not the student, not a stranger — and `set_session_paper`, `publish_item` and
 `set_level_by_token` are gone. `choosing.sql` is the teacher choosing: only the session's teacher,
-only while the test runs; *now* sets aside the question on screen and leaves exactly one open;
-*next* leaves it and brings the chosen one up when it is answered, or at once when nothing is up;
-the test carries on after the chosen question and comes round to the ones before it; the student
-still reads nothing staged; and nothing answered, on screen, set aside, in another subject's tests
+only while the test runs; starting it and answering put nothing up (`0057`); *now* sets aside the
+question on screen, leaves exactly one open and queues nothing behind it; *not now* is refused
+while a question is open and goes up at once when nothing is; and nothing answered, on screen,
+set aside, in another subject's tests
 or in no test at all can be chosen. `admin_access.sql` is the admin on a session they do not
 teach: they let the student in early, start it, move the level, choose the question, answer for
 the student, publish the results, diagnose, end it and edit it; they put in, correct and delete a

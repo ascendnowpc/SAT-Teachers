@@ -7,14 +7,7 @@ import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLevelTests } from '../hooks/useLevelTests'
 import { useLiveSession } from '../hooks/useLiveSession'
-import {
-  choosable,
-  nextUp,
-  placeOf,
-  standings,
-  type LevelTest,
-  type Standing,
-} from '../lib/choosing'
+import { choosable, standings, type LevelTest, type Standing } from '../lib/choosing'
 import {
   DIAGNOSES,
   LEVELS,
@@ -102,9 +95,10 @@ function LiveClock({ item }: { item: SessionItem }) {
  *   * open the test for them, and hand it in.
  *
  * And one thing the student's screen cannot do, on purpose: choose which
- * question they get. The test runs itself, and the teacher can see what comes
- * next and put any question from any of the three tests in its place (0047).
- * The student is shown the question and nothing about where it came from.
+ * question they get. Nothing runs by itself: every question the student sees
+ * is one the teacher chose from the three tests and showed (0047, 0057), and
+ * after each answer the student waits for the next. The student is shown the
+ * question and nothing about where it came from.
  *
  * And it shows the whole session rather than the level it happens to be on.
  * A student who did six easy questions and then twenty medium ones sat both,
@@ -277,10 +271,9 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
       {over && <AfterTheTest sessionId={sessionId} session={session} items={items} />}
 
       {/* The level and the questions are the teacher's once the test is
-          running, and not before: until then there is nothing on the screen to
-          wait behind, no queue to put anything in front of, and moving the
-          level only moved where it would start (0052). */}
-      {session.status === 'scheduled' && <BeforeTheStart session={session} />}
+          running, and not before (0052): there is no screen to show a question
+          on until the student is in. */}
+      {session.status === 'scheduled' && <BeforeTheStart />}
       {session.status === 'live' && (
         <LevelControl session={session} hasOpenQuestion={open !== null} busy={busy} onCall={call}>
           <NextQuestion
@@ -421,10 +414,10 @@ function LevelControl({
             <h2 id="move-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
             <p>
               {hasOpenQuestion
-                ? `The question on the student's screen is set aside — it is not counted as wrong — and the rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`
-                : `The rest of the ${levelLabel(session.level).toLowerCase()} test goes away.`}{' '}
-              They pick up the {levelLabel(asking).toLowerCase()} test at its first question they
-              have not already answered.
+                ? "The question on the student's screen is set aside — it is not counted as wrong. "
+                : ''}
+              The first question of the {levelLabel(asking).toLowerCase()} test they have not already
+              had goes up on their screen now, and nothing after it: you show each one after that.
             </p>
             <div className="leave-actions">
               <button
@@ -453,16 +446,16 @@ function LevelControl({
  * The level buttons used to be here from the moment a session was scheduled,
  * where the only thing they could do was move where the student would start —
  * one click on the way past. They wait for the test now, as choosing a
- * question always did, and this says where it starts and what comes after.
+ * question always did, and this says what happens once it starts: nothing, on
+ * the student's screen, until the teacher shows a question (0057).
  */
-function BeforeTheStart({ session }: { session: Session }) {
+function BeforeTheStart() {
   return (
     <div className="card card-pad level-control">
       <div className="section-title">Which test</div>
       <p className="step-text muted">
-        They start on the <strong>{levelLabel(session.level).toLowerCase()}</strong> test. Moving
-        them to another test, choosing their questions and ending the session all open up once the
-        test has started.
+        Nothing goes up on their screen until you show it. Choosing their questions, moving them
+        between tests and ending the session all open up once the test has started.
       </p>
     </div>
   )
@@ -471,17 +464,14 @@ function BeforeTheStart({ session }: { session: Session }) {
 /* ------------------------------------------------------------- choosing --- */
 
 /**
- * What the student gets next, and the teacher's hand on it.
+ * What the student gets next: whatever the teacher shows them, and nothing
+ * else (0057).
  *
- * The test runs itself — every answer brings up the next question — and until
- * 0047 the question it would bring up was invisible: "Queued", behind a switch
- * on the board, in an order nobody could change. A teacher who could see the
- * student needed a different kind of question had no way to give them one
- * short of telling them to press Next without answering.
- *
- * So the next question is named here, by its test and the number the printed
- * test gives it, and Choose a question puts any question from any of the three
- * tests in front of the student instead.
+ * The test used to run itself — every answer brought up the next question in
+ * a queue — and the teacher reached in when they wanted something different.
+ * Now nothing is queued. Starting the test and answering a question both leave
+ * the student waiting, and Choose a question is how every question, the first
+ * included, reaches their screen.
  */
 function NextQuestion({
   session,
@@ -500,33 +490,23 @@ function NextQuestion({
 }) {
   const [choosing, setChoosing] = useState(false)
   const open = items.some((i) => i.status === 'published')
-  const next = nextUp(items)
-  const place = next ? placeOf(tests, next.question_id) : null
-  const nextSkill = next?.questions
-    ? (skillLabel(next.questions.skill) ?? sectionLabel(next.questions.section))
-    : null
+  const asked = items.some((i) => i.status !== 'staged')
 
   return (
     <div className="next-row">
       <span className="level-switch-label">
-        {!open ? (
-          // Between questions the queue has run out, or it never started. The
-          // student is looking at a screen that says they are waiting.
+        {open ? (
+          <>When they answer this one, they wait for you to show the next.</>
+        ) : asked ? (
+          // Between questions. The student is looking at a screen that says
+          // they are waiting for their teacher.
           <>
             <strong>Nothing on their screen.</strong> Choose the next question, or end the session.
           </>
-        ) : next ? (
-          <>
-            Next up:{' '}
-            <strong>
-              {place
-                ? `${levelLabel(place.level)} test, question ${place.number}`
-                : 'the next question'}
-            </strong>
-            {nextSkill && <> · {nextSkill}</>}
-          </>
         ) : (
-          <>Nothing queued after this one — they will wait for you once it is answered.</>
+          <>
+            <strong>They are waiting for their first question.</strong> Choose one to show them.
+          </>
         )}
       </span>
       <span className="spring" />
@@ -575,11 +555,10 @@ function StandingBadge({ standing }: { standing: Standing }) {
  * sentence about why it sits at its level, which is the thing being decided.
  * The key is not on it: this is choosing, not marking.
  *
- * Then when. Show now puts it up straight away and sets aside the question on
- * their screen — not counted against them, the way a level move sets it aside.
- * Show next lets them finish the one they are on and puts this up the moment
- * they answer, which costs them nothing. Either way they are on this
- * question's test from then on, and it carries on from here.
+ * Then Show, which puts it up straight away. If they are still on a question,
+ * that one is set aside — not counted against them, the way a level move sets
+ * it aside. Nothing is queued after it (0057): when they answer, they wait for
+ * the teacher to show the next one.
  */
 function QuestionPicker({
   session,
@@ -601,7 +580,7 @@ function QuestionPicker({
   const standing = useMemo(() => standings(items), [items])
   const open = items.some((i) => i.status === 'published')
 
-  // Opens on the test the queue is running, which is where "the next one" is.
+  // Opens on the test of the question last shown.
   const [level, setLevel] = useState<SessionLevel>(session.level)
   const [picked, setPicked] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -622,25 +601,13 @@ function QuestionPicker({
   // under the teacher — it may be the question that just went up.
   const canShow = question !== null && already !== null && choosable(already)
 
-  // What comes up after it: the next question in this test that has not been in
-  // front of them, coming round from the top — the order the server queues.
-  const after = useMemo(() => {
-    if (!test || index < 0) return null
-    const n = test.questions.length
-    for (let k = 1; k < n; k++) {
-      const at = (index + k) % n
-      if (choosable(standing.get(test.questions[at].id) ?? 'free')) return at + 1
-    }
-    return null
-  }, [test, index, standing])
-
-  async function show(now: boolean) {
+  async function show() {
     if (!picked) return
     setErr(null)
     const failed = await onCall('teacher_choose_question', {
       p_session: session.id,
       p_question: picked,
-      p_now: now,
+      p_now: true,
     })
     if (failed) setErr(failed)
     else onClose()
@@ -765,36 +732,18 @@ function QuestionPicker({
           <p className="picker-hint">
             {!question
               ? 'Nothing changes on their screen until you choose.'
-              : already === 'next'
-                ? 'This is already next — Show now puts it up without waiting.'
-                : open
-                  ? 'Show now sets aside the question on their screen; it is not counted against them. Show next waits until they answer it.'
-                  : 'It goes up on their screen straight away.'}
-            {question &&
-              (after !== null ? (
-                <> After it, the {levelLabel(level).toLowerCase()} test carries on from {after}.</>
-              ) : (
-                <> It is the last question left in the {levelLabel(level).toLowerCase()} test.</>
-              ))}
+              : open
+                ? 'Show now sets aside the question on their screen; it is not counted against them.'
+                : 'It goes up on their screen straight away.'}
           </p>
           <button
             type="button"
             className="btn btn-primary"
             disabled={!canShow || busy}
-            onClick={() => void show(true)}
+            onClick={() => void show()}
           >
             {open ? 'Show now' : 'Show it to them'}
           </button>
-          {open && (
-            <button
-              type="button"
-              className="btn"
-              disabled={!canShow || busy || already === 'next'}
-              onClick={() => void show(false)}
-            >
-              Show next
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -819,8 +768,9 @@ function QuestionPicker({
  * what the student picked against the key. Everything the two places used to
  * say between them is said here once.
  *
- * The answer goes on the student's item, is graded against the same key, stops
- * the same clock and opens the next question. The report cannot tell a
+ * The answer goes on the student's item, is graded against the same key and
+ * stops the same clock; the next question is still the teacher's to show
+ * (0057). The report cannot tell a
  * teacher-entered answer from the student's own because there is nothing to
  * tell apart — it is the student's answer, typed by whoever had a keyboard
  * that worked.
@@ -888,7 +838,7 @@ function FocusQuestion({
           </span>
         )}
         {/* While the question is open this is a draft, not an answer: the
-            student has picked it and not pressed Next. Saying so is the
+            student has picked it and not submitted it. Saying so is the
             difference between "they got it wrong" and "they are about to". */}
         {isOpen && item.selected_option && <span className="muted">leaning</span>}
         <span className="spring" />

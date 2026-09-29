@@ -3,25 +3,26 @@
 --
 --    psql "$DATABASE_URL" -f supabase/tests/level_session.sql
 --
---  The workflow 0027 left standing, and the whole of it: a session is a level.
---  The student opens it, the easy test loads, every answer brings up the next
---  question, and the teacher moves the level when it is the wrong one.
+--  The workflow 0027 left standing, as 0057 changed it: the student opens the
+--  session, and the teacher shows every question — nothing goes up by itself,
+--  not at the start and not after an answer. The level buttons put up the
+--  first question of a test the student has not had in front of them.
 --  What has to hold:
 --
 --    * a student cannot open a session before its scheduled time, or open
 --      somebody else's at all
---    * opening loads the easy test and publishes its first question — the
---      teacher prepared nothing
+--    * opening puts nothing up — the teacher prepared nothing, and shows the
+--      first question when the lesson is ready for it
 --    * exactly one question is readable at a time, which is what makes the
 --      per-question timing mean anything
---    * answering publishes the next one, in the test's order
+--    * answering puts nothing up; the next question is the teacher's to show
 --    * the level is the teacher's to move: not the student's (0047), and not
 --      a stranger's
---    * moving level voids the question on screen, drops the rest of the old
---      test, and opens the new test at its first question
+--    * moving level voids the question on screen and puts up the new test's
+--      first question, and nothing behind it
 --    * what the student already answered survives the move
 --    * a question already asked is never asked twice, even moving back down
---    * leaving ends the session: unanswered questions are voided, answered
+--    * leaving ends the session: the question on screen is voided, answered
 --      ones are kept, and nothing is left open to come back to
 --
 --  Depends on the three level tests being loaded (migration 0026).
@@ -40,7 +41,8 @@ declare
   o_id uuid := gen_random_uuid();          -- a second student, not on the session
   sess uuid; it uuid;
   easy_n int; med_n int;
-  easy_1 text; easy_2 text; med_1 text;
+  easy_1 text; easy_2 text; easy_3 text; med_1 text;
+  easy_1_id uuid; easy_2_id uuid;
   n int; txt text;
   pc profiles;
 begin
@@ -64,6 +66,16 @@ begin
   select q.source_ref into easy_2
     from question_set_items qi join question_sets qs on qs.id = qi.set_id
     join questions q on q.id = qi.question_id
+   where qs.level = 'easy' and qs.subject = 'english' and qs.is_active and qi.position = 2;
+  select q.source_ref into easy_3
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
+    join questions q on q.id = qi.question_id
+   where qs.level = 'easy' and qs.subject = 'english' and qs.is_active and qi.position = 3;
+  select qi.question_id into easy_1_id
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
+   where qs.level = 'easy' and qs.subject = 'english' and qs.is_active and qi.position = 1;
+  select qi.question_id into easy_2_id
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
    where qs.level = 'easy' and qs.subject = 'english' and qs.is_active and qi.position = 2;
   select q.source_ref into med_1
     from question_set_items qi join question_sets qs on qs.id = qi.set_id
@@ -149,45 +161,55 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
-  n := start_session_as_student(sess);
-  return query select '3 open'::text,'opening loads the easy test'::text,easy_n::text,n::text,
-    (case when n=easy_n then 'PASS' else 'FAIL' end)::text;
+  perform start_session_as_student(sess);
 
   select status::text into txt from sessions where id = sess;
-  return query select '3 open'::text,'and the session goes live'::text,'live'::text,txt,
+  return query select '3 open'::text,'the session goes live'::text,'live'::text,txt,
     (case when txt='live' then 'PASS' else 'FAIL' end)::text;
 
   -- The student's own view: RLS hides everything not published to them, so
   -- this count is the number of questions within their reach.
   select count(*) into n from session_items;
+  return query select '3 open'::text,'and nothing goes up by itself (0057)'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
+
+  -- ============ the teacher shows the first question ============
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform teacher_choose_question(sess, easy_1_id, true);
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  select count(*) into n from session_items;
   return query select '3 open'::text,'exactly one question is in reach'::text,'1'::text,n::text,
     (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
   select q.source_ref into txt from session_items si join questions q on q.id=si.question_id;
-  return query select '3 open'::text,'and it is the easy test''s first'::text,easy_1,txt,
+  return query select '3 open'::text,'and it is the one the teacher showed'::text,easy_1,txt,
     (case when txt=easy_1 then 'PASS' else 'FAIL' end)::text;
 
   select level_size into n from sessions where id = sess;
-  return query select '3 open'::text,'the length of the test is readable'::text,easy_n::text,n::text,
-    (case when n=easy_n then 'PASS' else 'FAIL' end)::text;
+  return query select '3 open'::text,'level_size counts what has been shown'::text,'1'::text,n::text,
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ answering brings up the next one ============
+  -- ============ answering puts nothing up ============
   select id into it from session_items;
   perform mark_item_viewed(it);
   perform submit_answer(it, 'B'::answer_option, '{}'::answer_option[], 3::smallint, 'because');
 
   select count(*) into n from session_items;
-  return query select '4 loop'::text,'now two are in reach — the answered one and the next'::text,
-    '2'::text,n::text,(case when n=2 then 'PASS' else 'FAIL' end)::text;
+  return query select '4 answer'::text,'only the answered one is in reach'::text,
+    '1'::text,n::text,(case when n=1 then 'PASS' else 'FAIL' end)::text;
 
-  select q.source_ref into txt
-    from session_items si join questions q on q.id=si.question_id
-   where si.status = 'published';
-  return query select '4 loop'::text,'the open one is the test''s second'::text,easy_2,txt,
-    (case when txt=easy_2 then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_items where status = 'published';
+  return query select '4 answer'::text,'and nothing is open: the teacher shows the next'::text,
+    '0'::text,n::text,(case when n=0 then 'PASS' else 'FAIL' end)::text;
 
   select coalesce(revealed_result::text,'null') into txt from session_items where id=it;
-  return query select '4 loop'::text,'and the result is still withheld'::text,'null'::text,txt,
+  return query select '4 answer'::text,'and the result is still withheld'::text,'null'::text,txt,
     (case when txt='null' then 'PASS' else 'FAIL' end)::text;
 
   -- ============ the student cannot move the level ============
@@ -202,13 +224,15 @@ begin
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
-  -- ============ the teacher moves them up a level ============
+  -- ============ the teacher shows another, then moves them up a level ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
+  perform teacher_choose_question(sess, easy_2_id, true);
+
   n := set_session_level(sess, 'medium');
-  return query select '5 move'::text,'the teacher moves them up: the medium test loads'::text,med_n::text,n::text,
-    (case when n=med_n then 'PASS' else 'FAIL' end)::text;
+  return query select '5 move'::text,'the teacher moves them up: one medium question goes up'::text,'1'::text,n::text,
+    (case when n=1 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- And what that looks like from the student's chair.
@@ -236,11 +260,11 @@ begin
   select count(*) into n from session_items where status = 'voided';
   return query select '5 move'::text,'the question on screen is voided, not lost'::text,'1'::text,n::text,
     (case when n=1 then 'PASS' else 'FAIL' end)::text;
-
-  select level_size into n from sessions where id = sess;
-  return query select '5 move'::text,'the length is the new test''s'::text,med_n::text,n::text,
-    (case when n=med_n then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
+
+  select count(*) into n from session_items where session_id = sess and status = 'staged';
+  return query select '5 move'::text,'and nothing is queued behind it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
 
   -- ============ and back down again ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
@@ -256,14 +280,16 @@ begin
   return query select '6 teacher'::text,'the teacher moves them back down'::text,'easy'::text,txt,
     (case when txt='easy' then 'PASS' else 'FAIL' end)::text;
 
-  -- The one they answered and the one that was voided on the way out are both
-  -- already in this session, so the easy test comes back two questions short.
-  select count(*) into n
-    from session_items si
-   where si.session_id = sess and si.status = 'staged';
-  return query select '6 teacher'::text,'nothing already asked is asked again'::text,
-    (easy_n - 3)::text, n::text,
-    (case when n = easy_n - 3 then 'PASS' else 'FAIL' end)::text;
+  -- The first they answered and the second was set aside, so back on easy the
+  -- first question they have not had in front of them is the third. Read as
+  -- the migration role, like the expectations at the top.
+  execute 'reset role';
+  select q.source_ref into txt
+    from session_items si join questions q on q.id=si.question_id
+   where si.session_id = sess and si.status = 'published';
+  return query select '6 teacher'::text,'nothing already asked is asked again'::text,easy_3,txt,
+    (case when txt=easy_3 then 'PASS' else 'FAIL' end)::text;
+  execute 'set local role authenticated';
 
   select count(*) into n from session_items where session_id = sess and status = 'published';
   return query select '6 teacher'::text,'and one question is open'::text,'1'::text,n::text,
@@ -277,7 +303,7 @@ begin
           then 'PASS' else 'FAIL' end)::text;
   -- 0023's publish_item handed a staged row over as it stood, with no check on
   -- what else was open. Choosing a question is teacher_choose_question now
-  -- (0047), which sets aside or waits behind whatever is on the screen.
+  -- (0047), which sets aside whatever is on the screen.
   return query select '7 gone'::text,'0023''s way of handing over a question is gone'::text,'absent'::text,
     (case when to_regprocedure('public.publish_item(uuid)') is null
           then 'absent' else 'present' end),
@@ -308,9 +334,9 @@ begin
   execute 'set local role authenticated';
 
   n := finish_session_as_student(sess);
-  return query select '8 leave'::text,'the questions never reached are voided'::text,
-    (easy_n - 2)::text, n::text,
-    (case when n = easy_n - 2 then 'PASS' else 'FAIL' end)::text;
+  return query select '8 leave'::text,'the question on their screen is voided'::text,
+    '1'::text, n::text,
+    (case when n = 1 then 'PASS' else 'FAIL' end)::text;
 
   select count(*) into n from session_items where status = 'published';
   return query select '8 leave'::text,'nothing is left open to come back to'::text,'0'::text,n::text,

@@ -26,7 +26,7 @@ language plpgsql as $fn$
 declare
   t_id uuid := gen_random_uuid();
   s_id uuid := gen_random_uuid();
-  sess uuid; it uuid;
+  sess uuid; it uuid; q uuid;
   n int; txt text;
   pc profiles;
 begin
@@ -40,6 +40,13 @@ begin
     (s_id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
      'start.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Zixi Test"}');
+
+  -- The easy test's first question, read as the migration role: it is the
+  -- expectation, not something either seat is being tested on.
+  select qi.question_id into q
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
+   where qs.subject = 'english' and qs.level = 'easy' and qs.is_active
+   order by qi.position limit 1;
 
   -- A student is booked with their PC or not at all (0055).
   pc := create_pc_profile('Pat', 'Coordinator', 'start.pc@example.test');
@@ -85,15 +92,22 @@ begin
   return query select '2 start'::text,'nothing is sat until something is answered'::text,'{}'::text,txt,
     (case when txt='{}' then 'PASS' else 'FAIL' end)::text;
 
+  select count(*) into n from session_items where session_id = sess;
+  return query select '2 start'::text,'and nothing goes up until the teacher shows it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+
   -- ============ easy, up to medium, back down to easy ============
+  -- The teacher shows the easy test's first question (0057).
+  perform teacher_choose_question(sess, q, true);
+
   select id into it from session_items where session_id = sess and status = 'published';
   perform teacher_answer_item(it, 'A'::answer_option, '{}'::answer_option[], 2::smallint, null);
   select levels_sat::text into txt from sessions where id = sess;
   return query select '3 sat'::text,'an easy answer: the easy test'::text,'{easy}'::text,txt,
     (case when txt='{easy}' then 'PASS' else 'FAIL' end)::text;
 
-  -- Live now, so the level moves — and the easy question on the screen is set
-  -- aside on the way, which is not sitting it.
+  -- Live now, so the level moves, and puts the medium test's first question
+  -- up — which is not sitting it until it is answered.
   perform set_session_level(sess, 'medium');
   select level into txt from sessions where id = sess;
   return query select '3 sat'::text,'once it is live the level moves'::text,'medium'::text,txt,
