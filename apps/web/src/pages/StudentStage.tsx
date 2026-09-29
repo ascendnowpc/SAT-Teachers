@@ -19,12 +19,13 @@ import type { OptionLabel, Session, SessionItem } from '../lib/types'
  * the clock on each question honest: there is no way to read ahead while it
  * runs.
  *
- * Which question that is, is the teacher's decision. The session opens on the
- * easy test and every answer brings up the next question in it, and the teacher
- * can put a different one up at any point — from that test or from either of
- * the other two (0047). When they do, the question that was here is set aside:
- * it is not counted or numbered anywhere against the student, because changing
- * it was the teacher's call, not something the student got wrong.
+ * Which question that is, is the teacher's decision, and nothing else puts one
+ * up (0057). Starting the test and answering a question both leave the student
+ * waiting for the teacher to show the next one; there is no Next button and no
+ * way to move on alone. If the teacher shows a question while another is still
+ * here, the one that was here is set aside: it is not counted or numbered
+ * anywhere against the student, because changing it was the teacher's call,
+ * not something the student got wrong.
  *
  * Nothing on this screen says which of the three tests a question came from.
  * A student who could see "easy" turn into "hard" started treating a
@@ -62,8 +63,11 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
 
   // A test in progress is not a page you can wander off. The browser's own back
   // button and a refresh are both caught: back is turned into the same question
-  // the screen already asks, and a refresh gets the browser's warning.
-  const inProgress = open !== null && !over
+  // the screen already asks, and a refresh gets the browser's warning. In
+  // progress means the whole of the live test, not only while a question is
+  // up: between questions the student is waiting for the teacher (0057), and
+  // that wait is part of the test.
+  const inProgress = session?.status === 'live' && !over
   const [outOfFullscreen, setOutOfFullscreen] = useState(false)
 
   // Full screen is asked for when the test opens and watched while it is open.
@@ -124,9 +128,11 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   const number = done.length + (open ? 1 : 0)
 
   const finished = !open && done.length > 0
-  // Nothing open and nothing answered means the test is still waiting to be
-  // started — whether or not the teacher has already flipped the session live.
-  const waiting = !open && !finished && !over
+  // Live with nothing on the screen: started, and waiting for the teacher to
+  // show a question — the first one, or the next.
+  const between = !open && session.status === 'live'
+  // Nothing open, nothing answered, not yet live: the lobby.
+  const waiting = !open && !finished && !between && !over
 
   return (
     <div className="exam">
@@ -185,8 +191,9 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
           <div className="leave-box">
             <h2>Back to full screen</h2>
             <p>
-              This is a test, so it runs full screen. Your clock is still running on question{' '}
-              {number}.
+              {open
+                ? `This is a test, so it runs full screen. Your clock is still running on question ${number}.`
+                : 'This is a test, so it runs full screen. Your next question will appear here when your teacher shows it.'}
             </p>
             <div className="leave-actions">
               <button
@@ -233,10 +240,10 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
 
       {open ? (
         <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
+      ) : finished || between ? (
+        <Finished over={over} items={done} />
       ) : waiting ? (
         <Lobby session={session} gateway={gateway} onStarted={reload} />
-      ) : finished ? (
-        <Finished over={over} items={done} />
       ) : (
         <div className="exam-wait">
           <div className="ring" aria-hidden="true" />
@@ -297,9 +304,9 @@ function Lobby({
       <div className="ring" aria-hidden="true" />
       <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
       <p>
-        You answer one question at a time, each timed from the moment it appears. Once you submit an
-        answer you move on to the next one and cannot go back to it. Your teacher decides what comes
-        next, so there is no set number of questions.
+        You answer one question at a time, each timed from the moment it appears. Your teacher puts
+        each question on your screen: submit your answer, then wait for the next one. You cannot go
+        back to a question once you have submitted it, and there is no set number of questions.
       </p>
       <p className="exam-when">
         {formatUtcLong(session.scheduled_at)} — {state.label}
@@ -322,11 +329,12 @@ function Lobby({
 /* ------------------------------------------------------------ finished --- */
 
 /**
- * Nothing on the screen, and something answered: a pause, or the end.
+ * Nothing on the screen: a pause, or the end.
  *
- * While the session is live it is a pause. The questions queued behind the
- * last answer have run out and the teacher is choosing what comes next — it
- * appears here the moment they do, since this screen keeps looking for it.
+ * While the session is live it is a pause, and the usual state between
+ * questions: the teacher shows every question (0057), and the next one appears
+ * here the moment they do, since this screen keeps looking for it. It is also
+ * where the student lands after pressing Start, before the first question.
  * This used to offer the student the next test up; which test is the teacher's
  * decision now, and the student is not told there are tests at all. Once the
  * session is over it is the end, and says so.
@@ -367,8 +375,9 @@ function Finished({ over, items }: { over: boolean; items: SessionItem[] }) {
           <>
             <h2>Waiting for your teacher</h2>
             <p>
-              {items.length} answered so far. Your next question appears here when your teacher
-              chooses it.
+              {items.length === 0
+                ? 'Your first question appears here when your teacher shows it.'
+                : `${items.length} answered so far. Your next question appears here when your teacher shows it.`}
             </p>
           </>
         )}
@@ -457,7 +466,7 @@ function ItemPane({
    * The working, sent up as it happens.
    *
    * The teacher is on a call watching this student, and until now the console
-   * showed nothing at all until Next was pressed — so "you've gone for B, talk
+   * showed nothing at all until the answer was sent — so "you've gone for B, talk
    * me through it" needed a screen share, which is the thing that keeps
    * failing. It is a draft, not an answer: the item stays published and
    * nothing is graded. The first answer in it does stop the clock (0050), the
@@ -509,7 +518,8 @@ function ItemPane({
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send that answer.')
     }
-    // Answering publishes the next question, so the reload brings it with it.
+    // Answering puts nothing else up (0057): the reload brings the wait for the
+    // teacher's next question, or that question if it is already up.
     await onChanged()
     setBusy(false)
   }, [selected, struck, confidence, gateway, item.id, onChanged])
@@ -627,10 +637,10 @@ function ItemPane({
             disabled={!selected || busy}
             onClick={() => void submit()}
           >
-            {/* Always Next. "Finish the test" marked the twentieth question of
-                twenty, and there is no twentieth any more: how many there are
-                is up to the teacher, who ends the test when it is done. */}
-            {busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Next'}
+            {/* Submit, not Next: sending an answer does not move the student
+                on. The teacher shows the next question (0057), and ends the
+                test when it is done — how many there are is up to them. */}
+            {busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Submit answer'}
           </button>
           <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
         </div>

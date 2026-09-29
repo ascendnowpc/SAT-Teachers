@@ -116,8 +116,9 @@ begin
     begin perform teacher_start_session(live); txt := 'started';
     exception when others then txt := 'refused: ' || sqlerrm; end;
     select count(*) into n from session_items where session_id = live and status = 'published';
-    return query select '1 console'::text,'starts it for the student, one question up'::text,'started, 1'::text,
-      txt || ', ' || n, (case when txt='started' and n=1 then 'PASS' else 'FAIL' end)::text;
+    -- Nothing goes up until a question is shown (0057).
+    return query select '1 console'::text,'starts it for the student, nothing up yet'::text,'started, 0'::text,
+      txt || ', ' || n, (case when txt='started' and n=0 then 'PASS' else 'FAIL' end)::text;
 
     begin perform set_session_level(live, 'medium'); txt := 'moved';
     exception when others then txt := 'refused: ' || sqlerrm; end;

@@ -38,8 +38,9 @@ TEACHER                                   STUDENT
 ───────                                   ───────
                                            sees a countdown, then Start
                                            opens the session themselves
-                                           ── the EASY test loads ──
-                                           question 1 appears
+                                           "Waiting for your teacher"
+Choose a question → Easy → 1
+  [Show it to them] ─────────────────────► question 1 appears
                                            first_viewed_at recorded
                                            ⏱ timer starts
 
@@ -50,23 +51,24 @@ sees "student is reading…"       ◄──────── strikes out optio
                                            selects B
                                            ⏱ timer stops
                                            adds confidence (not timed)
-                                           presses Next ──► Postgres grades it
-sees: B · wrong (key: C)         ◄──────── student sees only the next question
+                                           presses Submit answer ──► graded
+sees: B · wrong (key: C)         ◄──────── "Waiting for your teacher"
       eliminated A, D
       42s vs 55s target · fast
       confidence: high
 
 taps a diagnosis chip:
-  [misread_question]                       … answers 2, 3, 4, 5 …
+  [misread_question]
+Choose a question → Easy → 2
+  [Show it to them] ─────────────────────► question 2 appears
+                                           … answers 2, 3, 4, 5, 6 — each
+                                           one shown by the teacher …
 
 ── the teacher sees these are too easy ─────────────────────────────────────
 
 Choose a question → Medium → 7
-  [Show next] ───────────────────────────► they finish question 6, and
-                                           medium 7 appears as their
+  [Show it to them] ─────────────────────► medium 7 appears as their
                                            question 7
-                                           ── the MEDIUM test carries on
-                                              from 8 ──
 
 ── the lesson ends ───────────────────────────────────────────────────────
 
@@ -116,24 +118,20 @@ clients pay for.
 
 ## Who chooses the question
 
-A session carries a `level` — `easy`, `medium` or `hard` — and it starts on `easy`. Loading a
-level stages that test's twenty questions and publishes the first; every answer publishes the
-next. Nobody has to hand anything over, and most of a lesson runs that way.
+**The teacher shows every question** (`0057`). Starting the test puts nothing on the student's
+screen, and answering a question puts nothing up either: the student waits, and **Choose a
+question** is how every question reaches them, the first included. It lists all three tests —
+every question by the number the printed test gives it, what has happened to each in this session,
+and the chosen one in full, with the sentence about why it sits at its level. **Show it to them**
+puts it up; with a question still on their screen it reads **Show now**, and the one they were on
+is **set aside**, exactly as a level move sets it aside. The session's `level` follows the test the
+last question came from.
 
-The teacher can reach in whenever the lesson calls for it (`0047`). The console names the question
-the next answer will bring up, and **Choose a question** lists all three tests — every question by
-the number the printed test gives it, what has happened to each in this session, and the chosen
-one in full, with the sentence about why it sits at its level. Then one of two:
-
-* **Show now** puts it on the student's screen at once. The question they were on is **set aside**,
-  exactly as a level move sets it aside.
-* **Show next** leaves them to finish the question they are on, and puts the chosen one up the
-  moment they answer it. Deciding while the student is still working costs them nothing.
-
-Either way the session moves onto the chosen question's test and carries on from there: the
-questions after it in the test's own order, then round to the ones before it that have not been
-asked. A teacher who picks medium 12 is asking for that kind of question, so the one after it is
-13, not 1 — and 1 to 11 are still in the queue, after 20.
+Until `0057` the test ran itself. Loading a level staged that test's twenty questions and published
+the first, every answer published the next, and the teacher reached in when they wanted something
+else — with **Show now**, or **Show next**, which waited for the answer (`0047`). The lessons are
+not run that way: the teacher chooses the question and shows it, and that is all. So nothing is
+queued any more, and the student has no Next button — they **Submit answer** and wait.
 
 This came from a teacher's notes on a diagnostic. She wanted to move the student to a different
 question on the strength of how he was doing, and the only way past a question was for him to
@@ -160,13 +158,14 @@ the session's teacher only, and `set_level_by_token`, the same move through the 
   │ 07               ⏱ 0:41  ABC │        │ WHICH TEST                           │
   │                              │        │ On the easy test  [Easy|Medium|Hard] │
   │ Which choice completes the…  │        │ ──────────────────────────────────── │
-  │  A  gentle                   │        │ Next up: Easy test, question 8 ·     │
-  │  B  diverse                  │        │ Words in Context [Choose a question] │
-  │  C  ordinary                 │        └──────────────────────────────────────┘
-  │  D  static                   │
-  │                              │         What is on the screen is the
-  │  [ Next ]                    │         teacher's to change. The student
-  └──────────────────────────────┘         sees the question and its number.
+  │  A  gentle                   │        │ When they answer this one, they wait │
+  │  B  diverse                  │        │ for you to show the next.            │
+  │  C  ordinary                 │        │                  [Choose a question] │
+  │  D  static                   │        └──────────────────────────────────────┘
+  │                              │
+  │  [ Submit answer ]           │         What is on the screen is the
+  └──────────────────────────────┘         teacher's to change. The student
+                                           sees the question and its number.
 ```
 
 Choosing is **once per question**, the same rule as moving level: a question the student has
@@ -174,31 +173,25 @@ answered, one on their screen, and one set aside earlier cannot be chosen again,
 shows them without letting them be picked. Nor can a question from the other subject's tests, or
 one that is in no test at all — the server checks all of it, not the picker.
 
-Moving does three things, in one transaction:
+Moving does two things, in one transaction (`0057`):
 
-* the question on screen is **voided** — they were being timed on it and did not answer it, and
-  `voided` is the state that already means exactly that;
-* the rest of the level they are leaving is **deleted** — those rows were never in front of the
-  student, they carry nothing, and a voided row nobody saw is noise on the board and in the
-  report;
-* the new level's questions are staged after the ones already there, **skipping any question this
-  session has already asked**, and its first is published.
+* the question on screen, if there is one, is **voided** — they were being timed on it and did
+  not answer it, and `voided` is the state that already means exactly that;
+* the first question of the new level's test **this session has not already asked** is put up,
+  and nothing behind it.
 
-Choosing a question does the same three things, with two differences: the queue is built from the
-chosen question rather than from the top, and with **Show next** the question on screen is left
-where it is.
+Choosing a question does the same two things with the chosen question. Neither builds a queue.
 
-That last clause is what makes the downward move safe. "Drop one level — rebuild fluency before
+Skipping what was already asked is what makes the downward move safe. "Drop one level — rebuild fluency before
 speed" is the oldest suggestion in the product and it never had anywhere to be acted on; now it
 does, and a student sent back to easy is not handed the two easy questions they already did.
 
 Three things do not change, and they are the ones that matter:
 
-* **The server still holds the line.** Exactly one item is `published` at a time and everything
-  else is `staged`, which is invisible under RLS. Loading twenty questions is not putting twenty
-  questions in front of the student — it is putting one in front of them and nineteen out of
-  reach. So the per-question clock means what it meant before, and there is still no reading
-  ahead.
+* **The server still holds the line.** Exactly one item is `published` at a time, and since
+  `0057` there is nothing else to read: the next question does not exist in the session until the
+  teacher shows it. So the per-question clock means what it meant before, and there is still no
+  reading ahead.
 * **Leaving still ends the test.** The screen stays full while a question is open, and walking
   out submits what they have. A test you can leave and come back to is not a test. That exit is
   now a **[Submit test]** button in the exam header as well as the back arrow — handing a test in
@@ -214,7 +207,7 @@ put in front of the student. The board and the report both read that one, and si
 the student's own numbering: it used to count **within the level**, "question 1 of 20" again after a
 move, which told the student exactly what the screen no longer says.
 
-Two people can now change the screen at once — the teacher choosing, the student pressing Next —
+Two people can change the screen at once — the teacher choosing, the student submitting —
 and the server is where that is settled. `record_answer` answers a question only if it is still
 open in the same statement that answers it, and `lock_open_item` waits out an answer in flight
 before the teacher's choice decides what is on the screen. Without both, the two pressed at once
@@ -226,8 +219,8 @@ Teacher ends the session → `status = completed`, `ended_at` set. The session s
 complete without any writing: every item, answer, elimination, time and diagnosis is on the
 board. The teacher adds an optional overall note.
 
-The board shows **what the student sat**, not what the session loaded. Handing in at question six
-voids the fourteen behind it, and those fourteen used to print as fourteen "Not attempted" rows
+The board shows **what the student sat**, not what the session loaded. Before `0057`, handing in
+at question six voided the fourteen queued behind it, and those fourteen used to print as fourteen "Not attempted" rows
 that buried the six carrying the lesson. They are one line under the table now — the count is
 still a finding, the empty rows never were. The report and the student's own results screen have
 always read the same way, so all three now agree.
@@ -242,7 +235,7 @@ The transcript is uploaded later (usually same day) and the report pipeline take
 | Student's connection drops mid-question | State is server-side; on reconnect they resume at the same item with the timer adjusted for the gap (`disconnected_ms` tracked via presence) |
 | Level moved by mistake | Move it back. The question that was open is voided and excluded from the report; nothing already answered is touched, and no question is repeated |
 | Student answers by accident | Teacher can void a single item with a reason; voided items are visible on the board but never enter the report |
-| Student finishes a whole level | Their screen says they are waiting for their teacher; the console says nothing is on their screen and offers **Choose a question**, so the session continues wherever the teacher takes it |
+| Student answers a question | Their screen says they are waiting for their teacher; the console says nothing is on their screen and offers **Choose a question** — the normal state between questions since `0057` |
 | Teacher and student press at the same moment | The server settles it: one question is open afterwards, never two, and an answer to a question the teacher has just set aside is refused rather than recorded |
 | Realtime drops | 10s poll fallback while the session is `live` |
 | Teacher forgets to diagnose | Board shows undiagnosed items amber; a prompt appears on End Session. Never blocking — an incomplete report beats a teacher fighting a modal in front of a student |

@@ -26,7 +26,8 @@
 --    * the payload never carries the answer key, and never carries the token
 --    * staged questions are not in it — there is still no reading ahead
 --    * the working shows up before the answer does, without answering
---    * answering through the link grades and opens the next question
+--    * answering through the link grades it, and puts nothing else up —
+--      the teacher shows every question (0057)
 --    * a link cannot be pointed at another session's question
 --    * anon — the signed-out role the browser actually uses — can do all of it
 --
@@ -72,6 +73,7 @@ declare
   sess  uuid; other uuid;
   tok   text; tok2 text;
   item  uuid; foreign_item uuid;
+  easy1 uuid; easy2 uuid;
   body  jsonb; n int; txt text; v_draft text;
   pc    profiles;
 begin
@@ -183,6 +185,27 @@ begin
   n := start_session_by_token(tok);
   body := session_by_token(tok);
 
+  -- Opening puts nothing up (0057): the teacher shows the first question.
+  return query select '3 link'::text,'opening shows nothing yet'::text,'0'::text,
+    jsonb_array_length(body->'items')::text,
+    (case when jsonb_array_length(body->'items')=0 then 'PASS' else 'FAIL' end)::text;
+
+  execute 'reset role';
+  select qi.question_id into easy1
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
+   where qs.subject = 'english' and qs.level = 'easy' and qs.is_active and qi.position = 1;
+  select qi.question_id into easy2
+    from question_set_items qi join question_sets qs on qs.id = qi.set_id
+   where qs.subject = 'english' and qs.level = 'easy' and qs.is_active and qi.position = 2;
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform teacher_choose_question(sess, easy1, true);
+  execute 'reset role';
+
+  execute 'set local role anon';
+  perform set_config('request.jwt.claims', '', true);
+  body := session_by_token(tok);
+
   return query select '3 link'::text,'it opens its own session'::text,sess::text,
     (body->'session'->>'id'), (case when (body->'session'->>'id')=sess::text then 'PASS' else 'FAIL' end)::text;
   return query select '3 link'::text,'and never its own token back'::text,'absent'::text,
@@ -217,6 +240,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
   perform teacher_start_session(other);
+  perform teacher_choose_question(other, easy1, true);
   select id into foreign_item from session_items where session_id = other and status='published';
   execute 'reset role';
 
@@ -286,9 +310,9 @@ begin
 
   perform answer_by_token(tok, item, 'A'::answer_option, '{}'::answer_option[], 2::smallint, null);
   body := session_by_token(tok);
-  return query select '4 answer'::text,'answering opens the next question'::text,'2'::text,
+  return query select '4 answer'::text,'answering puts nothing else up (0057)'::text,'1'::text,
     jsonb_array_length(body->'items')::text,
-    (case when jsonb_array_length(body->'items')=2 then 'PASS' else 'FAIL' end)::text;
+    (case when jsonb_array_length(body->'items')=1 then 'PASS' else 'FAIL' end)::text;
 
   execute 'reset role';
   select count(*) into n from session_item_assessments where session_item_id = item;
@@ -310,9 +334,14 @@ begin
     (case when v_draft='A' then 'PASS' else 'FAIL' end)::text;
 
   -- ============ 5. the teacher has the same verbs ============
-  -- The open question, read as the session's own teacher — a stranger cannot
-  -- even see the row, which is the first of the guarantees below and would
-  -- otherwise make the next three checks pass for the wrong reason.
+  -- The teacher shows the next question. Then the open question, read as the
+  -- session's own teacher — a stranger cannot even see the row, which is the
+  -- first of the guarantees below and would otherwise make the next three
+  -- checks pass for the wrong reason.
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform teacher_choose_question(sess, easy2, true);
+  execute 'reset role';
   select id into item from session_items where session_id = sess and status='published';
 
   perform set_config('request.jwt.claims', json_build_object('sub',x_id::text,'role','authenticated')::text, true);
@@ -347,7 +376,7 @@ begin
   return query select '5 teacher'::text,'their own, they can answer in'::text,'answered'::text,txt,
     (case when txt='answered' then 'PASS' else 'FAIL' end)::text;
 
-  -- Moving level: the question on screen is voided, the new test opens.
+  -- Moving level: the new test's first question goes up.
   perform set_session_level(sess, 'medium');
   select level::text into txt from sessions where id = sess;
   return query select '5 teacher'::text,'and move the level'::text,'medium'::text,txt,
@@ -370,7 +399,7 @@ begin
   execute 'reset role';
 
   -- ============ 6. who can even ask ============
-  -- The three that check nothing because their callers do. Reachable by
+  -- The ones that check nothing because their callers do. Reachable by
   -- nobody: this is the assertion 0028 needed and did not have.
   for txt in select unnest(array['open_session_now(uuid)',
                                  'end_session_now(uuid)',
@@ -380,9 +409,10 @@ begin
                                  'load_session_level(uuid,text)',
                                  'publish_one_item(uuid)',
                                  'record_draft(uuid,answer_option,answer_option[],smallint)',
-                                 -- 0047's two, under the loader and the choice
+                                 -- under the loader and the choice: 0047's lock,
+                                 -- and 0057's one question up
                                  'lock_open_item(uuid)',
-                                 'queue_test(uuid,uuid,int)'])
+                                 'show_one_question(uuid,uuid,uuid)'])
   loop
     return query select '6 grants'::text, txt || ' — internal',
       'nobody'::text,

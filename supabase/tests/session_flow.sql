@@ -6,6 +6,7 @@
 --  Walks one whole session from both seats and asserts what each side can see
 --  at every step. The four that matter:
 --    * a staged question is invisible to the student, and unanswerable
+--    * opening the test and answering put nothing up; the teacher shows each one
 --    * a published question exposes the question and its options — never the key
 --    * after submitting, the student cannot learn whether they were right
 --    * the teacher's diagnosis is never visible to the student
@@ -99,8 +100,23 @@ begin
   return query select '3 staged'::text,'student answers before publish'::text,'blocked'::text,
     (case when ok then 'blocked' else 'ALLOWED' end)::text,(case when ok then 'PASS' else 'FAIL' end)::text;
 
-  -- ============ STUDENT opens the session: one question, not two ============
+  -- ============ STUDENT opens the session: nothing goes up by itself ============
+  -- 0057: starting the test puts nothing on the screen; the teacher shows each
+  -- question. Staged rows stay staged.
   perform start_session_as_student(sess);
+
+  select count(*) into n from session_items;
+  return query select '4 start'::text,'opening shows nothing yet'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
+  execute 'reset role';
+
+  -- The teacher shows the first one. teacher_choose_question takes a question
+  -- from the three tests (choosing.sql); these two are this teacher's own, so
+  -- it is published the way that function publishes, directly.
+  perform publish_one_item(i1);
+
+  perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
 
   select count(*) into n from session_items;
   return query select '4 publish'::text,'student sees published item'::text,'1'::text,n::text,
@@ -166,11 +182,11 @@ begin
   return query select '7 reveal'::text,'diagnosis stays teacher-only'::text,'0'::text,n::text,
     (case when n=0 then 'PASS' else 'FAIL' end)::text;
 
-  -- Answering item 1 opened item 2 — that is the loop — so it is readable now
-  -- and it is the one thing they are being timed on.
+  -- Answering item 1 put nothing up (0057): item 2 is still staged, so the
+  -- student cannot read it. The next question is the teacher's to show.
   select status::text into txt from session_items where id=i2;
-  return query select '7 reveal'::text,'answering opened item 2'::text,'published'::text,
-    coalesce(txt,'hidden'),(case when txt='published' then 'PASS' else 'FAIL' end)::text;
+  return query select '7 reveal'::text,'answering put nothing else up'::text,'hidden'::text,
+    coalesce(txt,'hidden'),(case when txt is null then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- cleanup

@@ -12,8 +12,8 @@
 --    * a student cannot waive their own clock, and neither can a stranger
 --    * the waiver does not rewrite scheduled_at — the arrangement stands
 --    * nor does it touch status; the student is still the one who starts
---    * after it, the student starts and the easy test's first question is
---      really published
+--    * after it, the student starts, and the session is really live — with
+--      nothing on their screen until the teacher shows a question (0057)
 --    * and it cannot be taken back once they are in
 --
 --  Every row must read PASS. Cleans up after itself, and is safe to run
@@ -106,9 +106,9 @@ begin
   return query select '3 start'::text,'the student starts ahead of time'::text,'live'::text,txt,
     (case when txt='live' then 'PASS' else 'FAIL' end)::text;
 
-  select count(*) into n from session_items where status='published';
-  return query select '3 start'::text,'and the first question is actually published'::text,'1'::text,n::text,
-    (case when n=1 then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_items where session_id = sess;
+  return query select '3 start'::text,'and nothing goes up until the teacher shows it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- ============ and cannot be undone behind them ============

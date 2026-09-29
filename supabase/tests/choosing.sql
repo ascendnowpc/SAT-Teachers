@@ -4,24 +4,22 @@
 --    psql "$DATABASE_URL" -f supabase/tests/choosing.sql
 --
 --  0047: the teacher puts any question from any of the three tests in front of
---  the student — now, or as soon as they answer the one on their screen — and
---  the test carries on from there. What has to hold:
+--  the student. 0057: that is the only way a question reaches them — nothing
+--  goes up by itself, not at the start and not after an answer. What has to
+--  hold:
 --
 --    * only the session's teacher can choose: not the student, not another
 --      teacher, and only while the test is running
+--    * starting the test puts nothing up, and answering puts nothing up
 --    * now: the question on the screen is set aside, the chosen one is the
---      only one open, and the session is on the chosen question's test
---    * the queue carries on after the chosen question and comes back round to
---      the ones before it
---    * after this one: the question on the screen stays open, and answering
---      it brings up the chosen one rather than the test's next
---    * with nothing on the screen there is nothing to wait behind, so it goes
---      up at once
+--      only one open, the session is on the chosen question's test, and
+--      nothing is queued behind it
+--    * not now: refused while a question is open — there is no queue for it
+--      to wait in — and the same as now when nothing is
 --    * once: an answered question, the one on the screen and one that was set
 --      aside cannot be chosen — nor can a question no test holds, or one from
 --      the other subject's tests
---    * the student still reads only what is published: the queue is out of
---      reach whatever order it is in
+--    * the student still reads only what is published
 --    * a finished session cannot be chosen into
 --
 --  Depends on the level tests being loaded: English (0026) for the choosing,
@@ -47,7 +45,7 @@ declare
   s_id uuid := gen_random_uuid();          -- the student
   sess uuid; it uuid; ok boolean;
   easy1 uuid; easy2 uuid; easy3 uuid;
-  med6 uuid; med7 uuid; med8 uuid;
+  med7 uuid; med8 uuid;
   hard3 uuid; math1 uuid; stray uuid;
   n int; txt text; want text;
   pc profiles;
@@ -57,7 +55,6 @@ begin
   easy1 := __choosing_q('english','easy',1);
   easy2 := __choosing_q('english','easy',2);
   easy3 := __choosing_q('english','easy',3);
-  med6  := __choosing_q('english','medium',6);
   med7  := __choosing_q('english','medium',7);
   med8  := __choosing_q('english','medium',8);
   hard3 := __choosing_q('english','hard',3);
@@ -114,12 +111,9 @@ begin
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
   perform teacher_start_session(sess);
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'published';
-  select source_ref into want from questions where id = easy1;
-  return query select '1 gate'::text,'the test starts on the easy test''s first'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_items where session_id = sess;
+  return query select '1 gate'::text,'starting the test puts nothing up'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- ============ who can choose ============
@@ -145,10 +139,21 @@ begin
     (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
-  -- ============ now: medium 7, while easy 1 is on the screen ============
+  -- ============ the first question: easy 1, with nothing on the screen ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
+  -- "Not now" with nothing to wait behind goes up at once.
+  perform teacher_choose_question(sess, easy1, false);
+
+  select q.source_ref into txt
+    from session_items si join questions q on q.id = si.question_id
+   where si.session_id = sess and si.status = 'published';
+  select source_ref into want from questions where id = easy1;
+  return query select '3 first'::text,'the teacher shows the first question'::text,want,txt,
+    (case when txt=want then 'PASS' else 'FAIL' end)::text;
+
+  -- ============ now: medium 7, while easy 1 is on the screen ============
   it := teacher_choose_question(sess, med7, true);
 
   select count(*) into n from session_items where session_id = sess and status = 'published';
@@ -172,89 +177,64 @@ begin
   return query select '3 now'::text,'the session is on the medium test'::text,'medium'::text,txt,
     (case when txt='medium' then 'PASS' else 'FAIL' end)::text;
 
-  -- Up next is the lowest staged sequence number: the question after 7.
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'staged'
-   order by si.sequence_no limit 1;
-  select source_ref into want from questions where id = med8;
-  return query select '3 now'::text,'the test carries on from it'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
-
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'staged'
-   order by si.sequence_no desc limit 1;
-  select source_ref into want from questions where id = med6;
-  return query select '3 now'::text,'and comes round to the ones before it last'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
-
   select count(*) into n from session_items where session_id = sess and status = 'staged';
-  return query select '3 now'::text,'the rest of the medium test is queued'::text,'19'::text,n::text,
-    (case when n=19 then 'PASS' else 'FAIL' end)::text;
+  return query select '3 now'::text,'and nothing is queued behind it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- ============ the student's view of it ============
   perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
-  select count(*) into n from session_items where session_id = sess and status = 'staged';
-  return query select '4 student'::text,'the queue is out of reach'::text,'0'::text,n::text,
-    (case when n=0 then 'PASS' else 'FAIL' end)::text;
-
   select count(*) into n from session_items where session_id = sess and status = 'published';
   return query select '4 student'::text,'one question in front of them'::text,'1'::text,n::text,
     (case when n=1 then 'PASS' else 'FAIL' end)::text;
 
-  -- They answer it; the test carries on to medium 8.
+  -- They answer it, and nothing comes up after it.
   select id into it from session_items where session_id = sess and status = 'published';
   perform submit_answer(it, 'B'::answer_option, '{}'::answer_option[], 2::smallint, null);
 
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'published';
-  select source_ref into want from questions where id = med8;
-  return query select '4 student'::text,'answering it brings up the next after it'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_items where session_id = sess and status = 'published';
+  return query select '4 student'::text,'answering it puts nothing up'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
-  -- ============ after this one: hard 3, while medium 8 is on the screen ============
+  -- ============ not now, while medium 8 is on the screen ============
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
 
-  perform teacher_choose_question(sess, hard3, false);
+  perform teacher_choose_question(sess, med8, true);
+
+  begin perform teacher_choose_question(sess, hard3, false); txt := 'chosen';
+  exception when others then txt := 'refused'; end;
+  return query select '5 not now'::text,'refused while a question is open'::text,'refused'::text,txt,
+    (case when txt='refused' then 'PASS' else 'FAIL' end)::text;
 
   select q.source_ref into txt
     from session_items si join questions q on q.id = si.question_id
    where si.session_id = sess and si.status = 'published';
   select source_ref into want from questions where id = med8;
-  return query select '5 next'::text,'the question on the screen stays'::text,want,txt,
+  return query select '5 not now'::text,'the question on the screen stays'::text,want,txt,
     (case when txt=want then 'PASS' else 'FAIL' end)::text;
 
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'staged'
-   order by si.sequence_no limit 1;
-  select source_ref into want from questions where id = hard3;
-  return query select '5 next'::text,'and the chosen one is up next'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
-
-  select level into txt from sessions where id = sess;
-  return query select '5 next'::text,'the session is on the hard test'::text,'hard'::text,txt,
-    (case when txt='hard' then 'PASS' else 'FAIL' end)::text;
+  select count(*) into n from session_items where session_id = sess and status = 'staged';
+  return query select '5 not now'::text,'and nothing is queued'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
   select id into it from session_items where session_id = sess and status = 'published';
   perform submit_answer(it, 'A'::answer_option, '{}'::answer_option[], 3::smallint, null);
+  execute 'reset role';
 
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'published';
-  select source_ref into want from questions where id = hard3;
-  return query select '5 next'::text,'answering it brings up the chosen one'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
+  perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform teacher_choose_question(sess, hard3, true);
+
+  select level into txt from sessions where id = sess;
+  return query select '5 not now'::text,'shown once they answer: the session is on the hard test'::text,'hard'::text,txt,
+    (case when txt='hard' then 'PASS' else 'FAIL' end)::text;
   execute 'reset role';
 
   -- ============ once ============
@@ -306,19 +286,10 @@ begin
   execute 'reset role';
 
   -- ============ nothing on the screen ============
-  -- The student works through the whole of the hard test, so the queue runs
-  -- dry and nothing is left up.
   perform set_config('request.jwt.claims', json_build_object('sub',s_id::text,'role','authenticated')::text, true);
   execute 'set local role authenticated';
-  n := 0;
-  loop
-    select id into it from session_items where session_id = sess and status = 'published';
-    exit when it is null or n > 40;
-    perform submit_answer(it, 'C'::answer_option, '{}'::answer_option[], 2::smallint, null);
-    n := n + 1;
-  end loop;
-  return query select '7 empty'::text,'the whole hard test is answered'::text,'20'::text,n::text,
-    (case when n=20 then 'PASS' else 'FAIL' end)::text;
+  select id into it from session_items where session_id = sess and status = 'published';
+  perform submit_answer(it, 'C'::answer_option, '{}'::answer_option[], 2::smallint, null);
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub',t_id::text,'role','authenticated')::text, true);
@@ -334,21 +305,12 @@ begin
     from session_items si join questions q on q.id = si.question_id
    where si.session_id = sess and si.status = 'published';
   select source_ref into want from questions where id = easy2;
-  return query select '7 empty'::text,'"after this one" goes up at once'::text,want,txt,
+  return query select '7 empty'::text,'"not now" goes up at once'::text,want,txt,
     (case when txt=want then 'PASS' else 'FAIL' end)::text;
 
-  -- Easy 1 was set aside at the start, so it is not queued again.
   select count(*) into n from session_items where session_id = sess and status = 'staged';
-  return query select '7 empty'::text,'the easy test is queued without the one set aside'::text,
-    '18'::text,n::text,(case when n=18 then 'PASS' else 'FAIL' end)::text;
-
-  select q.source_ref into txt
-    from session_items si join questions q on q.id = si.question_id
-   where si.session_id = sess and si.status = 'staged'
-   order by si.sequence_no limit 1;
-  select source_ref into want from questions where id = easy3;
-  return query select '7 empty'::text,'and carries on from the one chosen'::text,want,txt,
-    (case when txt=want then 'PASS' else 'FAIL' end)::text;
+  return query select '7 empty'::text,'with nothing behind it'::text,'0'::text,n::text,
+    (case when n=0 then 'PASS' else 'FAIL' end)::text;
 
   -- ============ a finished session ============
   perform teacher_finish_session(sess);
