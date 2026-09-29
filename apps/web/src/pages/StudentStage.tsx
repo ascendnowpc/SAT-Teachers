@@ -240,8 +240,10 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
 
       {open ? (
         <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
-      ) : finished || between ? (
-        <Finished over={over} items={done} />
+      ) : between ? (
+        <WaitingForTeacher first={done.length === 0} />
+      ) : finished ? (
+        <Finished items={done} />
       ) : waiting ? (
         <Lobby session={session} gateway={gateway} onStarted={reload} />
       ) : (
@@ -326,28 +328,47 @@ function Lobby({
   )
 }
 
+/* ------------------------------------------------------------- waiting --- */
+
+/**
+ * Between questions, while the test is live: the usual state since the teacher
+ * shows every question (0057). It is also where the student lands after
+ * pressing Start, before the first one.
+ *
+ * Only that, on purpose. The questions they have already answered are not
+ * listed here: mid-test that is a page of things they cannot change, and
+ * reading back over them is not the lesson. They get the whole test back once
+ * it is over (Finished). The next question replaces this the moment the
+ * teacher shows it, since the screen keeps looking for it.
+ */
+function WaitingForTeacher({ first }: { first: boolean }) {
+  return (
+    <div className="exam-wait">
+      <div className="ring" aria-hidden="true" />
+      <h2>Waiting for your teacher</h2>
+      <p>
+        {first
+          ? 'Your teacher is choosing your first question. It will appear here in a moment.'
+          : 'Your answer has been sent. Your teacher is choosing the next question — it will appear here in a moment.'}
+      </p>
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------ finished --- */
 
 /**
- * Nothing on the screen: a pause, or the end.
+ * The end: the test is over, and something was answered.
  *
- * While the session is live it is a pause, and the usual state between
- * questions: the teacher shows every question (0057), and the next one appears
- * here the moment they do, since this screen keeps looking for it. It is also
- * where the student lands after pressing Start, before the first question.
- * This used to offer the student the next test up; which test is the teacher's
- * decision now, and the student is not told there are tests at all. Once the
- * session is over it is the end, and says so.
- *
- * Either way, underneath is every question as they met it — stimulus, stem,
- * all four choices — with what they picked and, once the teacher has published
- * the results, which one was right and why. A list of stems and letters told a
- * student nothing they could learn from.
+ * Every question as they met it — stimulus, stem, all four choices — with what
+ * they picked and, once the teacher has published the results, which one was
+ * right and why. A list of stems and letters told a student nothing they could
+ * learn from.
  *
  * The key is not in the student's reach (question_keys is teacher-only), so it
  * comes from what the reveal copied onto the item itself.
  */
-function Finished({ over, items }: { over: boolean; items: SessionItem[] }) {
+function Finished({ items }: { items: SessionItem[] }) {
   // 1, 2, 3 over the questions they actually worked on — a question the
   // teacher set aside is not one of them and takes no number.
   const numbers = useMemo(() => askNumbers(items), [items])
@@ -361,26 +382,13 @@ function Finished({ over, items }: { over: boolean; items: SessionItem[] }) {
         {/* Not "that is the hard test". Which of the three tests a student was
             put on is the teacher's decision about them, and reading it back at
             the end tells them nothing they can do anything with. */}
-        {over ? (
-          <>
-            <h2>Test submitted</h2>
-            <p>
-              {items.length} answered.{' '}
-              {out === 0
-                ? 'Your teacher will go through it with you — your results appear here when they do.'
-                : `You got ${right} of ${out} right.`}
-            </p>
-          </>
-        ) : (
-          <>
-            <h2>Waiting for your teacher</h2>
-            <p>
-              {items.length === 0
-                ? 'Your first question appears here when your teacher shows it.'
-                : `${items.length} answered so far. Your next question appears here when your teacher shows it.`}
-            </p>
-          </>
-        )}
+        <h2>Test submitted</h2>
+        <p>
+          {items.length} answered.{' '}
+          {out === 0
+            ? 'Your teacher will go through it with you — your results appear here when they do.'
+            : `You got ${right} of ${out} right.`}
+        </p>
       </div>
 
       {items.map((it) =>
