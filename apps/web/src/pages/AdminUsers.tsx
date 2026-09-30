@@ -93,59 +93,61 @@ export function AdminUsers() {
         />
       </div>
 
-      <div className="tabs">
-        <button
-          type="button"
-          className={`tab ${tab === 'teachers' ? 'on' : ''}`}
-          onClick={() => setTab('teachers')}
-        >
-          Teachers ({teachers.length})
-        </button>
-        <button
-          type="button"
-          className={`tab ${tab === 'students' ? 'on' : ''}`}
-          onClick={() => setTab('students')}
-        >
-          Students ({students.length})
-        </button>
-        <button type="button" className={`tab ${tab === 'pcs' ? 'on' : ''}`} onClick={() => setTab('pcs')}>
-          PCs ({pcs.length})
-        </button>
+      {/* Which half of the school, and what it has been narrowed to, on one
+          line: they are one decision, and the search box used to sit below in
+          a card of its own the width of the page. */}
+      <div className="tabs-bar">
+        <div className="tabs">
+          <button
+            type="button"
+            className={`tab ${tab === 'teachers' ? 'on' : ''}`}
+            onClick={() => setTab('teachers')}
+          >
+            Teachers ({teachers.length})
+          </button>
+          <button
+            type="button"
+            className={`tab ${tab === 'students' ? 'on' : ''}`}
+            onClick={() => setTab('students')}
+          >
+            Students ({students.length})
+          </button>
+          <button type="button" className={`tab ${tab === 'pcs' ? 'on' : ''}`} onClick={() => setTab('pcs')}>
+            PCs ({pcs.length})
+          </button>
+        </div>
+        <div className="tab-search">
+          <Input
+            type="search"
+            value={query}
+            placeholder={
+              tab === 'teachers'
+                ? 'Search a teacher, id, email or student…'
+                : tab === 'students'
+                  ? 'Search a student, PC, id or teacher…'
+                  : 'Search a PC, email or student…'
+            }
+            aria-label="Search people"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="filter-count">
+            {loading ? 'Loading…' : `${shown.length} of ${all.length}`}
+          </span>
+          {query && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setQuery('')}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {tab === 'pcs' && <AddPc onAdded={reloadPcs} />}
       {tab === 'students' && unassigned > 0 && (
-        <p className="sub" style={{ marginBottom: 12 }}>
+        <p className="prose list-note">
           {unassigned} {unassigned === 1 ? 'student has' : 'students have'} no PC yet. Each gets one at
           their next booking, or choose one here.
         </p>
       )}
-
-      <div className="filters">
-        <Input
-          className="input filter-search"
-          type="search"
-          value={query}
-          placeholder={
-            tab === 'teachers'
-              ? 'Search a teacher, id, email or student…'
-              : tab === 'students'
-                ? 'Search a student, PC, id or teacher…'
-                : 'Search a PC, email or student…'
-          }
-          aria-label="Search people"
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <span className="spring" />
-        <span className="filter-count">
-          {loading ? 'Loading…' : `${shown.length} of ${all.length}`}
-        </span>
-        {query && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setQuery('')}>
-            Clear
-          </button>
-        )}
-      </div>
 
       {loading ? (
         <div className="empty">Loading…</div>
@@ -216,7 +218,7 @@ function ApprovalQueue({ pending, onDone }: { pending: Profile[]; onDone: () => 
       <div className="section-title">
         Pending verification ({pending.length})
       </div>
-      <p className="sub" style={{ marginBottom: 14, maxWidth: '62ch' }}>
+      <p className="prose">
         Anyone can create a teacher account, and a teacher reads every answer key in the bank, every
         student on the roster and the house content everyone's sessions are built from. These
         accounts can see none of it until you say so.
@@ -286,7 +288,7 @@ function InviteResult({ result, again }: { result: PcResult; again: boolean }) {
 
   return (
     <Notice kind="info">
-      <p style={{ marginBottom: 8 }}>
+      <p className="notice-lead">
         <strong>{done}, but the email did not go</strong>
         {result.reason ? ` — ${result.reason}` : ''}. Send {email || 'them'} {what} yourself. It is shown this
         once.{until}
@@ -299,7 +301,15 @@ function InviteResult({ result, again }: { result: PcResult; again: boolean }) {
   )
 }
 
-/** Adding a PC: their name and the address their link goes to. */
+/**
+ * Adding a PC: their name and the address their link goes to.
+ *
+ * Folded away, because it is done once a term and the list under it is what an
+ * admin opened the tab for. Open, it stood five hundred pixels of empty form
+ * between the tabs and the PCs, every time. It stays open after a submission,
+ * because what comes back can be a link that the email did not carry — shown
+ * this once, and gone the moment the form closes.
+ */
 function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -307,6 +317,7 @@ function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PcResult | null>(null)
+  const [open, setOpen] = useState(false)
 
   const badEmail = email.trim() !== '' && !isEmailAddress(email)
   const ready = !busy && first.trim() !== '' && last.trim() !== '' && isEmailAddress(email)
@@ -330,39 +341,46 @@ function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
   }
 
   return (
-    <form className="card card-pad approvals" onSubmit={onSubmit} noValidate>
-      <div className="section-title">Add a PC</div>
-      <p className="sub" style={{ marginBottom: 14, maxWidth: '64ch' }}>
-        They are emailed a link that opens a page with this address filled in: they choose a password
-        and they are in, with nothing more to confirm. From then on they see the sessions and reports
-        of the students they are PC to. Teachers choose a student’s PC from this list when they book
-        the student’s first session.
-      </p>
+    <details className="card folded" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <span className="mark" aria-hidden="true">
+          +
+        </span>
+        Add a PC
+      </summary>
+      <form className="fold-body form-measure" onSubmit={onSubmit} noValidate>
+        <p className="prose">
+          They are emailed a link that opens a page with this address filled in: they choose a
+          password and they are in, with nothing more to confirm. From then on they see the sessions
+          and reports of the students they are PC to. Teachers choose a student’s PC from this list
+          when they book the student’s first session.
+        </p>
 
-      {error && <Notice kind="error">{error}</Notice>}
-      {result && <InviteResult result={result} again={false} />}
+        {error && <Notice kind="error">{error}</Notice>}
+        {result && <InviteResult result={result} again={false} />}
 
-      <div className="grid-2">
-        <Field label="First name" required>
-          <Input value={first} onChange={(e) => setFirst(e.target.value)} autoComplete="off" />
+        <div className="grid-2">
+          <Field label="First name" required>
+            <Input value={first} onChange={(e) => setFirst(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label="Last name" required>
+            <Input value={last} onChange={(e) => setLast(e.target.value)} autoComplete="off" />
+          </Field>
+        </div>
+        <Field label="Email" required hint={badEmail ? 'That is not an email address.' : undefined}>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="priya.rao@ascendnow.info"
+            autoComplete="off"
+          />
         </Field>
-        <Field label="Last name" required>
-          <Input value={last} onChange={(e) => setLast(e.target.value)} autoComplete="off" />
-        </Field>
-      </div>
-      <Field label="Email" required hint={badEmail ? 'That is not an email address.' : undefined}>
-        <Input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="priya.rao@ascendnow.info"
-          autoComplete="off"
-        />
-      </Field>
-      <button type="submit" className="btn btn-primary" disabled={!ready}>
-        {busy ? 'Adding…' : 'Add the PC and email their invitation'}
-      </button>
-    </form>
+        <button type="submit" className="btn btn-primary" disabled={!ready}>
+          {busy ? 'Adding…' : 'Add the PC and email their invitation'}
+        </button>
+      </form>
+    </details>
   )
 }
 

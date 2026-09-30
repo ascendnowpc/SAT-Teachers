@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   STAGE_LABELS,
@@ -9,10 +9,12 @@ import {
   type Stages,
 } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
+import { levelsLabel, levelsOf } from '../lib/sessions'
 import { utcParts, utcTime } from '../lib/time'
 import { inviteState } from '../lib/pcs'
 import type { PcInvite, Profile, Session } from '../lib/types'
-import { LevelsSat, StatusBadge } from '../pages/Sessions'
+import { StatusBadge } from '../pages/Sessions'
+import { DifficultyBadge } from './ui'
 
 /**
  * The pieces every admin screen is made of.
@@ -28,17 +30,15 @@ import { LevelsSat, StatusBadge } from '../pages/Sessions'
  * It is the one column in the portal that is not on any teacher screen, because
  * a teacher only ever has their own to look at and already knows. An admin
  * reading down a column of these is reading the backlog.
+ *
+ * A dot and the words rather than a filled pill, because it sits in the last
+ * column of a table whose Status column is already a pill, and two filled pills
+ * on a row are read as decoration rather than as two different facts. The dot
+ * is hollow while the stage is still somebody's to finish, so the backlog can
+ * be read down the column without reading a word of it.
  */
 export function StageBadge({ stage }: { stage: ReportStage }) {
-  const kind =
-    stage === 'published'
-      ? 'badge-ok'
-      : stage === 'none'
-        ? 'badge-neutral'
-        : stage === 'generated'
-          ? 'badge-sky'
-          : 'badge-medium'
-  return <span className={`badge ${kind}`}>{STAGE_LABELS[stage]}</span>
+  return <span className={`stage stage-${stage}`}>{STAGE_LABELS[stage]}</span>
 }
 
 /** One figure with its name under it — the row across the top of a page. */
@@ -49,6 +49,29 @@ export function Stat({ k, v, sub }: { k: string; v: string | number; sub?: strin
       <div className="v">{v}</div>
       {sub && <div className="stat-sub">{sub}</div>}
     </div>
+  )
+}
+
+/**
+ * The test, or the tests, the lesson was sat on.
+ *
+ * The teacher's own list prints the badges and then says them again in words
+ * on the line underneath — "Medium" over "Medium test" — which is a second
+ * line on every row of a table the admin is reading four columns of numbers
+ * across. Here the badges carry it on one line, with an arrow where the lesson
+ * moved, that being the only thing the badges by themselves do not say.
+ */
+function Levels({ session }: { session: Session }) {
+  const levels = levelsOf(session)
+  return (
+    <span className="levels-sat" title={levelsLabel(levels)}>
+      {levels.map((level, i) => (
+        <Fragment key={`${level}-${i}`}>
+          {i > 0 && <span className="level-arrow">→</span>}
+          <DifficultyBadge level={level} />
+        </Fragment>
+      ))}
+    </span>
   )
 }
 
@@ -90,87 +113,99 @@ export function PeopleTable({
         <table className="board-table people-table">
           <thead>
             <tr>
-              <th>{teachers ? 'Teacher' : 'Student'}</th>
-              <th>{teachers ? 'Students' : 'Teachers'}</th>
-              {pcCell && <th>PC</th>}
-              <th>Sessions</th>
-              <th>Answered</th>
-              <th>Published</th>
-              <th>Outstanding</th>
-              <th>Last</th>
-              <th>Next</th>
+              <th scope="col">{teachers ? 'Teacher' : 'Student'}</th>
+              <th scope="col">{teachers ? 'Students' : 'Teachers'}</th>
+              {pcCell && <th scope="col">PC</th>}
+              <th scope="col" className="col-num">
+                Sessions
+              </th>
+              <th scope="col" className="col-num">
+                Answered
+              </th>
+              <th scope="col" className="col-num">
+                Published
+              </th>
+              <th scope="col" className="col-num">
+                Outstanding
+              </th>
+              <th scope="col">Last</th>
+              <th scope="col">Next</th>
               {href && <th aria-label="Actions" />}
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ profile, tally, counterparts, lastAt, nextAt }) => (
-              <tr key={profile.id}>
-                <td>
-                  <div className="cell-strong">
-                    {profile.full_name || 'Unnamed'}
-                    {isSuspended(profile) ? (
-                      <span className="badge badge-bad">Suspended</span>
-                    ) : (
-                      !profile.is_active && <span className="badge badge-medium">Pending</span>
-                    )}
-                    {profile.role === 'admin' && <span className="badge badge-role">Admin</span>}
-                  </div>
-                  <div className="cell-sub">
-                    <span className="num">{profile.display_id}</span>
-                    {profile.pc && <> · {profile.pc}</>}
-                    {teachers && profile.email && <> · {profile.email}</>}
-                  </div>
-                </td>
-                <td>
-                  {counterparts.length === 0 ? (
-                    <span className="dash">—</span>
-                  ) : (
-                    <>
-                      <div className="cell-strong">{counterparts.length}</div>
-                      <div className="cell-sub">
-                        {counterparts
-                          .slice(0, 3)
-                          .map((c) => c.name)
-                          .join(', ')}
-                        {counterparts.length > 3 && ` +${counterparts.length - 3}`}
-                      </div>
-                    </>
-                  )}
-                </td>
-                {pcCell && <td>{pcCell(profile)}</td>}
-                <td className="num">
-                  {tally.total}
-                  <div className="cell-sub">
-                    {tally.completed} done · {tally.scheduled + tally.live} open
-                  </div>
-                </td>
-                <td className="num">{tally.answered || <span className="dash">—</span>}</td>
-                <td className="num">
-                  {tally.published}
-                  <div className="cell-sub">
-                    {rate(tally.published, tally.completed) ?? '—'}
-                    {rate(tally.published, tally.completed) === null ? '' : '%'}
-                  </div>
-                </td>
-                {/* The number that means somebody has to do something. */}
-                <td className="num">
-                  {tally.outstanding > 0 ? (
-                    <strong className="overdue">{tally.outstanding}</strong>
-                  ) : (
-                    <span className="dash">—</span>
-                  )}
-                </td>
-                <td>{dash(shortDate(lastAt))}</td>
-                <td>{dash(shortDate(nextAt))}</td>
-                {href && (
-                  <td className="row-actions">
-                    <Link className="btn btn-ghost btn-sm" to={href(profile)}>
-                      Open
-                    </Link>
+            {rows.map(({ profile, tally, counterparts, lastAt, nextAt }) => {
+              const published = rate(tally.published, tally.completed)
+              return (
+                <tr key={profile.id}>
+                  <td>
+                    <div className="cell-strong">
+                      {profile.full_name || 'Unnamed'}
+                      {isSuspended(profile) ? (
+                        <span className="badge badge-bad">Suspended</span>
+                      ) : (
+                        !profile.is_active && <span className="badge badge-medium">Pending</span>
+                      )}
+                      {profile.role === 'admin' && <span className="badge badge-role">Admin</span>}
+                    </div>
+                    <div className="cell-sub">
+                      <span className="num">{profile.display_id}</span>
+                      {profile.pc && <> · {profile.pc}</>}
+                      {teachers && profile.email && <> · {profile.email}</>}
+                    </div>
                   </td>
-                )}
-              </tr>
-            ))}
+                  <td>
+                    {counterparts.length === 0 ? (
+                      <span className="dash">—</span>
+                    ) : (
+                      <>
+                        <div className="cell-strong">{counterparts.length}</div>
+                        <div className="cell-sub cell-names">
+                          <span className="names">
+                            {counterparts
+                              .slice(0, 3)
+                              .map((c) => c.name)
+                              .join(', ')}
+                          </span>
+                          {counterparts.length > 3 && (
+                            <span className="names-more">+{counterparts.length - 3}</span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </td>
+                  {pcCell && <td>{pcCell(profile)}</td>}
+                  <td className="num col-num">
+                    {tally.total}
+                    <div className="cell-sub">
+                      {tally.completed} done · {tally.scheduled + tally.live} open
+                    </div>
+                  </td>
+                  <td className="num col-num">{tally.answered || <span className="dash">—</span>}</td>
+                  <td className="num col-num">
+                    {tally.published}
+                    <div className="cell-sub">{published === null ? '—' : `${published}%`}</div>
+                  </td>
+                  {/* The number that means somebody has to do something. */}
+                  <td className="num col-num">
+                    {tally.outstanding > 0 ? (
+                      <strong className="overdue">{tally.outstanding}</strong>
+                    ) : (
+                      <span className="dash">—</span>
+                    )}
+                  </td>
+                  <td>{dash(shortDate(lastAt))}</td>
+                  <td>{dash(shortDate(nextAt))}</td>
+                  {href && (
+                    <td className="row-actions">
+                      <Link className="btn btn-ghost btn-sm" to={href(profile)}>
+                        Open
+                      </Link>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -205,11 +240,15 @@ export function PcTable({
         <table className="board-table people-table">
           <thead>
             <tr>
-              <th>PC</th>
-              <th>Students</th>
-              <th>Sessions</th>
-              <th>Reports</th>
-              <th>Last</th>
+              <th scope="col">PC</th>
+              <th scope="col">Students</th>
+              <th scope="col" className="col-num">
+                Sessions
+              </th>
+              <th scope="col" className="col-num">
+                Reports
+              </th>
+              <th scope="col">Last</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
@@ -241,23 +280,27 @@ export function PcTable({
                     ) : (
                       <>
                         <div className="cell-strong">{counterparts.length}</div>
-                        <div className="cell-sub">
-                          {counterparts
-                            .slice(0, 3)
-                            .map((c) => c.name)
-                            .join(', ')}
-                          {counterparts.length > 3 && ` +${counterparts.length - 3}`}
+                        <div className="cell-sub cell-names">
+                          <span className="names">
+                            {counterparts
+                              .slice(0, 3)
+                              .map((c) => c.name)
+                              .join(', ')}
+                          </span>
+                          {counterparts.length > 3 && (
+                            <span className="names-more">+{counterparts.length - 3}</span>
+                          )}
                         </div>
                       </>
                     )}
                   </td>
-                  <td className="num">
+                  <td className="num col-num">
                     {tally.total}
                     <div className="cell-sub">
                       {tally.completed} done · {tally.scheduled + tally.live} open
                     </div>
                   </td>
-                  <td className="num">
+                  <td className="num col-num">
                     {tally.generated}
                     <div className="cell-sub">{tally.published} published</div>
                   </td>
@@ -319,14 +362,16 @@ export function SessionTable({
         <table className="board-table admin-sess-table">
           <thead>
             <tr>
-              <th>When</th>
-              {showTeacher && <th>Teacher</th>}
-              {showStudent && <th>Student</th>}
-              <th>Session</th>
-              <th>Level</th>
-              <th>Status</th>
-              <th>Answered</th>
-              <th>Write-up</th>
+              <th scope="col">When</th>
+              {showTeacher && <th scope="col">Teacher</th>}
+              {showStudent && <th scope="col">Student</th>}
+              <th scope="col">Session</th>
+              <th scope="col">Level</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="col-num">
+                Answered
+              </th>
+              <th scope="col">Write-up</th>
             </tr>
           </thead>
           <tbody>
@@ -364,12 +409,12 @@ export function SessionTable({
                     </div>
                   </td>
                   <td>
-                    <LevelsSat session={s} />
+                    <Levels session={s} />
                   </td>
                   <td>
                     <StatusBadge status={s.status} />
                   </td>
-                  <td className="num">
+                  <td className="num col-num">
                     {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
                   </td>
                   <td>

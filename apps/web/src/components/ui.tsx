@@ -65,7 +65,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 }
 
 export function DifficultyBadge({ level }: { level: Difficulty }) {
-  return <span className={`badge badge-${level}`}>{level}</span>
+  return <span className={`badge badge-level badge-${level}`}>{level}</span>
 }
 
 /**
