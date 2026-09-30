@@ -613,6 +613,27 @@ reads the form under the session's own subject's four domains — it had the Eng
 into it, so a mathematics form never reached the model and every domain finding on a mathematics
 session was dropped.
 
+### How the portal is set
+
+Four screens of tables, so the reading is the design. One box per thing and a heading over each:
+the tables carry the border, the prose sits on the page, and `.section-head` does the separating —
+which is why no admin screen reaches for an inline margin. The figures are set right, so a column
+of them is read down rather than across. The counterparts under a count clip to one line, but the
+`+4` that says how many did not fit never does.
+
+Two things the portal used to say twice. A session's level printed the badges and then said them
+again underneath — *Medium* over *Medium test* — so the badges carry it now, on one line, with an
+arrow where the lesson moved, that being the one thing the badges by themselves do not say. And
+every row carried two filled pills, its status and its write-up stage, which reads as decoration
+rather than as two different facts: the stage is a dot and the words now, hollow while it is still
+somebody's to finish and solid once it is theirs no longer, so the backlog can be read down the
+column without reading a word of it. The stage badge also used to say **Form In Progress** —
+`text-transform: capitalize` sat on the colour rather than on the levels that wanted it, and
+capitalised every word of whatever was put in one.
+
+Adding a PC is folded away (`.folded`), because it is done once a term and the list under it is
+what an admin opened the tab for; the tabs and the search box are one line rather than two boxes.
+
 ### Off is two things
 
 `0044` had one kind of off: `is_active = false`, which every policy reads, so the account lost

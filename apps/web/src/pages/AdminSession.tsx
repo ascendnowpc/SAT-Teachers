@@ -112,10 +112,12 @@ export function AdminSession() {
       <div className="page-head">
         <div>
           <h1>{session.title || `${subjectLabel(session.subject)} session`}</h1>
-          <p className="sub">
+          <p className="sub head-meta">
             <StatusBadge status={session.status} />
-            <span style={{ marginLeft: 8 }}>{formatUtc(session.scheduled_at)}</span> ·{' '}
-            {session.duration_mins} min · {levelsLabel(levelsOf(session))}
+            <span>
+              {formatUtc(session.scheduled_at)} · {session.duration_mins} min ·{' '}
+              {levelsLabel(levelsOf(session))}
+            </span>
           </p>
         </div>
         <div className="spring" />
@@ -173,7 +175,9 @@ export function AdminSession() {
         <Stat k="Write-up" v={STAGE_LABELS[stage]} sub={timings(meta)} />
       </div>
 
-      <div className="section-title">Every question</div>
+      <div className="section-head">
+        <h2 className="section-title">Every question</h2>
+      </div>
       {report.attempts.length === 0 ? (
         <div className="card">
           <div className="empty">
@@ -241,10 +245,8 @@ export function AdminSession() {
         </div>
       )}
 
-      <div className="step-head" style={{ marginTop: 26 }}>
-        <div className="section-title" style={{ marginBottom: 0 }}>
-          The teacher's diagnostic form
-        </div>
+      <div className="section-head">
+        <h2 className="section-title">The teacher's diagnostic form</h2>
         <span className="spring" />
         {/* The write-up is of a lesson, and before the test has started there
             is no lesson to write up — the console holds everything back until
@@ -261,8 +263,8 @@ export function AdminSession() {
       </div>
       <FormView rows={formRows} reflection={meta?.teacher_reflection ?? ''} stage={stage} />
 
-      <div className="section-title" style={{ marginTop: 26 }}>
-        The recording and the report
+      <div className="section-head">
+        <h2 className="section-title">The recording and the report</h2>
       </div>
       {notStarted ? (
         <div className="card card-pad">
@@ -285,23 +287,23 @@ export function AdminSession() {
 
       {(meta?.summary || meta?.time_management || meta?.engagement) && (
         <>
-          <div className="section-title" style={{ marginTop: 26 }}>
-            The overall diagnostic summary
+          <div className="section-head">
+            <h2 className="section-title">The overall diagnostic summary</h2>
           </div>
           <div className="card card-pad admin-written">
             {meta.time_management && (
               <p>
-                <strong>Time management.</strong> {meta.time_management}
+                <strong>Time management</strong> {meta.time_management}
               </p>
             )}
             {meta.engagement && (
               <p>
-                <strong>Engagement.</strong> {meta.engagement}
+                <strong>Engagement</strong> {meta.engagement}
               </p>
             )}
             {meta.summary && (
               <p>
-                <strong>Summary.</strong> {meta.summary}
+                <strong>Summary</strong> {meta.summary}
               </p>
             )}
           </div>
@@ -406,7 +408,7 @@ function FormView({
       </div>
 
       {reflection && (
-        <div className="card card-pad admin-written" style={{ marginTop: 14 }}>
+        <div className="card card-pad admin-written admin-written-after">
           <div className="section-title">The teacher's comments</div>
           <p>{reflection}</p>
         </div>
@@ -422,9 +424,7 @@ function LinkCard({ token }: { token: string | null }) {
       <div className="section-title">The student's link</div>
       {token ? (
         <>
-          <div className="cell-sub" style={{ marginBottom: 8 }}>
-            Opens this session and nothing else, with no account.
-          </div>
+          <div className="cell-sub">Opens this session and nothing else, with no account.</div>
           <CopyButton value={studentLink(token)} label="Copy the link" />
         </>
       ) : (
@@ -439,7 +439,7 @@ function ReportCard({ sessionId, stage }: { sessionId: string; stage: ReturnType
   return (
     <div className="card card-pad">
       <div className="section-title">The report</div>
-      <div className="cell-sub" style={{ marginBottom: 8 }}>
+      <div className="cell-sub">
         <StageBadge stage={stage} />
       </div>
       <Link className="btn btn-ghost btn-sm" to={`/sessions/${sessionId}/report`}>
@@ -472,9 +472,7 @@ function RecordingRead({
   return (
     <div className="card card-pad">
       <div className="step-head">
-        <div className="section-title" style={{ marginBottom: 0 }}>
-          The report
-        </div>
+        <div className="section-title section-title-flush">The report</div>
         <span className="spring" />
         {report?.generated_at && <span className="badge badge-ok">Generated {formatUtc(report.generated_at)}</span>}
         {report?.published_at && <span className="badge badge-ok">Published {formatUtc(report.published_at)}</span>}
@@ -494,7 +492,7 @@ function RecordingRead({
           </div>
         </>
       ) : (
-        <p className="sub" style={{ marginTop: 8 }}>
+        <p className="prose card-note">
           The report has not been generated yet. It is emailed to you, as a PDF, the moment it is.
         </p>
       )}

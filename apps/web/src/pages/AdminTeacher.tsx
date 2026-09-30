@@ -61,17 +61,17 @@ export function AdminTeacher() {
       <div className="page-head">
         <div>
           <h1>{profile.full_name || 'Unnamed'}</h1>
-          <p className="sub">
+          <p className="sub head-meta">
             <span className="badge badge-role">{profile.role}</span>
             {isSuspended(profile) ? (
               <span className="badge badge-bad">Suspended</span>
             ) : (
               !profile.is_active && <span className="badge badge-medium">Pending</span>
             )}
-            <span style={{ marginLeft: 8 }} className="num">
-              {profile.display_id}
+            <span>
+              <span className="num">{profile.display_id}</span>
+              {profile.email && <> · {profile.email}</>} · joined {formatUtc(profile.created_at)}
             </span>
-            {profile.email && <> · {profile.email}</>} · joined {formatUtc(profile.created_at)}
           </p>
         </div>
         <div className="spring" />
@@ -97,13 +97,19 @@ export function AdminTeacher() {
 
       {late.length > 0 && (
         <>
-          <div className="section-title">Write-ups outstanding</div>
+          <div className="section-head">
+            <h2 className="section-title">Write-ups outstanding</h2>
+          </div>
+          <p className="section-note">
+            Sessions that have been sat and have no report out. They are listed again under the
+            student they were with.
+          </p>
           <SessionTable sessions={late} stages={stages} showTeacher={false} />
         </>
       )}
 
-      <div className="section-title" style={{ marginTop: 26 }}>
-        Their students
+      <div className="section-head">
+        <h2 className="section-title">Their students</h2>
       </div>
       {byStudent.length === 0 ? (
         <div className="card">
@@ -117,7 +123,7 @@ export function AdminTeacher() {
           <section key={group.id} className="student-block">
             <div className="student-block-head">
               <div>
-                <h2>{group.name}</h2>
+                <h3>{group.name}</h3>
                 <div className="cell-sub">
                   <span className="num">{group.displayId}</span>
                   {group.pc && <> · {group.pc}</>}
