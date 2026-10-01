@@ -264,7 +264,7 @@ export function Sessions() {
                   {staff && <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />}
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
                   <th>Answered</th>
-                  <th aria-label="Actions" />
+                  {isTeacher && <th aria-label="Actions" />}
                 </tr>
               </thead>
               <tbody>
@@ -367,12 +367,11 @@ function SessionRow({
       <td className="num">
         {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
       </td>
-      <td className="row-actions">
-        {canLink && token && <CopyButton value={studentLink(token)} label="Student link" />}
-        <Link className="btn btn-ghost btn-sm" to={to} onClick={(e) => e.stopPropagation()}>
-          Open
-        </Link>
-      </td>
+      {canLink && (
+        <td className="row-actions">
+          {token && <CopyButton value={studentLink(token)} label="Student link" />}
+        </td>
+      )}
     </tr>
   )
 }

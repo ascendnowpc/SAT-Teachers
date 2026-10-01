@@ -194,13 +194,6 @@ export function Questions() {
                           >
                             Add question
                           </Link>
-                          <Link
-                            className="btn btn-ghost btn-sm"
-                            to={`/tests/${t.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Open
-                          </Link>
                         </td>
                       </tr>
                     ))}
