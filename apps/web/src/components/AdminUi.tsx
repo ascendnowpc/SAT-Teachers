@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   STAGE_LABELS,
   isSuspended,
@@ -106,6 +106,7 @@ export function PeopleTable({
   pcCell?: (profile: Profile) => ReactNode
 }) {
   const teachers = kind === 'teacher'
+  const navigate = useNavigate()
 
   return (
     <div className="board">
@@ -130,17 +131,28 @@ export function PeopleTable({
               </th>
               <th scope="col">Last</th>
               <th scope="col">Next</th>
-              {href && <th aria-label="Actions" />}
             </tr>
           </thead>
           <tbody>
             {rows.map(({ profile, tally, counterparts, lastAt, nextAt }) => {
               const published = rate(tally.published, tally.completed)
+              const to = href?.(profile)
               return (
-                <tr key={profile.id}>
+                <tr
+                  key={profile.id}
+                  className={to ? 'row-link' : undefined}
+                  onClick={to ? () => navigate(to) : undefined}
+                >
                   <td>
                     <div className="cell-strong">
-                      {profile.full_name || 'Unnamed'}
+                      {to ? (
+                        // The real link, for a new tab, a keyboard and a screen reader.
+                        <Link className="cell-link-name" to={to} onClick={(e) => e.stopPropagation()}>
+                          {profile.full_name || 'Unnamed'}
+                        </Link>
+                      ) : (
+                        profile.full_name || 'Unnamed'
+                      )}
                       {isSuspended(profile) ? (
                         <span className="badge badge-bad">Suspended</span>
                       ) : (
@@ -174,7 +186,7 @@ export function PeopleTable({
                       </>
                     )}
                   </td>
-                  {pcCell && <td>{pcCell(profile)}</td>}
+                  {pcCell && <td onClick={(e) => e.stopPropagation()}>{pcCell(profile)}</td>}
                   <td className="num col-num">
                     {tally.total}
                     <div className="cell-sub">
@@ -196,13 +208,6 @@ export function PeopleTable({
                   </td>
                   <td>{dash(shortDate(lastAt))}</td>
                   <td>{dash(shortDate(nextAt))}</td>
-                  {href && (
-                    <td className="row-actions">
-                      <Link className="btn btn-ghost btn-sm" to={href(profile)}>
-                        Open
-                      </Link>
-                    </td>
-                  )}
                 </tr>
               )
             })}
@@ -356,6 +361,8 @@ export function SessionTable({
   /** Off when the table already sits under that student's name. */
   showStudent?: boolean
 }) {
+  const navigate = useNavigate()
+
   return (
     <div className="board">
       <div className="board-scroll">
@@ -377,10 +384,11 @@ export function SessionTable({
           <tbody>
             {sessions.map((s) => {
               const when = utcParts(s.scheduled_at)
+              const to = `/admin/sessions/${s.id}`
               return (
-                <tr key={s.id}>
+                <tr key={s.id} className="row-link" onClick={() => navigate(to)}>
                   <td>
-                    <Link className="cell-link" to={`/admin/sessions/${s.id}`}>
+                    <Link className="cell-link" to={to} onClick={(e) => e.stopPropagation()}>
                       <span className="when-day">
                         {when.day} {when.month}
                       </span>

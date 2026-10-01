@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { StageBadge } from '../components/AdminUi'
 import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
@@ -224,6 +224,7 @@ interface ReportLine extends Pick<SessionReportRow, 'session_id' | 'status' | 'p
  * nobody else's, so nothing here filters by PC.
  */
 function PcHome() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState<Profile[]>([])
   const [reports, setReports] = useState<ReportLine[]>([])
   const [generated, setGenerated] = useState(0)
@@ -296,13 +297,24 @@ function PcHome() {
                   <th>Session</th>
                   <th>Generated</th>
                   <th>Report</th>
-                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
                 {reports.map((r) => (
-                  <tr key={r.session_id}>
-                    <td className="cell-strong">{r.session?.student?.full_name ?? '—'}</td>
+                  <tr
+                    key={r.session_id}
+                    className="row-link"
+                    onClick={() => navigate(`/sessions/${r.session_id}/report`)}
+                  >
+                    <td>
+                      <Link
+                        className="cell-link cell-strong"
+                        to={`/sessions/${r.session_id}/report`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {r.session?.student?.full_name ?? '—'}
+                      </Link>
+                    </td>
                     <td>
                       <div className="cell-strong">
                         {r.session?.title || `${subjectLabel(r.session?.subject ?? 'english')} session`}
@@ -315,11 +327,6 @@ function PcHome() {
                     <td className="cell-sub">{r.generated_at && formatUtc(r.generated_at)}</td>
                     <td>
                       <StageBadge stage={reportStage(r)} />
-                    </td>
-                    <td className="row-actions">
-                      <Link className="btn btn-ghost btn-sm" to={`/sessions/${r.session_id}/report`}>
-                        Open
-                      </Link>
                     </td>
                   </tr>
                 ))}
