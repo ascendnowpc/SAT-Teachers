@@ -11,11 +11,12 @@ import { IconCalculator, IconCross, IconFormula } from './icons'
  * them, which are the ones Bluebook opens — rather than anything written here.
  *
  * The graphing calculator always takes the whole screen: a graph in a third of
- * the width is not one anybody can read. So that the question does not vanish
- * behind it, the screen carries a note with the question on it, which the
- * student can shrink out of the way. The scientific calculator and the
- * reference sheet open docked beside the question, and the square in the
- * panel's header takes them full screen when the student wants the room.
+ * the width is not one anybody can read. The scientific calculator and the
+ * reference sheet open docked beside the question every time, and the square
+ * in the panel's header takes them full screen when the student wants the
+ * room. Whichever tab fills the screen, the question would vanish behind it,
+ * so the screen carries a note with the question on it, which the student can
+ * shrink out of the way.
  *
  * Each calculator is loaded the first time its tab is opened and then kept, so
  * switching tabs, closing the panel or moving on to the next question does not
@@ -120,6 +121,14 @@ export function MathToolsPanel({
   // Full screen by choice, for the two that open docked. The graphing
   // calculator has no docked size to come back to.
   const [maximised, setMaximised] = useState(false)
+  // And only for as long as that tab stays open: the scientific calculator and
+  // the reference sheet always come back docked, however they were left. Full
+  // screen is something asked for each time, not a setting that sticks.
+  const [shown, setShown] = useState(tool)
+  if (tool !== shown) {
+    setShown(tool)
+    setMaximised(false)
+  }
   const full = tool === 'graphing' || (tool !== null && maximised)
 
   return (
@@ -189,14 +198,15 @@ export function MathToolsPanel({
           </div>
         )}
 
-        {tool === 'graphing' && note && <QuestionNote title={noteTitle}>{note}</QuestionNote>}
+        {/* On every tab once it fills the screen — the question is behind it. */}
+        {full && note && <QuestionNote title={noteTitle}>{note}</QuestionNote>}
       </div>
     </aside>
   )
 }
 
 /**
- * The question, pinned over the full-screen graph like a sticky note. The
+ * The question, pinned over a full-screen tab like a sticky note. The
  * minus folds it down to its title bar for a student who wants the whole
  * graph; the same bar opens it again.
  */

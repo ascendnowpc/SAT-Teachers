@@ -757,7 +757,17 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   position: fixed; inset: 0; z-index: 40; width: auto; height: auto;
   border: 0; border-radius: 0;
 }
-.math-tools.is-full .math-ref .formula-sheet { max-width: 1000px; margin: 0 auto; }
+/* The whole sheet on the screen at once, rather than a sheet wider than the
+   screen to scroll down: fitted to the height, centred, and clear of the
+   question note on the right. */
+.math-tools.is-full .math-ref { padding: 16px; }
+.math-tools.is-full .math-ref .formula-sheet {
+  width: auto; max-width: min(620px, calc(100% - 400px)); max-height: calc(100vh - 90px);
+  margin: 0 auto;
+}
+@media (max-width: 1100px) {
+  .math-tools.is-full .math-ref .formula-sheet { max-width: 100%; }
+}
 
 /* The question, pinned on the full-screen graph like a sticky note. Low on the
    right, clear of Desmos's own zoom buttons at the top. */
