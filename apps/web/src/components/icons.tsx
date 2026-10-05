@@ -72,3 +72,6 @@ export const IconFormula = ({ size = 16 }: P) => (
     <path d="M8 9h3M9.5 7.5v3M13 9h3M8 15.5h3M13 14.5h3M13 16.5h3" />
   </svg>
 )
+export const IconBook = ({ size = 17 }: P) => (
+  <svg {...base(size)}><path d="M4 19.5V5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2Zm0 0A2 2 0 0 0 6 21.5h13" /><path d="M9 7.5h6" /></svg>
+)

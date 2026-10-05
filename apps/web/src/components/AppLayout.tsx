@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconCalendar, IconHome, IconLogout, IconStack, IconUsers } from './icons'
+import { IconBook, IconCalendar, IconHome, IconLogout, IconStack, IconUsers } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -24,6 +24,11 @@ export function AppLayout() {
           <nav>
             <NavLink to="/" end className={cls}>
               <IconHome /> Dashboard
+            </NavLink>
+            {/* Second, because it comes first with a new student: what the
+                SAT is, before the diagnostic that measures them on it. */}
+            <NavLink to="/about-sat" className={cls}>
+              <IconBook /> About the SAT
             </NavLink>
             <NavLink to="/sessions" className={cls}>
               <IconCalendar /> Sessions
