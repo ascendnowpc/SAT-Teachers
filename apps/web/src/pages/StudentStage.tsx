@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
-import { FormulaSheet, MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
+import { MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
 import { MathText } from '../components/MathText'
 import { QuestionView } from '../components/QuestionView'
 import { Notice, Passage } from '../components/ui'
@@ -268,9 +268,49 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
             </div>
           )}
         </div>
-        {math && <MathToolsPanel tool={tool} onTool={setTool} className="exam-tools" />}
+        {math && (
+          <MathToolsPanel
+            tool={tool}
+            onTool={setTool}
+            className="exam-tools"
+            note={open ? <QuestionNote item={open} /> : null}
+            noteTitle={`Question ${number}`}
+          />
+        )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The question as it rides on the full-screen graphing calculator: enough to
+ * work from — the figure, the passage, the stem and the four choices — and
+ * nothing to press. The answer is still given on the question itself.
+ */
+function QuestionNote({ item }: { item: SessionItem }) {
+  const q = item.questions
+  if (!q) return null
+  const options = [...q.question_options].sort(
+    (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
+  )
+  return (
+    <>
+      {q.image_url && <img className="stim-figure" src={q.image_url} alt="Figure for this question" />}
+      {q.passage && (
+        <Passage body={q.passage} underline={q.passage_underline} className="stim" math />
+      )}
+      <p className="math-note-stem">
+        <MathText text={q.stem} />
+      </p>
+      <ol className="math-note-choices">
+        {options.map((o) => (
+          <li key={o.id}>
+            <span className="lab">{o.label}</span>
+            <MathText text={o.body} />
+          </li>
+        ))}
+      </ol>
+    </>
   )
 }
 
@@ -567,11 +607,7 @@ function ItemPane({
             className="stim"
             math={math}
           />
-        ) : item.questions?.image_url ? null : math ? (
-          // Nothing to read on this side, so the formulas go here: the
-          // reference sheet beside the question, without opening anything.
-          <FormulaSheet />
-        ) : (
+        ) : item.questions?.image_url ? null : (
           <p className="stim-empty">This question stands on its own — read it on the right.</p>
         )}
         {item.questions?.image_url && (
