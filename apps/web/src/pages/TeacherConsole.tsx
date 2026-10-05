@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AfterTheTest } from '../components/AfterTheTest'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
-import { FormulaSheet, MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
+import { MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
 import { MathText } from '../components/MathText'
 import { QuestionView } from '../components/QuestionView'
 import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
@@ -151,8 +151,6 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
     return done[done.length - 1] ?? null
   }, [items])
 
-  const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
-
   // 1, 2, 3 over the questions actually worked on. A question set aside by a
   // level switch takes no number, so nothing on this screen counts it.
   const numbers = useMemo(() => askNumbers(items), [items])
@@ -277,7 +275,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
           on until the student is in. */}
       {session.status === 'scheduled' && <BeforeTheStart />}
       {session.status === 'live' && (
-        <LevelControl session={session} hasOpenQuestion={open !== null} busy={busy} onCall={call}>
+        <LevelControl>
           <NextQuestion
             session={session}
             items={items}
@@ -341,103 +339,19 @@ function StudentLinkCard({ session }: { session: Session }) {
 /* --------------------------------------------------------------- levels --- */
 
 /**
- * Moving the student between the three tests.
+ * The card the next question is chosen from.
  *
- * This used to be the student's button alone, on the grounds that the teacher
- * decides out loud and whoever is nearer a mouse clicks. That holds right up
- * until the student's screen is not working, at which point there is no mouse
- * near enough and the decision has nowhere to go.
- *
- * All three levels, not just the next one up: the student's screen offers the
- * single obvious move because it is asking somebody mid-question, and this is
- * the teacher, who is making the decision rather than being handed it. "Drop
- * one level — rebuild fluency before speed" is the oldest suggestion in the
- * product and this is where it gets acted on.
- *
- * It is the only place the level moves now. The student's screen used to
- * carry a switch of its own, and 0047 took it away along with any mention of
- * which test they are on.
- *
- * Only while the test runs (0052); BeforeTheStart stands in for it until then.
- * Under the buttons is what comes next and the way to choose something else —
- * see NextQuestion.
+ * It used to carry Easy, Medium and Hard buttons above the chooser, which
+ * moved the whole session to another test. Choosing a question from another
+ * test in the picker moves it there as well, and with the question in front
+ * of the teacher rather than a level name, so the buttons went: one way to do
+ * it, and the way that shows what the student is about to get.
  */
-function LevelControl({
-  session,
-  hasOpenQuestion,
-  busy,
-  onCall,
-  children,
-}: {
-  session: Session
-  hasOpenQuestion: boolean
-  busy: boolean
-  onCall: OnCall
-  children?: ReactNode
-}) {
-  const [asking, setAsking] = useState<SessionLevel | null>(null)
-
-  async function move(to: SessionLevel) {
-    setAsking(null)
-    await onCall('set_session_level', { p_session: session.id, p_level: to })
-  }
-
+function LevelControl({ children }: { children?: ReactNode }) {
   return (
     <div className="card card-pad level-control">
-      <div className="section-title">Which test</div>
-      <div className="level-control-row">
-        <span className="level-switch-label">
-          On the <strong>{levelLabel(session.level).toLowerCase()}</strong> test
-        </span>
-        <span className="spring" />
-        <div className="level-btns" role="group" aria-label="Move to another test">
-          {LEVELS.map((l) => (
-            <button
-              key={l}
-              type="button"
-              className={`level-btn ${session.level === l ? 'on' : ''}`}
-              disabled={busy || session.level === l}
-              // Always asked, not only when a question is open. Moving level
-              // throws away the rest of the test either way, and these three
-              // buttons sit under the teacher's hand for the whole lesson.
-              onClick={() => setAsking(l)}
-            >
-              {levelLabel(l)}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      <div className="section-title">Next question</div>
       {children}
-
-      {asking && (
-        <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="move-title">
-          <div className="leave-box">
-            <h2 id="move-title">Switch to the {levelLabel(asking).toLowerCase()} test?</h2>
-            <p>
-              {hasOpenQuestion
-                ? "The question on the student's screen is set aside — it is not counted as wrong. "
-                : ''}
-              The first question of the {levelLabel(asking).toLowerCase()} test they have not already
-              had goes up on their screen now, and nothing after it: you show each one after that.
-            </p>
-            <div className="leave-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                autoFocus
-                disabled={busy}
-                onClick={() => void move(asking)}
-              >
-                Switch to {levelLabel(asking).toLowerCase()}
-              </button>
-              <button type="button" className="btn" disabled={busy} onClick={() => setAsking(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -454,10 +368,10 @@ function LevelControl({
 function BeforeTheStart() {
   return (
     <div className="card card-pad level-control">
-      <div className="section-title">Which test</div>
+      <div className="section-title">Next question</div>
       <p className="step-text muted">
-        Nothing goes up on their screen until you show it. Choosing their questions, moving them
-        between tests and ending the session all open up once the test has started.
+        Nothing goes up on their screen until you show it. Choosing their questions — from any of
+        the three tests — and ending the session all open up once the test has started.
       </p>
     </div>
   )
@@ -756,6 +670,9 @@ function QuestionPicker({
 
 /* --------------------------------------------------------------- focus --- */
 
+/** The teacher's side of the student's maths tools: the reference sheet. */
+const TEACHER_TOOLS: MathTool[] = ['reference']
+
 /**
  * The question the lesson is on, whole, with what has happened to it.
  *
@@ -795,8 +712,8 @@ function FocusQuestion({
   const [struck, setStruck] = useState<OptionLabel[]>([])
   const [confidence, setConfidence] = useState<number | null>(null)
   const [answering, setAnswering] = useState(false)
-  // The student's calculators and reference sheet, for working the question
-  // through with them on the call. Kept across questions, as theirs is.
+  // The reference sheet, to read the formulas the student has. Only that: the
+  // calculators are the student's, and working the question is theirs.
   const [tool, setTool] = useState<MathTool | null>(null)
 
   const question = item.questions
@@ -854,7 +771,7 @@ function FocusQuestion({
         {item.student_confidence != null && (
           <span className="muted">{CONFIDENCE[item.student_confidence - 1]}</span>
         )}
-        {math && <MathToolButtons tool={tool} onTool={setTool} />}
+        {math && <MathToolButtons tool={tool} onTool={setTool} tools={TEACHER_TOOLS} />}
       </div>
 
       <div className={`live-q-body ${math && tool ? 'with-tools' : ''}`}>
@@ -866,11 +783,7 @@ function FocusQuestion({
               className="stim"
               math={math}
             />
-          ) : question.image_url ? null : math ? (
-            // The student has the reference sheet in this pane, so the
-            // teacher sees it where they do.
-            <FormulaSheet />
-          ) : (
+          ) : question.image_url ? null : (
             <p className="stim-empty">This question stands on its own.</p>
           )}
           {question.image_url && (
@@ -997,7 +910,9 @@ function FocusQuestion({
           )}
         </div>
 
-        {math && <MathToolsPanel tool={tool} onTool={setTool} className="live-q-tools" />}
+        {math && (
+          <MathToolsPanel tool={tool} onTool={setTool} tools={TEACHER_TOOLS} className="live-q-tools" />
+        )}
       </div>
     </div>
   )

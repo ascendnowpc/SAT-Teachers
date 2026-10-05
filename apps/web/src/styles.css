@@ -741,12 +741,51 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 }
 .math-tab:hover { background: var(--input-hover); }
 .math-tab.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(30, 39, 82, .12); }
-.math-tools-close {
+.math-tools-head .spring, .math-note-bar .spring { flex: 1; }
+.math-tools-icon {
   display: inline-flex; border: 0; background: transparent; color: var(--muted);
   padding: 6px; border-radius: var(--r-sm); cursor: pointer;
 }
-.math-tools-close:hover { color: var(--ink); background: var(--input-hover); }
-.math-tools-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.math-tools-icon:hover { color: var(--ink); background: var(--input-hover); }
+.math-tools-body { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+
+/* Full screen: the graphing calculator always, the other two when the square
+   in the header asks. Over everything, the exam screen and the app shell
+   included — the header's tabs and its close are the way back. Under the
+   exam's confirmations (.leave-veil), which must still be seen. */
+.math-tools.is-full {
+  position: fixed; inset: 0; z-index: 40; width: auto; height: auto;
+  border: 0; border-radius: 0;
+}
+.math-tools.is-full .math-ref .formula-sheet { max-width: 1000px; margin: 0 auto; }
+
+/* The question, pinned on the full-screen graph like a sticky note. Low on the
+   right, clear of Desmos's own zoom buttons at the top. */
+.math-note {
+  position: absolute; right: 18px; bottom: 46px; z-index: 2;
+  width: min(360px, calc(100% - 36px)); max-height: calc(100% - 180px);
+  display: flex; flex-direction: column;
+  background: #FFF9D6; border: 1px solid #EBDD8F; border-radius: var(--r);
+  box-shadow: var(--shadow-lift);
+}
+.math-note.folded { width: auto; min-width: 160px; }
+.math-note-bar {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 12px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.math-note:not(.folded) .math-note-bar { border-bottom: 1px solid #EBDD8F; }
+.math-note-body { overflow-y: auto; padding: 12px 14px 14px; font-size: 14px; line-height: 1.55; color: var(--ink); }
+.math-note-body .stim-figure { margin: 0 0 10px; }
+.math-note-body .stim { margin-bottom: 10px; }
+.math-note-stem { font-weight: 600; margin: 0 0 10px; }
+.math-note-choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.math-note-choices li { display: flex; align-items: center; gap: 8px; }
+.math-note-choices .lab {
+  flex: 0 0 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-strong);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700;
+}
 .math-calc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .math-calc iframe { flex: 1; width: 100%; min-height: 420px; border: 0; display: block; }
 .math-calc-out {
@@ -1560,8 +1599,6 @@ td .cell-sub { display: block; margin-top: 2px; }
 }
 
 /* ------------------------------------------------- the level control ---- */
-.level-control-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.level-control-row .spring { flex: 1; }
 .level-btns { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--pill); overflow: hidden; }
 .level-btn {
   padding: 7px 16px; border: 0; background: #fff; cursor: pointer;
@@ -1580,7 +1617,6 @@ td .cell-sub { display: block; margin-top: 2px; }
    between questions means reading them. */
 .next-row {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
 }
 .next-row .spring { flex: 1; }
 .next-row .level-switch-label { font-size: 13px; }
