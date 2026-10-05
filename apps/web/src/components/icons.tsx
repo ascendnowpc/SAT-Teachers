@@ -59,3 +59,16 @@ export function IconClipboard() {
     </svg>
   )
 }
+export const IconCalculator = ({ size = 16 }: P) => (
+  <svg {...base(size)}>
+    <rect x="5" y="2.5" width="14" height="19" rx="2" />
+    <path d="M8 6.5h8v3H8z" />
+    <path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01" strokeWidth={2.6} />
+  </svg>
+)
+export const IconFormula = ({ size = 16 }: P) => (
+  <svg {...base(size)}>
+    <path d="M4 4h16v16H4z" />
+    <path d="M8 9h3M9.5 7.5v3M13 9h3M8 15.5h3M13 14.5h3M13 16.5h3" />
+  </svg>
+)

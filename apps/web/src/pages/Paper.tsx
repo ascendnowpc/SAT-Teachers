@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { MathText } from '../components/MathText'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
 import { IconBack } from '../components/icons'
@@ -190,7 +191,10 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
                   {question.question_keys?.explanation && (
                     <div className="q-note">
                       <div className="section-title">Explanation</div>
-                      {question.question_keys.explanation}
+                      <MathText
+                        text={question.question_keys.explanation}
+                        math={question.subject === 'mathematics'}
+                      />
                     </div>
                   )}
                   {question.difficulty_rationale && (

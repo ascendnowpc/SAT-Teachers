@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AfterTheTest } from '../components/AfterTheTest'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
+import { FormulaSheet, MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
+import { MathText } from '../components/MathText'
 import { QuestionView } from '../components/QuestionView'
 import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
@@ -683,7 +685,9 @@ function QuestionPicker({
                     >
                       <span className="picker-num">{i + 1}</span>
                       <span className="picker-text">
-                        <span className="picker-stem">{q.stem}</span>
+                        <span className="picker-stem">
+                          <MathText text={q.stem} math={q.subject === 'mathematics'} />
+                        </span>
                         <span className="picker-skill">
                           {skillLabel(q.skill) ?? sectionLabel(q.section) ?? '—'}
                         </span>
@@ -791,6 +795,9 @@ function FocusQuestion({
   const [struck, setStruck] = useState<OptionLabel[]>([])
   const [confidence, setConfidence] = useState<number | null>(null)
   const [answering, setAnswering] = useState(false)
+  // The student's calculators and reference sheet, for working the question
+  // through with them on the call. Kept across questions, as theirs is.
+  const [tool, setTool] = useState<MathTool | null>(null)
 
   const question = item.questions
   // The question did not come back with the item. Saying so beats an empty
@@ -798,6 +805,7 @@ function FocusQuestion({
   if (!question) return <MissingQuestion item={item} number={number} />
 
   const isOpen = item.status === 'published'
+  const math = question.subject === 'mathematics'
   const a = item.session_item_assessments ?? null
   const options = [...(question.question_options ?? [])].sort(
     (x, y) => OPTION_LABELS.indexOf(x.label) - OPTION_LABELS.indexOf(y.label),
@@ -846,12 +854,22 @@ function FocusQuestion({
         {item.student_confidence != null && (
           <span className="muted">{CONFIDENCE[item.student_confidence - 1]}</span>
         )}
+        {math && <MathToolButtons tool={tool} onTool={setTool} />}
       </div>
 
-      <div className="live-q-body">
+      <div className={`live-q-body ${math && tool ? 'with-tools' : ''}`}>
         <div className="live-q-stim">
           {question.passage ? (
-            <Passage body={question.passage} underline={question.passage_underline} className="stim" />
+            <Passage
+              body={question.passage}
+              underline={question.passage_underline}
+              className="stim"
+              math={math}
+            />
+          ) : question.image_url ? null : math ? (
+            // The student has the reference sheet in this pane, so the
+            // teacher sees it where they do.
+            <FormulaSheet />
           ) : (
             <p className="stim-empty">This question stands on its own.</p>
           )}
@@ -861,7 +879,9 @@ function FocusQuestion({
         </div>
 
         <div className="live-q-main">
-          <p className="qsplit-stem">{question.stem}</p>
+          <p className="qsplit-stem">
+            <MathText text={question.stem} math={math} />
+          </p>
           <div className="qsplit-choices">
             {options.map((o) => {
               const isKey = o.label === key
@@ -879,7 +899,9 @@ function FocusQuestion({
                   }`}
                 >
                   <span className="lab">{o.label}</span>
-                  <span className="body">{o.body}</span>
+                  <span className="body">
+                    <MathText text={o.body} math={math} />
+                  </span>
                   {!answering && isChosen && <span className="pick">Chose this</span>}
                   {isKey && <span className="tick">Correct</span>}
                   {answering && (
@@ -974,6 +996,8 @@ function FocusQuestion({
             <DiagnosisPicker item={item} busy={busy} onCall={onCall} />
           )}
         </div>
+
+        {math && <MathToolsPanel tool={tool} onTool={setTool} className="live-q-tools" />}
       </div>
     </div>
   )
@@ -1352,7 +1376,9 @@ function LevelBoard({
                     <td className="num">
                       {numbers.get(it.id) ?? <span className="dash">—</span>}
                     </td>
-                    <td style={{ maxWidth: 300 }}>{it.questions?.stem}</td>
+                    <td style={{ maxWidth: 300 }}>
+                      <MathText text={it.questions?.stem} math={it.questions?.subject === 'mathematics'} />
+                    </td>
                     <td className="cell-sub">
                       {skillLabel(it.questions?.skill ?? null) ??
                         sectionLabel(it.questions?.section ?? null) ?? <span className="dash">—</span>}

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
+import { FormulaSheet, MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
+import { MathText } from '../components/MathText'
 import { QuestionView } from '../components/QuestionView'
 import { Notice, Passage } from '../components/ui'
 import { useStudentSession } from '../hooks/useStudentSession'
@@ -47,6 +49,10 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   const hasApp = gateway.kind === 'account'
   const [leaving, setLeaving] = useState(false)
   const [ending, setEnding] = useState(false)
+  // The calculators and the reference sheet, open or not. Held here rather
+  // than on the question so that moving on to the next one keeps the panel —
+  // and what was typed into the calculator — where the student left it.
+  const [tool, setTool] = useState<MathTool | null>(null)
 
   const open = useMemo(() => items.find((i) => i.status === 'published') ?? null, [items])
   // In the order they were asked, which after a level move is not the order the
@@ -121,6 +127,11 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   if (loading) return <div className="page">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
+  // Bluebook gives a mathematics module a calculator and a reference sheet for
+  // its whole length, and so does this: from the start of the test to the end,
+  // between questions as well as on them.
+  const math = session.subject === 'mathematics' && inProgress
+
   // One count across the whole session, the same numbers the teacher's board
   // and the report use. It used to start again with every test — question 1 of
   // 20, again, after six easy ones — which told the student the one thing the
@@ -158,6 +169,7 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
         {open && <div className="exam-progress-plain">Question {number}</div>}
 
         <div className="exam-actions">
+          {math && <MathToolButtons tool={tool} onTool={setTool} />}
           {session.meeting_url && session.status !== 'completed' && (
             <a
               className="btn btn-ghost btn-sm"
@@ -238,21 +250,26 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
         </div>
       )}
 
-      {open ? (
-        <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
-      ) : between ? (
-        <WaitingForTeacher first={done.length === 0} />
-      ) : finished ? (
-        <Finished items={done} />
-      ) : waiting ? (
-        <Lobby session={session} gateway={gateway} onStarted={reload} />
-      ) : (
-        <div className="exam-wait">
-          <div className="ring" aria-hidden="true" />
-          <h2>Session finished</h2>
-          <p>This session has ended. Your teacher will go through it with you.</p>
+      <div className="exam-main">
+        <div className="exam-content">
+          {open ? (
+            <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
+          ) : between ? (
+            <WaitingForTeacher first={done.length === 0} />
+          ) : finished ? (
+            <Finished items={done} />
+          ) : waiting ? (
+            <Lobby session={session} gateway={gateway} onStarted={reload} />
+          ) : (
+            <div className="exam-wait">
+              <div className="ring" aria-hidden="true" />
+              <h2>Session finished</h2>
+              <p>This session has ended. Your teacher will go through it with you.</p>
+            </div>
+          )}
         </div>
-      )}
+        {math && <MathToolsPanel tool={tool} onTool={setTool} className="exam-tools" />}
+      </div>
     </div>
   )
 }
@@ -415,7 +432,10 @@ function Finished({ items }: { items: SessionItem[] }) {
                 it.revealed_explanation && (
                   <div className="q-note">
                     <div className="section-title">Why</div>
-                    {it.revealed_explanation}
+                    <MathText
+                      text={it.revealed_explanation}
+                      math={it.questions?.subject === 'mathematics'}
+                    />
                   </div>
                 )
               }
@@ -448,6 +468,7 @@ function ItemPane({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const math = item.questions?.subject === 'mathematics'
   const options = useMemo(
     () =>
       [...(item.questions?.question_options ?? [])].sort(
@@ -544,8 +565,13 @@ function ItemPane({
             body={item.questions.passage}
             underline={item.questions.passage_underline}
             className="stim"
+            math={math}
           />
-        ) : item.questions?.image_url ? null : (
+        ) : item.questions?.image_url ? null : math ? (
+          // Nothing to read on this side, so the formulas go here: the
+          // reference sheet beside the question, without opening anything.
+          <FormulaSheet />
+        ) : (
           <p className="stim-empty">This question stands on its own — read it on the right.</p>
         )}
         {item.questions?.image_url && (
@@ -571,7 +597,9 @@ function ItemPane({
 
         {err && <Notice kind="error">{err}</Notice>}
 
-        <h2 className="exam-stem">{item.questions?.stem}</h2>
+        <h2 className="exam-stem">
+          <MathText text={item.questions?.stem} math={math} />
+        </h2>
 
         <div className="exam-choices">
           {options.map((o) => {
@@ -593,7 +621,9 @@ function ItemPane({
                   }}
                 >
                   <span className="lab">{o.label}</span>
-                  <span className="body">{o.body}</span>
+                  <span className="body">
+                    <MathText text={o.body} math={math} />
+                  </span>
                 </button>
                 {crossoutOn && (
                   <button

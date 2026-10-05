@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
-import { Field, Notice, Select, Textarea } from '../components/ui'
+import { Field, Notice, Select, Textarea, UnsavedNotice } from '../components/ui'
+import { useDraftCache } from '../hooks/useDraftCache'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { sectionLabel, skillLabel } from '../lib/constants'
 import {
@@ -57,6 +58,39 @@ interface DomainNoteDraft {
   performance_note: string | null
 }
 
+/**
+ * What this page lets a teacher type, as useDraftCache keeps it between visits:
+ * the words, not the transcript's offset or speakers, which are worked out
+ * again from the transcript on every visit.
+ */
+interface ReportDraft {
+  notes: Record<string, { strengths: string; gaps: string }>
+  time_management: string
+  engagement: string
+  practice_priority: string
+  summary: string
+  body: string
+}
+
+function toDraft(
+  notes: Record<string, DomainNoteDraft>,
+  meta: Partial<SessionReportRow>,
+  body: string,
+): ReportDraft {
+  return {
+    notes: Object.fromEntries(
+      Object.entries(notes).map(([d, v]) => [d, { strengths: v.strengths, gaps: v.gaps }]),
+    ),
+    // Null and empty are the same box with nothing in it; told apart, a box
+    // typed in and cleared again would read as an unsaved change.
+    time_management: meta.time_management ?? '',
+    engagement: meta.engagement ?? '',
+    practice_priority: meta.practice_priority ?? '',
+    summary: meta.summary ?? '',
+    body,
+  }
+}
+
 const emptyNote = (): DomainNoteDraft => ({
   strengths: '',
   gaps: '',
@@ -84,6 +118,8 @@ export function ReportEdit() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  // The report as the database holds it, for useDraftCache to compare against.
+  const [savedDraft, setSavedDraft] = useState<ReportDraft | null>(null)
 
   const load = useCallback(async () => {
     const [t, n, m] = await Promise.all([
@@ -105,12 +141,35 @@ export function ReportEdit() {
       }
     }
     setNotes(next)
-    setMeta((m.data as SessionReportRow | null) ?? {})
+    const savedMeta = (m.data as SessionReportRow | null) ?? {}
+    setMeta(savedMeta)
+    setSavedDraft(toDraft(next, savedMeta, tr?.body ?? ''))
   }, [id])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // Everything typed here is kept in the browser until it is saved, so a
+  // teacher who goes back to the questions mid-write-up comes back to it all.
+  const onScreen = useMemo(() => toDraft(notes, meta, draftBody), [notes, meta, draftBody])
+  const draft = useDraftCache(session ? `report:${id}` : null, onScreen, savedDraft, (d) => {
+    setNotes((prev) => {
+      const next = { ...prev }
+      for (const [domain, v] of Object.entries(d.notes)) {
+        next[domain] = { ...(prev[domain] ?? emptyNote()), strengths: v.strengths, gaps: v.gaps }
+      }
+      return next
+    })
+    setMeta((prev) => ({
+      ...prev,
+      time_management: d.time_management,
+      engagement: d.engagement,
+      practice_priority: d.practice_priority || null,
+      summary: d.summary,
+    }))
+    setDraftBody(d.body)
+  })
 
   const report = useMemo(() => buildReport(items), [items])
   const grid = useMemo(
@@ -221,8 +280,20 @@ export function ReportEdit() {
       },
       { onConflict: 'session_id' },
     )
-    if (err) setError(err.message)
-    await load()
+    if (err) {
+      setError(err.message)
+    } else {
+      // Only the transcript is re-read. Reading the whole page again put the
+      // saved notes back over the ones being typed, which were not saved yet.
+      const { data } = await supabase
+        .from('session_transcripts')
+        .select('*')
+        .eq('session_id', id)
+        .maybeSingle()
+      const tr = (data as SessionTranscript | null) ?? null
+      setTranscript(tr)
+      setSavedDraft((prev) => (prev ? { ...prev, body: tr?.body ?? draftBody } : prev))
+    }
     setBusy(false)
   }
 
@@ -258,6 +329,7 @@ export function ReportEdit() {
         { onConflict: 'session_id' },
       )
       if (e2) throw new Error(e2.message)
+      draft.forget()
 
       if (publish) {
         const { error: e3 } = await supabase.rpc('publish_report', { p_session: id })
@@ -298,6 +370,7 @@ export function ReportEdit() {
 
       {error && <Notice kind="error">{error}</Notice>}
       {saved && <Notice kind="ok">Saved as a draft.</Notice>}
+      {draft.restored && <UnsavedNotice onDiscard={draft.discard} />}
 
       {/* ------------------------------------------------------ transcript -- */}
       <div className="card card-pad">

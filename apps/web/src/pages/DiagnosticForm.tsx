@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { DiagnosticGrid } from '../components/DiagnosticGrid'
 import { IconBack } from '../components/icons'
-import { Field, Notice, Textarea } from '../components/ui'
+import { Field, Notice, Textarea, UnsavedNotice } from '../components/ui'
+import { useDraftCache } from '../hooks/useDraftCache'
 import { SESSION_SELECT } from '../hooks/useLiveSession'
 import { HANDED_IN_AGAIN } from '../hooks/useReadAgain'
 import { subjectLabel } from '../lib/constants'
@@ -62,6 +63,10 @@ export function DiagnosticForm() {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<'draft' | null>(null)
 
+  // What the database holds, as the form shows it — what useDraftCache
+  // compares the screen against to know whether anything is unsaved.
+  const [savedForm, setSavedForm] = useState<FormDraft | null>(null)
+
   const load = useCallback(async () => {
     const [s, n, m, t] = await Promise.all([
       supabase.from('sessions').select(SESSION_SELECT).eq('id', id).maybeSingle(),
@@ -72,7 +77,8 @@ export function DiagnosticForm() {
 
     const loaded = row<Session>(s.data)
     setSession(loaded)
-    setGridRows(rowsFrom(toRows<DomainNote>(n.data), loaded?.subject))
+    const nextRows = rowsFrom(toRows<DomainNote>(n.data), loaded?.subject)
+    setGridRows(nextRows)
 
     const report = row<SessionReportRow>(m.data)
     setReflection(report?.teacher_reflection ?? '')
@@ -83,6 +89,13 @@ export function DiagnosticForm() {
       setBody(transcript.body)
       setFilename(transcript.filename)
     }
+
+    setSavedForm({
+      rows: nextRows,
+      reflection: report?.teacher_reflection ?? '',
+      body: transcript?.body ?? '',
+      filename: transcript?.filename ?? null,
+    })
 
     setLoading(false)
   }, [id])
@@ -95,6 +108,37 @@ export function DiagnosticForm() {
     () => ({ rows: gridRows, reflection, transcript: body }),
     [gridRows, reflection, body],
   )
+
+  // Everything typed here is kept in the browser until it is saved, so going
+  // back to the session to look at a question again and returning finds it
+  // all still here.
+  const onScreen = useMemo<FormDraft>(
+    () => ({ rows: gridRows, reflection, body, filename }),
+    [gridRows, reflection, body, filename],
+  )
+  const draft = useDraftCache(session ? `diagnostic:${id}` : null, onScreen, savedForm, (d) => {
+    // Cell by cell onto the form's own rows, so a draft can never add, drop
+    // or reorder a domain — only fill one in.
+    setGridRows((prev) =>
+      prev.map((r) => {
+        const kept = d.rows.find((k) => k.domain === r.domain)
+        return kept
+          ? {
+              ...r,
+              performance: kept.performance,
+              performanceNote: kept.performanceNote,
+              strengths: kept.strengths,
+              gaps: kept.gaps,
+              targets: kept.targets,
+            }
+          : r
+      }),
+    )
+    setReflection(d.reflection)
+    setBody(d.body)
+    setFilename(d.filename)
+    setProblems([])
+  })
   const outstanding = useMemo(() => validate(form), [form])
   const parsed = useMemo(() => (body.trim() ? parseTranscript(body) : null), [body])
   const done = rowsComplete(gridRows)
@@ -174,6 +218,7 @@ export function DiagnosticForm() {
     setBusy(true)
     try {
       await persist()
+      draft.forget()
       if (submit) {
         const { error: err } = await supabase.rpc('submit_diagnostic_form', { p_session: id })
         if (err) throw new Error(err.message)
@@ -224,6 +269,7 @@ export function DiagnosticForm() {
 
       {error && <Notice kind="error">{error}</Notice>}
       {saved && <Notice kind="ok">Saved as a draft.</Notice>}
+      {draft.restored && <UnsavedNotice onDiscard={draft.discard} />}
 
       {/* ------------------------------------------------ the grid --------- */}
       <div className="card card-pad">
@@ -322,4 +368,12 @@ export function DiagnosticForm() {
       </div>
     </div>
   )
+}
+
+/** The form as useDraftCache keeps it between visits. */
+interface FormDraft {
+  rows: DiagnosticRow[]
+  reflection: string
+  body: string
+  filename: string | null
 }
