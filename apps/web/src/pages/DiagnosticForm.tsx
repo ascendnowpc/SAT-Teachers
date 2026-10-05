@@ -239,7 +239,7 @@ export function DiagnosticForm() {
     }
   }
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
   const student = session.student?.full_name ?? 'the student'

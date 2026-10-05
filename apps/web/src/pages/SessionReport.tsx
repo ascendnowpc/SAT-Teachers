@@ -125,7 +125,7 @@ export function SessionReport() {
   const levels = useMemo(() => [...new Set(report.attempts.map((a) => a.difficulty))], [report])
   const oneLevel = levels.length === 1 && levels[0] !== null ? levels[0] : null
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
   const when = formatUtc(session.scheduled_at)

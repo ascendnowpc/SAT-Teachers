@@ -267,7 +267,7 @@ export function QuestionNew() {
     }
   }
 
-  if (loading || homeLoading) return <div className="page">Loading…</div>
+  if (loading || homeLoading) return <div className="page page-loading">Loading…</div>
 
   // A new question with no test to go in. Not an error the teacher made — the
   // bank page used to offer exactly this — so it is answered rather than

@@ -19,7 +19,7 @@ export function AppLayout() {
     <div className="shell">
       <aside className="side">
         <div className="side-inner">
-          <Logo onDark />
+          <Logo />
 
           <nav>
             <NavLink to="/" end className={cls}>

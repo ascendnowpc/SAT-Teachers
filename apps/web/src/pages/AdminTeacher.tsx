@@ -31,7 +31,7 @@ export function AdminTeacher() {
   // 4th" but "how is she doing with this student".
   const byStudent = useMemo(() => sessionsByStudent(theirs, stages), [theirs, stages])
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
 
   if (!row) {
     return (

@@ -155,7 +155,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   // level switch takes no number, so nothing on this screen counts it.
   const numbers = useMemo(() => askNumbers(items), [items])
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
   const over = session.status === 'completed' || session.status === 'cancelled'
