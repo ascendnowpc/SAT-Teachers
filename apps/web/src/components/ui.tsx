@@ -10,6 +10,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { parsePassage } from '../lib/paper'
+import { MathText } from './MathText'
 import type { Difficulty } from '../lib/types'
 
 /**
@@ -134,10 +135,21 @@ export function Notice({
 }
 
 /**
- * The stimulus a question is about. `className` picks the surface it sits on
- * (the bank card, the student's stage); the underline handling is the same
- * everywhere, because it is part of the question rather than of the styling.
+ * Said when a form opens on changes that were never saved (useDraftCache), so
+ * the teacher knows the page is not showing the saved copy — and can go back
+ * to it.
  */
+export function UnsavedNotice({ onDiscard }: { onDiscard: () => void }) {
+  return (
+    <Notice kind="info">
+      Your unsaved changes from earlier are back — they are kept in this browser until you save.{' '}
+      <button type="button" className="link-btn" onClick={onDiscard}>
+        Discard them
+      </button>
+    </Notice>
+  )
+}
+
 /**
  * A stimulus, set the way its paper sets it.
  *
@@ -147,14 +159,22 @@ export function Notice({
  * as a single pre-wrapped paragraph is what turned the sleep table into a run
  * of loose numbers, so every view goes through this instead.
  */
+/**
+ * The stimulus a question is about. `className` picks the surface it sits on
+ * (the bank card, the student's stage); the underline handling is the same
+ * everywhere, because it is part of the question rather than of the styling.
+ */
 export function Passage({
   body,
   underline,
   className = 'q-passage',
+  math = false,
 }: {
   body: string
   underline?: string | null
   className?: string
+  /** A mathematics stimulus: its slashes are set as fractions (MathText). */
+  math?: boolean
 }) {
   return (
     <div className={className}>
@@ -174,7 +194,7 @@ export function Passage({
                   <tr>
                     {block.head.map((h, c) => (
                       <th key={c} scope="col">
-                        {h}
+                        <MathText text={h} math={math} />
                       </th>
                     ))}
                   </tr>
@@ -183,7 +203,9 @@ export function Passage({
                   {block.rows.map((row, r) => (
                     <tr key={r}>
                       {row.map((cell, c) => (
-                        <td key={c}>{cell}</td>
+                        <td key={c}>
+                          <MathText text={cell} math={math} />
+                        </td>
                       ))}
                     </tr>
                   ))}
@@ -197,10 +219,12 @@ export function Passage({
             {block.segments.map((seg, j) =>
               seg.underlined ? (
                 <u key={j} className="underlined">
-                  {seg.text}
+                  <MathText text={seg.text} math={math} />
                 </u>
               ) : (
-                <span key={j}>{seg.text}</span>
+                <span key={j}>
+                  <MathText text={seg.text} math={math} />
+                </span>
               ),
             )}
           </p>

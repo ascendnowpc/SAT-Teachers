@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { MathText } from './MathText'
 import { Passage } from './ui'
 import { OPTION_LABELS } from '../lib/constants'
 import type { OptionLabel, Question } from '../lib/types'
@@ -58,6 +59,8 @@ export function QuestionView({
   chosen?: OptionLabel | null
 }) {
   const key = correct ?? question.question_keys?.correct_option ?? null
+  // A mathematics question sets its slashes as fractions, as the test does.
+  const math = question.subject === 'mathematics'
   const options = [...question.question_options].sort(
     (a, b) => OPTION_LABELS.indexOf(a.label) - OPTION_LABELS.indexOf(b.label),
   )
@@ -71,6 +74,7 @@ export function QuestionView({
               body={question.passage}
               underline={question.passage_underline}
               className="stim"
+              math={math}
             />
           ) : question.image_url ? null : (
             <p className="stim-empty">This question stands on its own — read it on the right.</p>
@@ -91,7 +95,9 @@ export function QuestionView({
           </div>
         )}
 
-        <p className="qsplit-stem">{question.stem}</p>
+        <p className="qsplit-stem">
+          <MathText text={question.stem} math={math} />
+        </p>
 
         <div className="qsplit-choices">
           {options.map((o) => {
@@ -103,7 +109,9 @@ export function QuestionView({
                 className={`qch ${isKey ? 'is-key' : ''} ${isChosen && !isKey ? 'is-chosen' : ''}`}
               >
                 <span className="lab">{o.label}</span>
-                <span className="body">{o.body}</span>
+                <span className="body">
+                  <MathText text={o.body} math={math} />
+                </span>
                 {isChosen && <span className="pick">You chose this</span>}
                 {isKey && <span className="tick">Correct</span>}
               </div>
