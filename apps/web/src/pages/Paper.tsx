@@ -70,7 +70,7 @@ export function Paper() {
   // would open a form that refuses.
   const writable = Boolean(set?.level && set.is_active)
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
   if (error) {
     return (
       <div className="page">

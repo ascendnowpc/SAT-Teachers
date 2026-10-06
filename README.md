@@ -17,6 +17,7 @@ npm run dev                                    # http://localhost:5173
 
 | | |
 | --- | --- |
+| **About the SAT** | A page in the app, before any test: the day, how the adaptive modules work, and what English and Math each ask — for a student new to the SAT, ahead of their diagnostic |
 | **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
 | **Login** | Email + password, for teachers |
 | **The admin portal** | One seat that sees every teacher, every session, every form and every report — and can do to any session what its teacher can: run it, write it up, generate the report and publish it |

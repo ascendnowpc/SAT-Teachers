@@ -124,7 +124,7 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
     if (hasApp) navigate('/sessions')
   }
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
   // Bluebook gives a mathematics module a calculator and a reference sheet for

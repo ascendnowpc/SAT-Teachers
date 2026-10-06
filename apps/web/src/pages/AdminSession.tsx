@@ -76,7 +76,7 @@ export function AdminSession() {
   )
   const stage = reportStage(meta)
 
-  if (loading) return <div className="page">Loading…</div>
+  if (loading) return <div className="page page-loading">Loading…</div>
 
   if (!session) {
     return (

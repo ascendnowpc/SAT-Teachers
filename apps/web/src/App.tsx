@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
+import { AboutSat } from './pages/AboutSat'
 import { Account } from './pages/Account'
 import { AdminSession } from './pages/AdminSession'
 import { AdminTeacher } from './pages/AdminTeacher'
@@ -87,6 +88,7 @@ export function App() {
         <Route path="/sessions/:id" element={<SessionRoom />} />
         <Route path="/sessions/:id/report" element={<SessionReport />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/about-sat" element={<AboutSat />} />
         {isAdmin && (
           <>
             <Route path="/admin/users" element={<AdminUsers />} />
