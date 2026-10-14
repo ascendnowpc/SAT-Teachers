@@ -37,7 +37,7 @@ export function AboutSat() {
         <div>
           <h1>What is the SAT?</h1>
           <p className="sub">
-            The test US colleges use to compare applicants. Digital, adaptive, and in two halves:
+            The test many colleges use to compare applicants. Digital, adaptive, and in two halves:
             English, then Math.
           </p>
         </div>
