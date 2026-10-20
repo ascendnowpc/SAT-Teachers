@@ -21,7 +21,7 @@ import {
  * library running on Deno's Node shims inside the edge runtime. The message
  * itself is built by lib/mail.ts, where the suite checks it.
  *
- * Resend is the other way, kept because notify_pending_teacher has always
+ * Resend is the other way, kept because the new-teacher notice has always
  * sent through it: one HTTPS call. Whichever the secrets describe is used —
  * see transportFrom — and neither is an error: every caller treats a mail it
  * could not send as a slower workflow, never as a failed one.

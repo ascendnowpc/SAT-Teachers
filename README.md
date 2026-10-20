@@ -18,10 +18,10 @@ npm run dev                                    # http://localhost:5173
 | | |
 | --- | --- |
 | **About the SAT** | A page in the app, before any test: the day, how the adaptive modules work, and what English and Math each ask — for a student new to the SAT, ahead of their diagnostic |
-| **Signup** | Teachers only, and a new teacher account is **pending** until an admin approves it |
+| **Signup** | Teachers only, and a new teacher is in at once — nobody approves it; the admins are emailed and see it on their dashboard |
 | **Login** | Email + password, for teachers |
 | **The admin portal** | One seat that sees every teacher, every session, every form and every report — and can do to any session what its teacher can: run it, write it up, generate the report and publish it |
-| **Approve and suspend** | An admin lets a new teacher in, or closes an account — and a closed account cannot sign in |
+| **Suspend** | An admin closes an account, or reopens it — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
 | **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
@@ -599,7 +599,7 @@ sent — and oversight that has to ask the teacher to press each button is not o
 
 What the seat still cannot do is the same as what nobody can: write the model's reading of a
 recording (the edge function stores it on the service role, after its quote check) or make anybody
-an admin. **`set_profile_active`** — the approval — is admin-only and refuses the caller's own row,
+an admin. **`set_profile_active`** — suspend and reopen — is admin-only and refuses the caller's own row,
 because the last admin switching themselves off locks the role out of the product.
 
 Because two seats can do all of this, the database records which one did:
@@ -635,61 +635,59 @@ capitalised every word of whatever was put in one.
 Adding a PC is folded away (`.folded`), because it is done once a term and the list under it is
 what an admin opened the tab for; the tabs and the search box are one line rather than two boxes.
 
-### Off is two things
+### Off is suspended
 
 `0044` had one kind of off: `is_active = false`, which every policy reads, so the account lost
 every row in the database. That is the right amount of data (none) and the wrong door — the
 password still worked, so somebody you had removed could still sign in and click around an empty
-copy of the product. `0045` splits it:
+copy of the product. `0045` made suspending ban the auth user too, and stamps `suspended_at`:
 
 | | `is_active` | `suspended_at` | Can sign in? |
 | --- | --- | --- | --- |
-| **Pending** | false | null | **Yes** — that is how they reach the screen that says they are waiting |
+| **Active** | true | null | Yes |
 | **Suspended** | false | set | **No.** The auth user is banned and their open sessions are deleted |
 
-The two used to be the same column and the same answer, which put a removed teacher at the top of
-the admin's approval queue as though they were new. They are told apart now, on the screen and in
-the database, and letting somebody back in is the same button that took them away.
+`0045` also had a third row — *pending*, a new teacher nobody had approved yet — and `0058` took it
+away (below). Letting somebody back in is the same button that took them away.
 
-### Nobody has to notice the queue
+### A new teacher is in, and the admins are told
 
-A pending teacher cannot tell anybody they are waiting — they are stopped at the sign-in screen,
-and the only place their name appears is a list inside a portal an admin might not open for a week.
-So the row says it for them. `0046` puts a trigger on the new profile that calls the
-`notify_pending_teacher` edge function, which re-reads the profile on the service role and emails
-whichever admins have an address. The same count sits on the dashboard every admin lands on.
+Signup is open to the internet, and since `0058` a teacher account is on from the moment it exists:
+nobody approves it. `0044` had written every new teacher inactive until an admin let them in;
+`0058` writes them active, and lets in anybody who was still waiting when it ran (a suspended
+teacher stays suspended).
 
-Three things it is careful about:
+So the admins are told instead of asked. A trigger on the new profile calls the
+`notify_new_teacher` edge function, which re-reads the profile on the service role and emails
+whichever admins have an address: who signed up, and a link to their page. The dashboard every
+admin lands on lists the teacher accounts made in the last week, and Users marks them **New**. An
+account nobody recognises is suspended from its page.
+
+Three things the notice is careful about:
 
 - **A signup must never fail because of a mail.** `pg_net` queues the request rather than making
   the HTTP call inside the transaction, and the whole thing is wrapped so that any failure at all
   — no key, no URL, the function down — is a warning and a signup that still worked.
 - **No secret lives in the database.** The call carries no token, because the function does not
   need one: it takes an id and will only ever mail *admins* about a profile that really is a
-  pending teacher. Guessing a uuid gets you a second copy of a true notice.
+  teacher, not suspended, made within the last day. Guessing a uuid gets you a second copy of a
+  true notice.
 - **The URL is configuration, not schema.** It differs per project, so it is a row in `app_config`
   (RLS on, no policies, so no client can read it) rather than a line in a migration.
 
-### A teacher account is not a thing you award yourself
-
-Signup is open to the internet and the client asked for `teacher`. The role was coerced away from
-`admin`, which is the check everybody looked at and the one that was never the problem: a
-**teacher** reads every answer key in the bank, every student on the roster with their PC, and can
-edit the house content everybody else's sessions are built from. Nothing stood between a stranger
-and all of it but a confirmation email.
-
-`is_teacher()` has required `is_active` since `0001`, so the fix is one word in the signup trigger:
-a new teacher lands inactive and an admin approves them. A pending account reads *nothing*, which
-is why it gets a screen of its own rather than an empty product. Accounts that already exist are
-untouched, and the first admin is minted in the SQL editor by somebody who already owns the
-project — there is no RPC that grants the role, because any such RPC is a rung on a ladder:
+What this trades away is worth saying plainly: a **teacher** reads every answer key in the bank,
+every student on the roster with their PC, and can edit the house content everybody else's sessions
+are built from — and anybody with an email address can now have that. The role is still coerced to
+`teacher` or `student`, so a signup cannot make itself an admin or a PC. The first admin is minted
+in the SQL editor by somebody who already owns the project — there is no RPC that grants the role,
+because any such RPC is a rung on a ladder:
 
 ```sql
 update profiles set role = 'admin', is_active = true where email = 'you@ascendnow.info';
 ```
 
 The rest of the pass over the schema, the grants, the edge function and what is committed — what
-was found, what `0044` fixed and what is still open — is in
+was found, what `0044` fixed (and `0058` reopened) and what is still open — is in
 [`docs/reference/security-review.md`](docs/reference/security-review.md).
 
 ## PCs
@@ -732,7 +730,7 @@ but the token. Users shows each PC as *Invited*, *Link expired* or *Joined*. *Se
 on an unjoined PC's row makes a new one; on a PC who has joined it is *Send a password link*, the
 same page with "choose a new password", and their old password works until they use it. If the mail
 cannot go — no mail provider set up yet, or the server said no — the PC is still made and the link is
-shown to the admin once, to send themselves. *Suspend* is the approval switch every account has
+shown to the admin once, to send themselves. *Suspend* is the switch every account has
 (`0045`); it also stops the emails and kills any link. A PC who wants to change their password
 while signed in does it from *Account* (their name at the foot of the sidebar).
 
@@ -758,7 +756,7 @@ run nothing, because every write in the schema asks for a teacher or an admin an
 A signed-out PC following the link in an email signs in and lands on that session.
 
 **The email.** Generating stamps `session_reports.generated_at`, and a trigger on that stamp queues
-the `notify_pc_report` edge function the way `0046` queues the pending-teacher notice: `pg_net`, no
+the `notify_pc_report` edge function the way `0058` queues the new-teacher notice: `pg_net`, no
 secret, any failure swallowed — a report never fails to generate for want of an email. The function
 reads everything again on the service role (the report really was generated, the student's PC, and
 the address they sign in with), builds the PDF — the report page's own computation (`buildReport`,
@@ -823,11 +821,11 @@ psql "$DATABASE_URL" -f supabase/tests/pc_access.sql
 > as the querying role, so it still wants its own test pass.
 
 Between them these assert: a signup asking for `admin` is coerced to `student`; a teacher account
-arrives pending and reads nothing until an admin approves it, and cannot approve or rename itself;
+arrives active and is staff at once, and cannot switch itself off or rename itself;
 an admin reads every profile and session and can edit and run a session they do not teach — which
 `admin_access.sql` covers in full — but cannot switch themselves off; a student reads no profile
 but their own and their teacher's; a suspended teacher loses the answer keys the moment they are suspended and cannot
-sign in again at all, while one merely waiting for approval still can; a student
+sign in again at all; a student
 cannot self-promote or author questions; a queued question is invisible and unanswerable; a
 published question exposes the question and its options but never the key; after submitting,
 the student cannot learn whether they were right; and the teacher's diagnosis is never visible
@@ -881,9 +879,8 @@ count rows read FAIL against a database the content migrations have been run on.
 `admin_access.sql` leave the counters alone and are safe against a real one; `level_session.sql`, `choosing.sql`,
 `session_link.sql` and `admin_access.sql`'s console rows need the three tests loaded (`0026`), and `authoring.sql`'s filing section needs
 the mathematics easy test (`0040`) — without it those rows read SKIP rather than FAIL. A teacher
-account arrives pending since `0044`, so a contract that acts as a teacher approves its own teacher
-first, as the migration role. `session_link.sql`, `authoring.sql` and `session_flow.sql` were written before that and
-did not, so each stopped at its first row against any database with `0044` on it — they do now. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
+account arrives active since `0058`, so a contract that acts as a teacher uses the one its signup
+made. `session_link.sql` is the contract for the three doors 0032–0034 opened: a teacher can
 add a roster student and a student cannot; a session's token is unique, opens only its own
 session, and never returns the key or the token itself; a link cannot answer another session's
 question; and only a session's own teacher can open it, answer in it or end it.
@@ -929,7 +926,7 @@ and `_shared/` files it imports into `dist/edge/<function>/` for a deploy throug
 API, which resolves files flat (`node tools/bundle-edge-function.mjs manage_pc` does one). The files
 are found by following the imports, not listed by hand.
 
-**Mail.** Three functions send mail — the approval notice, a PC's link and a report to a PC —
+**Mail.** Three functions send mail — the new-teacher notice, a PC's link and a report to a PC —
 and they all send it one way (`_shared/send.ts`). Supabase's own mailer cannot do it: it sends its
 auth templates and nothing else, carries no attachment, and without a custom SMTP server refuses
 every address outside the project's team. So the functions speak SMTP themselves, with an **app
@@ -946,12 +943,12 @@ supabase secrets set APP_URL=https://sat-teachers.vercel.app     # optional; thi
 ```
 
 `SMTP_PORT` defaults to 465. `RESEND_API_KEY` still works instead of the three SMTP secrets. With
-neither, nothing is sent and nothing breaks: the approval queue is still in the portal, a PC's
+neither, nothing is sent and nothing breaks: new teachers are still on the admin's dashboard, a PC's
 link is shown to the admin once, and a report's email is recorded as not sent with the reason,
 with *Send it to the PC* on the console for once it is set up.
 
 ```bash
-supabase functions deploy notify_pending_teacher --no-verify-jwt
+supabase functions deploy notify_new_teacher --no-verify-jwt   # the database calls it, with no token
 supabase functions deploy notify_pc_report --no-verify-jwt   # the database calls it, with no token
 supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
 supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
@@ -1002,6 +999,5 @@ dependency.
 Signup asks for the link to come back to the app it was made from (`emailRedirectTo`), and Supabase
 only does that for an address on the Redirect URLs list — anything else goes to the Site URL. That
 was `localhost` on this project, so new teachers confirmed their email and then landed on "this site
-can't be reached". With both set, the link signs them in and they see that their email is confirmed
-and their account is waiting for approval. A Vercel preview deployment needs its own pattern on the
+can't be reached". With both set, the link signs them in and they are in the app. A Vercel preview deployment needs its own pattern on the
 list (Supabase's docs give one for Vercel) or its links fall back to the Site URL too.

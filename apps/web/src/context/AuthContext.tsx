@@ -17,17 +17,11 @@ interface AuthValue {
   loading: boolean
   isTeacher: boolean
   /**
-   * An active admin. Reads the whole school, approves and suspends teachers,
-   * and can do to any session whatever its teacher can (0050): run it from the
+   * An active admin. Reads the whole school, suspends accounts and lets them
+   * back in, and can do to any session whatever its teacher can (0050): run it from the
    * console, write it up, generate the report and publish it.
    */
   isAdmin: boolean
-  /**
-   * A teacher account that has been created and not yet approved. 0044 writes
-   * one inactive, because signup is open and a teacher reads every answer key
-   * in the bank, so this is a real state a real person sits in.
-   */
-  isPending: boolean
   /**
    * An active PC (0055): reads the sessions and reports of the students
    * assigned to them, and nothing else. Not staff — no bank, no answer keys,
@@ -130,7 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       isTeacher: (profile?.role === 'teacher' || profile?.role === 'admin') && profile.is_active,
       isAdmin: profile?.role === 'admin' && profile.is_active,
-      isPending: profile?.role === 'teacher' && !profile.is_active,
       isPc: profile?.role === 'pc' && profile.is_active,
       signIn,
       signUp,

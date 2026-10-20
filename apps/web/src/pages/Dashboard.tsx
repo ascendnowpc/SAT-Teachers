@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { StageBadge } from '../components/AdminUi'
 import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
-import { pendingTeachers, reportStage } from '../lib/admin'
+import { newTeachers, newTeacherSince, NEW_TEACHER_DAYS, reportStage } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -20,23 +20,22 @@ export function Dashboard() {
   const staff = isTeacher || isPc
   const [counts, setCounts] = useState<Record<Difficulty, number> | null>(null)
   const [next, setNext] = useState<Session[]>([])
-  const [pending, setPending] = useState<Profile[]>([])
+  const [arrived, setArrived] = useState<Profile[]>([])
 
   useEffect(() => {
     let active = true
 
-    // A pending teacher cannot see anything at all until somebody approves
-    // them, and an admin who does not open Users does not know they are there.
-    // So the one piece of the portal that is a person waiting is on the page
-    // every admin lands on.
+    // Anybody can make a teacher account and use it at once (0058), so nobody
+    // approves them and the admin is told instead: by email, and here, on the
+    // page every admin lands on — which still says it when no mail is set up.
     if (isAdmin) {
       void supabase
         .from('profiles')
         .select('*')
         .eq('role', 'teacher')
-        .eq('is_active', false)
+        .gte('created_at', newTeacherSince())
         .then(({ data }) => {
-          if (active && data) setPending(pendingTeachers(rows<Profile>(data)))
+          if (active && data) setArrived(newTeachers(rows<Profile>(data)))
         })
     }
 
@@ -96,21 +95,25 @@ export function Dashboard() {
         </div>
       </div>
 
-      {pending.length > 0 && (
-        <div className="card card-pad approvals" style={{ marginBottom: 22 }}>
+      {arrived.length > 0 && (
+        <div className="card card-pad newcomers" style={{ marginBottom: 22 }}>
           <div className="section-title">
-            {pending.length} teacher {pending.length === 1 ? 'account is' : 'accounts are'} waiting
-            to be verified
+            {arrived.length} new teacher {arrived.length === 1 ? 'account' : 'accounts'} in the last{' '}
+            {NEW_TEACHER_DAYS} days
           </div>
           <p className="sub" style={{ marginBottom: 12, maxWidth: '62ch' }}>
-            They can see nothing at all until you approve them — not a session, not a question, not
-            a student. Whoever signed up is sitting on a screen that says so.
+            They can already use the platform. If you do not recognise one, open it and suspend the
+            account.
           </p>
-          <ul className="approval-list" style={{ marginBottom: 14 }}>
-            {pending.slice(0, 3).map((p) => (
+          <ul className="newcomer-list" style={{ marginBottom: 14 }}>
+            {arrived.slice(0, 3).map((p) => (
               <li key={p.id}>
                 <div>
-                  <div className="cell-strong">{p.full_name || 'Unnamed'}</div>
+                  <div className="cell-strong">
+                    <Link className="cell-link-name" to={`/admin/teachers/${p.id}`}>
+                      {p.full_name || 'Unnamed'}
+                    </Link>
+                  </div>
                   <div className="cell-sub">
                     {p.email && <>{p.email} · </>}signed up {formatUtc(p.created_at)}
                   </div>
@@ -118,8 +121,8 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-          <Link className="btn btn-primary" to="/admin/users">
-            {pending.length > 3 ? `Review all ${pending.length}` : 'Review them'}
+          <Link className="btn btn-ghost" to="/admin/users">
+            {arrived.length > 3 ? `See all ${arrived.length} in Users` : 'See them in Users'}
           </Link>
         </div>
       )}

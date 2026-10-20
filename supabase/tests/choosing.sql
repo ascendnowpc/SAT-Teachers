@@ -86,10 +86,6 @@ begin
      'choose.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
 
-  -- A teacher account arrives pending (0044). Approving it is an admin's job;
-  -- with no JWT this is the migration role, which the guard lets through.
-  update profiles set is_active = true where id in (t_id, x_id);
-
   -- A student is booked with their PC or not at all (0055).
   pc := create_pc_profile('Pat', 'Coordinator', 'choose.pc@example.test');
   update profiles set pc_id = pc.id where id = s_id;

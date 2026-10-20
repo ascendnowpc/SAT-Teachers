@@ -2,7 +2,7 @@
  * An email, as the wire carries it, and which way it goes out.
  *
  * The edge functions send three kinds of mail — a PC's sign-in, a report to a
- * PC, and the pending-teacher notice — and they send it one of two ways: over
+ * PC, and the new-teacher notice — and they send it one of two ways: over
  * SMTP with an app password (Gmail's, usually), or through Resend's API. This
  * is the half of that which is not a socket: which transport the secrets
  * describe, and the MIME message SMTP sends. Pure, so the suite can check the

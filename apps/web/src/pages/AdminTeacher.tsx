@@ -4,7 +4,7 @@ import { SessionTable, Stat } from '../components/AdminUi'
 import { IconBack } from '../components/icons'
 import { Notice } from '../components/ui'
 import { useSchool } from '../hooks/useSchool'
-import { backlog, isSuspended, rate, sessionsByStudent, teacherRows } from '../lib/admin'
+import { backlog, isNewTeacher, isSuspended, rate, sessionsByStudent, teacherRows } from '../lib/admin'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 
@@ -66,7 +66,7 @@ export function AdminTeacher() {
             {isSuspended(profile) ? (
               <span className="badge badge-bad">Suspended</span>
             ) : (
-              !profile.is_active && <span className="badge badge-medium">Pending</span>
+              isNewTeacher(profile) && <span className="badge badge-sky">New</span>
             )}
             <span>
               <span className="num">{profile.display_id}</span>
@@ -157,10 +157,11 @@ export function AdminTeacher() {
 /**
  * Switching an account off, and back on.
  *
- * It is the one write the portal has, and it is the same RPC the approval queue
- * calls. Suspending does two things at once (0045): is_teacher() asks
- * is_active, so the account loses every policy in the schema, and the auth user
- * is banned, so the password stops working and their open tab stops refreshing.
+ * It is the one write the portal has, and since signup lets a teacher straight
+ * in (0058) it is the only answer to an account nobody recognises. Suspending
+ * does two things at once (0045): is_teacher() asks is_active, so the account
+ * loses every policy in the schema, and the auth user is banned, so the
+ * password stops working and their open tab stops refreshing.
  * Their sessions and their reports are untouched — this is a door, not an
  * eraser, and letting them back in is the same button.
  */

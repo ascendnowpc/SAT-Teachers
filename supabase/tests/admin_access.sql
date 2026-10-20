@@ -77,9 +77,8 @@ begin
      'adm.admin@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"teacher","full_name":"Ada Admin"}');
 
-  -- Teachers arrive pending (0044) and admins are made in the SQL editor. With
-  -- no JWT this is the migration role, which the identity guard lets through.
-  update profiles set is_active = true where id in (t_id, x_id);
+  -- Admins are made in the SQL editor. With no JWT this is the migration
+  -- role, which the identity guard lets through.
   update profiles set role = 'admin', is_active = true where id = a_id;
 
   -- Two sessions of the teacher's, neither of them the admin's: one to run

@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   STAGE_LABELS,
+  isNewTeacher,
   isSuspended,
   rate,
   type PersonRow,
@@ -156,7 +157,7 @@ export function PeopleTable({
                       {isSuspended(profile) ? (
                         <span className="badge badge-bad">Suspended</span>
                       ) : (
-                        !profile.is_active && <span className="badge badge-medium">Pending</span>
+                        isNewTeacher(profile) && <span className="badge badge-sky">New</span>
                       )}
                       {profile.role === 'admin' && <span className="badge badge-role">Admin</span>}
                     </div>

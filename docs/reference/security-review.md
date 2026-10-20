@@ -11,7 +11,7 @@ rows that must say PASS.
 
 ## What was wrong
 
-### 1. Anyone with an email address could become a teacher — **fixed in `0044`**
+### 1. Anyone with an email address could become a teacher — **fixed in `0044`, reopened on purpose in `0058`**
 
 Signup is open to the internet, the client asked for `teacher`, and `handle_new_user` honoured
 it. The role was coerced away from `admin`, which is the check everybody looked at and the one
@@ -27,8 +27,17 @@ Nothing stood between a stranger and all of that but a confirmation email.
 `is_teacher()` has required `is_active` since `0001`, so the fix is one word in the signup
 trigger: a new teacher is written **inactive**, and an admin approves them. Every policy in the
 schema asks `is_teacher()`, so a pending account reads nothing at all — which is also why the
-app shows it [a screen of its own](../../apps/web/src/pages/Pending.tsx) rather than an empty
-product. Accounts that already existed are untouched.
+app showed it a screen of its own rather than an empty product. Accounts that already existed are
+untouched.
+
+**`0058` takes the gate away, as a product decision.** Approving every teacher by hand was the
+slower workflow the school did not want, so a new teacher is written active again and anybody
+still waiting was let in. What stands in its place is notice rather than permission: every new
+teacher account emails the admins (`notify_new_teacher`), the admin dashboard lists the accounts
+made in the last week, and an account nobody recognises is suspended from its page — which bans
+the auth user (`0045`). The exposure above is therefore open again, by choice, and the contract
+test now asserts that a new teacher arrives active. The role is still coerced to
+`teacher`|`student`, so a signup still cannot make itself an admin or a PC.
 
 The first admin is deliberately not something the product can mint. There is no RPC that grants
 the role, because any such RPC is a rung on a ladder. A project owner runs it once:
@@ -46,7 +55,7 @@ with check (id = auth.uid() and role = (select role from profiles p where p.id =
 ```
 
 Everything else on the row was the account holder's to write — including `display_id`, which is
-what a teacher means when they say "AMAO26-3", and `is_active`, which is the approval above.
+what a teacher means when they say "AMAO26-3", and `is_active`, which was the approval above.
 A `profiles_guard_identity` trigger now refuses a change to `role`, `display_id` or `is_active`
 from anybody but an admin (through `set_profile_active`) or a migration.
 
@@ -123,7 +132,7 @@ of it, and that another teacher, a student and an anonymous caller still get non
   server only; `VITE_SUPABASE_ANON_KEY` is publishable by design and is useless without a policy
   that grants something.
 
-### The notification, reviewed on its way in (`0046`)
+### The notification, reviewed on its way in (`0046`, `0058`)
 
 The approval queue got an email, which means the database now makes an outbound HTTP call. Worth
 stating what that call is and is not:
@@ -138,6 +147,11 @@ stating what that call is and is not:
   failure path is swallowed, so neither a missing key nor a dead provider can fail an account
   creation. That is also why the first version's wrong schema name showed up as a silent no-op —
   the safety net worked, and the test that caught it was the response table, not an error.
+
+`0058` replaced it with `notify_new_teacher`, which fires for every new teacher rather than a
+pending one, the same way and under the same rules. With no pending state left to check, the
+function bounds the duplicate-notice exposure by age instead: it sends only for a teacher who is
+not suspended and whose account is less than a day old.
 - `app_config`, which holds the URL, has RLS on and **no policies at all**, so no client role can
   read it.
 
