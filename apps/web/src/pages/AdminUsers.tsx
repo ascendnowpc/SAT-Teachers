@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PcTable, PeopleTable, Stat } from '../components/AdminUi'
 import { CopyButton, Field, Input, Notice } from '../components/ui'
 import { useSchool } from '../hooks/useSchool'
-import { filterPeople, isSuspended, pcRows, pendingTeachers, studentRows, teacherRows } from '../lib/admin'
+import { filterPeople, isSuspended, NEW_TEACHER_DAYS, newTeachers, pcRows, studentRows, teacherRows } from '../lib/admin'
 import { isEmailAddress } from '../lib/mail'
 import { addPc, loadPcInvites, sendPcInvite } from '../lib/pcApi'
 import { choosable, type PcResult } from '../lib/pcs'
@@ -15,7 +15,7 @@ type Tab = 'teachers' | 'students' | 'pcs'
 const TABS: Tab[] = ['teachers', 'students', 'pcs']
 
 /**
- * Users — everybody on the platform, and the queue of people waiting to be one.
+ * Users — everybody on the platform.
  *
  * This was two pages: an overview that counted sessions and a list of people.
  * The counting was the problem — it answered questions about sessions on a
@@ -45,7 +45,7 @@ export function AdminUsers() {
   const setTab = (next: Tab) => setParams(next === 'teachers' ? {} : { tab: next }, { replace: true })
   const [query, setQuery] = useState('')
 
-  const pending = useMemo(() => pendingTeachers(profiles), [profiles])
+  const arrived = useMemo(() => newTeachers(profiles), [profiles])
   const teachers = useMemo(() => teacherRows(profiles, sessions, stages), [profiles, sessions, stages])
   const students = useMemo(() => studentRows(profiles, sessions, stages), [profiles, sessions, stages])
   const pcs = useMemo(() => pcRows(profiles, sessions, stages), [profiles, sessions, stages])
@@ -80,16 +80,14 @@ export function AdminUsers() {
 
       {error && <Notice kind="error">{error}</Notice>}
 
-      <ApprovalQueue pending={pending} onDone={reload} />
-
       <div className="stats">
-        <Stat k="Teachers" v={teachers.length} sub={`${active} approved and active`} />
+        <Stat k="Teachers" v={teachers.length} sub={`${active} active`} />
         <Stat k="Students" v={students.length} sub="on the roster" />
         <Stat k="PCs" v={pcs.length} sub={`${pcs.filter((p) => !isSuspended(p.profile)).length} active`} />
         <Stat
-          k="Waiting"
-          v={pending.length}
-          sub={pending.length === 0 ? 'nobody to approve' : 'teacher accounts to verify'}
+          k="New teachers"
+          v={arrived.length}
+          sub={`signed up in the last ${NEW_TEACHER_DAYS} days`}
         />
       </div>
 
@@ -182,72 +180,6 @@ export function AdminUsers() {
           }
         />
       )}
-    </div>
-  )
-}
-
-/**
- * The teachers waiting to be verified.
- *
- * It sits above the tables and disappears when it is empty, because it is the
- * one thing on this page that is somebody waiting on the admin rather than the
- * admin looking at something. A pending account can see nothing at all — 0044
- * writes it inactive and every policy asks is_active — so the person behind it
- * is sitting on a "waiting for approval" screen until this is done.
- */
-function ApprovalQueue({ pending, onDone }: { pending: Profile[]; onDone: () => Promise<void> }) {
-  const [busy, setBusy] = useState<string | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  if (pending.length === 0) return null
-
-  async function decide(id: string, active: boolean) {
-    setBusy(id)
-    setFailed(null)
-    const { error } = await supabase.rpc('set_profile_active', {
-      p_profile: id,
-      p_active: active,
-    })
-    if (error) setFailed(error.message)
-    else await onDone()
-    setBusy(null)
-  }
-
-  return (
-    <div className="card card-pad approvals">
-      <div className="section-title">
-        Pending verification ({pending.length})
-      </div>
-      <p className="prose">
-        Anyone can create a teacher account, and a teacher reads every answer key in the bank, every
-        student on the roster and the house content everyone's sessions are built from. These
-        accounts can see none of it until you say so.
-      </p>
-
-      {failed && <Notice kind="error">{failed}</Notice>}
-
-      <ul className="approval-list">
-        {pending.map((p) => (
-          <li key={p.id}>
-            <div>
-              <div className="cell-strong">{p.full_name || 'Unnamed'}</div>
-              <div className="cell-sub">
-                <span className="num">{p.display_id}</span>
-                {p.email && <> · {p.email}</>} · signed up {formatUtc(p.created_at)}
-              </div>
-            </div>
-            <div className="spring" />
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy === p.id}
-              onClick={() => void decide(p.id, true)}
-            >
-              {busy === p.id ? 'Working…' : 'Approve'}
-            </button>
-          </li>
-        ))}
-      </ul>
     </div>
   )
 }

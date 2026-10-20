@@ -11,14 +11,13 @@
 --    * a student can never read question_keys — the answer key lives in its own
 --      table precisely because RLS cannot hide a column of a row it grants
 --    * a signup asking for `admin` is coerced to `student`
---    * a teacher account arrives INACTIVE and reads nothing until an admin
---      approves it (0044) — signup is open to anyone with an email address
---    * nobody rewrites their own role, display id or approval (0044)
+--    * a teacher account arrives ACTIVE and is staff at once (0058) — nobody
+--      approves it; the admins are told instead
+--    * nobody rewrites their own role, display id or is_active (0044)
 --    * an admin reads every session, every form and every report, and can do
 --      to any session what its teacher can (0050) — admin_access.sql is that
 --      contract in full — but cannot switch themselves off
---    * a SUSPENDED account cannot sign in at all (0045), where an account that
---      is merely waiting for approval still can — that is how it is told so
+--    * a SUSPENDED account cannot sign in at all (0045)
 -- ============================================================================
 
 create or replace function public.__rls_check()
@@ -67,29 +66,29 @@ begin
     (select string_agg(display_id, ' / ' order by display_id) from profiles where id in (t_id, s_id)),
     (select case when count(*) = 2 then 'PASS' else 'FAIL' end from profiles where id in (t_id, s_id));
 
-  -- 0044. Signup is open to the internet and a teacher reads every answer key
-  -- in the bank, so the account arrives switched off.
-  return query select 'signup'::text, 'a new teacher account arrives pending'::text,
-    'inactive'::text,
+  -- 0058. Nobody approves a teacher any more: the account is on from the
+  -- start, and the admins are emailed about it.
+  return query select 'signup'::text, 'a new teacher account arrives active'::text,
+    'active'::text,
     (select case when is_active then 'active' else 'inactive' end from profiles where id = t_id),
-    (select case when not is_active then 'PASS' else 'FAIL' end from profiles where id = t_id);
+    (select case when is_active then 'PASS' else 'FAIL' end from profiles where id = t_id);
 
-  -- ------------------------------------------------- the pending teacher ----
+  -- ---------------------------------------------------------- teacher ----
   perform set_config('request.jwt.claims',
     json_build_object('sub', t_id::text, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
 
-  return query select 'pending teacher'::text, 'is not staff yet'::text, 'false'::text,
-    is_teacher()::text, (case when not is_teacher() then 'PASS' else 'FAIL' end)::text;
+  return query select 'teacher'::text, 'is staff from signup'::text, 'true'::text,
+    is_teacher()::text, (case when is_teacher() then 'PASS' else 'FAIL' end)::text;
 
   begin
-    update profiles set is_active = true where id = t_id;
-    select count(*) into n from profiles where id = t_id and is_active;
+    update profiles set is_active = false where id = t_id;
+    select count(*) into n from profiles where id = t_id and not is_active;
     ok := (n = 0);
   exception when others then ok := true;
   end;
-  return query select 'pending teacher'::text, 'cannot approve themselves'::text,
-    'blocked'::text, (case when ok then 'blocked' else 'APPROVED' end)::text,
+  return query select 'teacher'::text, 'cannot switch their own account off'::text,
+    'blocked'::text, (case when ok then 'blocked' else 'SWITCHED' end)::text,
     (case when ok then 'PASS' else 'FAIL' end)::text;
 
   begin
@@ -98,29 +97,9 @@ begin
     ok := (n = 0);
   exception when others then ok := true;
   end;
-  return query select 'pending teacher'::text, 'cannot take another id'::text,
+  return query select 'teacher'::text, 'cannot take another id'::text,
     'blocked'::text, (case when ok then 'blocked' else 'RENAMED' end)::text,
     (case when ok then 'PASS' else 'FAIL' end)::text;
-
-  execute 'reset role';
-  perform set_config('request.jwt.claims', '', true);
-
-  -- The admin lets them in. Through the RPC, as the portal does.
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', a_id::text, 'role', 'authenticated')::text, true);
-  execute 'set local role authenticated';
-  perform set_profile_active(t_id, true);
-  execute 'reset role';
-  perform set_config('request.jwt.claims', '', true);
-
-  return query select 'admin'::text, 'approves a pending teacher'::text, 'active'::text,
-    (select case when is_active then 'active' else 'inactive' end from profiles where id = t_id),
-    (select case when is_active then 'PASS' else 'FAIL' end from profiles where id = t_id);
-
-  -- ---------------------------------------------------------- teacher ----
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', t_id::text, 'role', 'authenticated')::text, true);
-  execute 'set local role authenticated';
 
   begin
     perform create_question('english', 'craft_and_structure', null,
@@ -291,8 +270,8 @@ begin
     (select case when banned_until > now() then 'PASS' else 'FAIL' end
        from auth.users where id = t_id);
 
-  -- And the distinction the approval queue depends on: off is two things.
-  return query select 'suspended teacher'::text, 'is marked suspended, not pending'::text,
+  -- isSuspended() on the admin's screens reads this stamp.
+  return query select 'suspended teacher'::text, 'is marked suspended'::text,
     'suspended_at set'::text,
     (select case when suspended_at is null then 'null' else 'set' end
        from profiles where id = t_id),

@@ -253,27 +253,40 @@ export function schoolTally(sessions: Session[], stages: Stages): Tally {
   return tally
 }
 
-/** An account an admin took away, as opposed to one nobody has approved yet. */
+/** An account an admin took away. */
 export function isSuspended(profile: Profile): boolean {
   return !profile.is_active && profile.suspended_at !== null
 }
 
+/** How far back a teacher account counts as new, on the dashboard and in Users. */
+export const NEW_TEACHER_DAYS = 7
+
+/** The earliest signup that still counts as new, as an ISO instant. */
+export function newTeacherSince(now: Date = new Date()): string {
+  return new Date(now.getTime() - NEW_TEACHER_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
 /**
- * Teacher accounts waiting to be let in.
+ * A teacher account made in the last week that is still on.
  *
- * 0044 writes a new teacher inactive, because signup is open to anyone with an
- * email address and a teacher reads every answer key in the bank. This is the
- * queue that makes that a workflow rather than a wall.
- *
- * A *suspended* teacher is inactive too and is deliberately not here: somebody
- * an admin has removed is not somebody waiting to be let in, and putting them
- * in this queue asks the admin to undo their own decision every time they open
- * the page.
+ * Signup is open and a new teacher is in at once (0058), so nobody approves
+ * them — the admin is told instead, and this is the telling on screen. A
+ * suspended one is left out: an admin who has already dealt with somebody is
+ * not owed news about them.
  */
-export function pendingTeachers(profiles: Profile[]): Profile[] {
+export function isNewTeacher(profile: Profile, now: Date = new Date()): boolean {
+  return (
+    profile.role === 'teacher' &&
+    !isSuspended(profile) &&
+    Date.parse(profile.created_at) >= Date.parse(newTeacherSince(now))
+  )
+}
+
+/** The new teacher accounts, newest first. */
+export function newTeachers(profiles: Profile[], now: Date = new Date()): Profile[] {
   return profiles
-    .filter((p) => p.role === 'teacher' && !p.is_active && !isSuspended(p))
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .filter((p) => isNewTeacher(p, now))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
 /** Free text over everything a person's row shows. */

@@ -40,9 +40,8 @@ export interface Profile {
   pc_id: string | null
   is_active: boolean
   /**
-   * When an admin took the account away (0045). An inactive account with this
-   * still null is merely *pending* — nobody has approved it yet, and it can
-   * still sign in, because that is how it reaches the screen that says so.
+   * When an admin took the account away (0045). Null on every account that is
+   * on: nothing waits for approval since 0058, so off means suspended.
    */
   suspended_at: string | null
   created_at: string

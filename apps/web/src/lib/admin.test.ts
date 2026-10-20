@@ -5,7 +5,8 @@ import {
   filterPeople,
   isOutstanding,
   isSuspended,
-  pendingTeachers,
+  isNewTeacher,
+  newTeachers,
   rate,
   reportStage,
   schoolTally,
@@ -252,36 +253,43 @@ describe('backlog', () => {
   })
 })
 
-describe('pendingTeachers', () => {
-  it('is the inactive teacher accounts, in the order they arrived', () => {
+describe('newTeachers', () => {
+  const now = new Date('2026-03-10T12:00:00Z')
+
+  it('is the teacher accounts made in the last week, newest first', () => {
     const profiles = [
-      profile('t1', 'teacher'),
-      profile('t3', 'teacher', { is_active: false, created_at: '2026-03-01T00:00:00Z' }),
-      profile('t2', 'teacher', { is_active: false, created_at: '2026-02-01T00:00:00Z' }),
-      profile('s1', 'student', { is_active: false }),
+      profile('old', 'teacher', { created_at: '2026-03-01T00:00:00Z' }),
+      profile('t2', 'teacher', { created_at: '2026-03-04T00:00:00Z' }),
+      profile('t3', 'teacher', { created_at: '2026-03-09T00:00:00Z' }),
+      profile('s1', 'student', { created_at: '2026-03-09T00:00:00Z' }),
+      profile('p1', 'pc', { created_at: '2026-03-09T00:00:00Z' }),
     ]
-    expect(pendingTeachers(profiles).map((p) => p.id)).toEqual(['t2', 't3'])
+    expect(newTeachers(profiles, now).map((p) => p.id)).toEqual(['t3', 't2'])
   })
 
-  // Off is two things (0045). Somebody an admin removed is not somebody
-  // waiting to be let in, and the queue must not ask them to undo it daily.
+  it('counts the edge of the week in', () => {
+    const edge = profile('t1', 'teacher', { created_at: '2026-03-03T12:00:00Z' })
+    expect(isNewTeacher(edge, now)).toBe(true)
+    expect(isNewTeacher({ ...edge, created_at: '2026-03-03T11:59:59Z' }, now)).toBe(false)
+  })
+
+  // Somebody an admin has already suspended is not news.
   it('leaves out a teacher an admin suspended', () => {
     const profiles = [
-      profile('t2', 'teacher', { is_active: false, created_at: '2026-02-01T00:00:00Z' }),
+      profile('t2', 'teacher', { created_at: '2026-03-08T00:00:00Z' }),
       profile('t4', 'teacher', {
         is_active: false,
-        suspended_at: '2026-04-01T00:00:00Z',
-        created_at: '2026-01-01T00:00:00Z',
+        suspended_at: '2026-03-09T00:00:00Z',
+        created_at: '2026-03-09T00:00:00Z',
       }),
     ]
-    expect(pendingTeachers(profiles).map((p) => p.id)).toEqual(['t2'])
+    expect(newTeachers(profiles, now).map((p) => p.id)).toEqual(['t2'])
   })
 })
 
 describe('isSuspended', () => {
-  it('tells a removed account from one that was never approved', () => {
+  it('is an account an admin switched off', () => {
     expect(isSuspended(profile('t1', 'teacher'))).toBe(false)
-    expect(isSuspended(profile('t2', 'teacher', { is_active: false }))).toBe(false)
     expect(
       isSuspended(profile('t3', 'teacher', { is_active: false, suspended_at: '2026-04-01T00:00:00Z' })),
     ).toBe(true)

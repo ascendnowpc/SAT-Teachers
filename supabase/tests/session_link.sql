@@ -91,12 +91,6 @@ begin
      'link.student@example.test', crypt('x',gen_salt('bf')), now(),now(),now(),
      '{"provider":"email"}','{"role":"student","full_name":"Jo Kim"}');
 
-  -- A teacher account arrives pending since 0044, and a pending teacher is not
-  -- staff: create_student refused the one below, and this file stopped at its
-  -- first row. Approving is an admin's job; with no JWT this is the migration
-  -- role, which the identity guard lets through.
-  update profiles set is_active = true where id in (t_id, x_id);
-
   -- Both students here are booked, and a student is booked with their PC or
   -- not at all (0055). The roster one gets theirs from create_student below.
   pc := create_pc_profile('Pat', 'Coordinator', 'link.pc@example.test');

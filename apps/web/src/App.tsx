@@ -19,12 +19,11 @@ import { Exam } from './pages/Exam'
 import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
-import { Pending } from './pages/Pending'
 import { Signup } from './pages/Signup'
 import { StudentLink } from './pages/StudentLink'
 
 export function App() {
-  const { session, profile, loading, isTeacher, isAdmin, isPending } = useAuth()
+  const { session, profile, loading, isTeacher, isAdmin } = useAuth()
 
   // The student's link is not a page of the app — it is the app, for whoever
   // holds it. It is matched before anything asks who is signed in, because the
@@ -60,12 +59,6 @@ export function App() {
 
   // Signed in, but the profile row from the signup trigger has not arrived yet.
   if (!profile) return <div className="center-fill">Setting up your account…</div>
-
-  // A teacher account nobody has approved yet. There is no half-open version of
-  // this screen to show them: every policy in the schema asks is_teacher(),
-  // which asks is_active, so the app behind this would be empty tables and
-  // errors rather than a smaller product.
-  if (isPending) return <Pending />
 
   // Signed in while still on the sign-in page: on to wherever they were going
   // when they were sent to it. The sign-in page asks for the same thing, but
