@@ -43,6 +43,10 @@ npm run dev                                    # http://localhost:5173
 | **Transcript** | Drop in the Fathom recording; it lines up against the questions and is read back as findings |
 | **Loaded bank** | 60 items with passages, keys, sections and difficulty, and every one of them in a test |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
+| **What a session is for** | Diagnostic, lesson or targeted test (`0059`). A student's first session in a subject is their diagnostic, and their baseline on every skill is read from it |
+| **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
+| **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
+| **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 
 ## English is three tests
 
@@ -767,6 +771,74 @@ what makes it send once: a replayed call finds the generation already claimed. *
 the console is the session's teacher's and an admin's, as themselves. Generating again sends the new
 report, marked as replacing the one before.
 
+## Targeted tests and progress
+
+The question a PC asks, and a parent through them, is whether the teaching is working on the
+skill the diagnostic found weak. The teacher decides everything here — when to test, what, how
+long — and the platform computes what the answers say. Nothing books a test on its own and no
+more mocks are pushed. The decisions behind it are in
+[`docs/reference/targeted-tests-handoff.md`](docs/reference/targeted-tests-handoff.md).
+
+**A session says what it is for** (`0059`): `live` (a lesson), `diagnostic` (the same flow,
+marked) or `targeted`. Every student's earliest completed session in a subject was marked their
+diagnostic when it ran. The New session form offers all three, with Diagnostic chosen until the
+student has one — read across every teacher.
+
+**Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
+section), a size (5 by default, an admin's setting), the clocks, and whether a question the
+student has already seen may come back. `lib/targetedSet.ts` builds the set from
+`targeted_candidates`: easy → medium → hard (5 → 2/1/2, 10 → 3/3/4), unseen before seen, the
+three tests in printed order before the practice pool. A level the bank cannot fill borrows from
+its neighbour and the form says so — "a balanced set needs 1 medium; 0 unseen — 1 short" —
+because no skill has ten questions across the three tests yet. Any question can be swapped
+before the student starts; `create_targeted_session` books the session and its set in one
+transaction and checks every question again. The set is the teacher's and an admin's to read:
+it is what the student has not seen.
+
+**Sitting it** (`0062`). The student opens their link and presses Start. The server puts question
+1 up, stamps when it did, and fixes its clock (the test's seconds a question, or the question's
+own target). They answer or the clock runs out; either way the next question comes up. There is
+no skipping and no going back, the screen says "Question 2 of 5", and both clocks count down in
+the server's time. There is no cron: every call that touches the test expires whatever is overdue
+first. A question whose time ran out is wrong, with no option. When the overall clock runs out
+the question on screen is timed out too; End test on the console, or the student leaving, sets
+it aside instead. A question never answered is **not reached**, and not reached is left out of
+the score. What the link sends is a fixed list of fields: no level, difficulty, source, key or
+result. Publish results gives the student their questions, answers and explanations, as after a
+lesson; the scores and verdicts are for staff and the PC.
+
+**Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
+test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
+out of 10 *and* mapped to a level score, always side by side; accuracy by difficulty; time
+against target, with rushing, gaps and hesitation counted; what timed out; long questions against
+short; the formats; and the same in sentences with their counts. Whether long questions are the
+trouble is pooled over every test on the skill and only said with enough of each.
+
+**Progress** (`lib/progress.ts`, `0063`). The line on a skill starts at the earliest diagnostic
+with answers on it, or at the first test when there is none, and runs through every test since,
+counting the lessons and diagnostics between — whoever taught them. Each step is Improved,
+Minimal change or Declined against the admin's thresholds, with the agreed wording and a caveat
+from the mapping ("On 5 questions, one question is worth about 5 points"). The teacher can add
+their own wording for a step and a summary for the PC; both are drafts until shared, and an edit
+after sharing changes the draft only. A private note on the skill is staff-only.
+`/students/:id/progress` shows every skill to staff and, read-only, to the student's PC.
+`student_progress(student, subject)` is the one door: staff, the student's own PC and the
+service role, numbers and ids only, and the shared copies — never a draft.
+
+**The PC** sees a targeted test as soon as it is completed, with its computed verdict; the
+teacher's wording and summary once shared. A targeted report is never emailed on its own:
+**Send to PC** on the report is the teacher's or an admin's, and `notify_pc_report` keys each
+send by when it went. The lesson report and its PDF carry a Progress section too.
+
+**Settings.** An admin's page (`/admin/settings`) holds, per subject, the score mapping (default
+(0,20) (5,30) (8,40), the last slope carrying on above it), the verdict thresholds (±5), what a
+long question is (English 75 words, Maths 40), the default set size and the long-question flag's
+gates. Nothing stored depends on them: a change re-reads every test.
+
+**The practice pool** (`0060`) is a set per subject, listed in the bank with the three tests. A
+question written into it says its own difficulty and must have a skill; no lesson control can
+reach it, since they all look a test up by its level.
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -790,7 +862,15 @@ psql "$DATABASE_URL" -f supabase/tests/authoring.sql
 psql "$DATABASE_URL" -f supabase/tests/session_link.sql
 psql "$DATABASE_URL" -f supabase/tests/admin_access.sql
 psql "$DATABASE_URL" -f supabase/tests/pc_access.sql
+psql "$DATABASE_URL" -f supabase/tests/modes.sql
+psql "$DATABASE_URL" -f supabase/tests/practice_pool.sql
+psql "$DATABASE_URL" -f supabase/tests/targeted.sql
+psql "$DATABASE_URL" -f supabase/tests/targeted_link.sql
+psql "$DATABASE_URL" -f supabase/tests/student_progress.sql
 ```
+
+On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
+migration and runs every contract.
 
 > **The revoke that does not revoke, three times.** `revoke execute … from anon` is decorative:
 > Postgres grants EXECUTE to PUBLIC and `anon` is a member of PUBLIC, so revoking from the role
@@ -967,6 +1047,14 @@ then **add the PCs** under Users → PCs; then apply `0056`, which drops the fre
 `create_student` and `set_student_pc` and makes the database refuse a session for a student with no
 PC. Applied before the new app is live, `0056` would stop every booking until it was. After it,
 nobody can be booked until a PC exists — that is the rule, not a bug.
+
+**Order, for `0059`–`0063`.** All five are safe for the app being served before them: the new
+column has a default, `create_question_in_set`'s new argument is optional, every existing screen
+filters the bank on `level is not null`, and each changed token function keeps a lesson on the
+code path it had. Apply them in order, then deploy `notify_pc_report` (its targeted branch and
+the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
+confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
+migrations go through the SQL editor — see the handoff note.
 
 **Gemini reads the recording**, and `apps/web/src/lib/gemini.ts` is the only file that knows it —
 the guard, the prompt, the schema and the report are written against a shape, not a vendor. The

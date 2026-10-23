@@ -5,7 +5,7 @@ import type { Extraction } from '../../../apps/web/src/lib/extraction.ts'
 import { transportFrom } from '../../../apps/web/src/lib/mail.ts'
 import { appBase, reportEmail } from '../../../apps/web/src/lib/pcMail.ts'
 import { readingStaleness } from '../../../apps/web/src/lib/recording.ts'
-import { progressLine, type ProgressConfig, type StudentProgress } from '../../../apps/web/src/lib/progress.ts'
+import { progressLine, progressLines, type ProgressConfig, type StudentProgress } from '../../../apps/web/src/lib/progress.ts'
 import { reportPdfDoc, type ReportPdfDoc } from '../../../apps/web/src/lib/reportPdf.ts'
 import { longPattern, type AnalysedQuestion } from '../../../apps/web/src/lib/targetedAnalytics.ts'
 import { targetedPdfDoc } from '../../../apps/web/src/lib/targetedReport.ts'
@@ -212,7 +212,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       filename = `${doc.filename}.pdf`
       pdf = await reportPdf(doc, await logo(appUrl))
     } else {
-      const [items, notes, transcript, reading] = await Promise.all([
+      const [items, notes, transcript, reading, progress] = await Promise.all([
         db
           .from('session_items')
           .select('*, questions(*), session_item_assessments(*)')
@@ -221,6 +221,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         db.from('session_domain_notes').select('*').eq('session_id', sessionId),
         db.from('session_transcripts').select('created_at').eq('session_id', sessionId).maybeSingle(),
         db.from('session_context_extractions').select('body, created_at').eq('session_id', sessionId).maybeSingle(),
+        // The Progress section (0063). Best effort: a report prints without it.
+        db.rpc('student_progress', { p_student: session.student_id, p_subject: session.subject }),
       ])
 
       const stored = reading.data as { body: Extraction; created_at: string } | null
@@ -243,6 +245,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           transcript.data as { created_at: string } | null,
           report!.form_submitted_at,
         ),
+        progress: progress.data ? progressLines(progress.data as StudentProgress) : null,
       })
       headline = doc.headline
       filename = `${doc.filename}.pdf`

@@ -102,6 +102,34 @@ lobby, leave and end-screen copy: answered / ran out of time / not reached), and
   `pattern_gap`.
 - `paper.ts` now imports `./passage.ts` / `./types.ts` so the edge bundle can follow it.
 
+**Step 5 — screens.**
+- New session form: "What it is for" — Diagnostic / Lesson / Targeted test. Diagnostic is the
+  default until the student has a non-cancelled diagnostic in the subject, read through
+  `student_progress` (every teacher). Targeted is for a roster student only (the builder needs
+  their history); `components/TargetedBuilder.tsx` builds and swaps the set and books through
+  `create_targeted_session`. Lessons and diagnostics insert with `mode`.
+- Targeted console, once over: analysis, the line on the skill (with the long pattern), the
+  override panel (against the point before), and the private note + PC summary
+  (`components/ProgressPanels.tsx`).
+- `/students/:id/progress` (`pages/StudentProgress.tsx`): every skill with a completed test;
+  staff get the notes panels, the PC reads only. Linked from the targeted console and the
+  admin/PC session page.
+- `/admin/settings` (`pages/AdminSettings.tsx`, sidebar "Settings"): `progress_config` per
+  subject through `set_progress_config`; `parsePoints`/`formatPoints` in `lib/progress.ts`.
+- Practice pool: listed per subject on Questions (and not counted as strays); `/tests/:id` and
+  the question form write into it with a chosen difficulty and a required skill.
+- Targeted report (`pages/TargetedReport.tsx`, from `/sessions/:id/report`) and PDF
+  (`lib/targetedReport.ts`, drawn by `_shared/pdf.ts`, which gained an optional `kicker`,
+  `summaryTitle` and `extra` sections and skips an empty summary). **Send to PC** only, by hand:
+  `notify_pc_report` refuses a targeted test without `again`, keys `report_emails` by the send
+  time, reads the line through `student_progress` on the service role (0063 grants it), and the
+  email says "targeted test" (`pcMail.ts`, `targeted: true`). No migration was needed for this.
+- Progress section on the lesson report page and in its PDF (`reportPdfDoc`'s `progress`).
+- README: "Targeted tests and progress", the contracts, and the order for 0059–0063.
+- **Not yet done: redeploy `notify_pc_report`** (`supabase functions deploy notify_pc_report
+  --no-verify-jwt`, or `node tools/bundle-edge-function.mjs notify_pc_report` for the Management
+  API). Safe before the migrations: a lesson's path only adds `student_progress`, best effort.
+
 ## Supabase
 
 The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) had migrations **up to 0057**. **0058** (a teacher
@@ -130,13 +158,6 @@ new `create_question_in_set` argument is optional, and every existing screen fil
 `level is not null`, so the pool stays out of them.
 
 ## Next
-
-**Step 5 — screens.** New session form: Diagnostic / Lesson / Targeted test (Diagnostic by
-default when the student has none in the subject); the builder; console panels (analytics,
-progress, override, notes); `/students/:id/progress` (teacher, admin, read-only PC); admin
-settings panel; practice pool in the bank; targeted report + PDF with manual "Send to PC"
-(`report_emails` keyed by send time; targeted branch in `notify_pc_report`, redeploy); a
-Progress section in the existing report and PDF; README.
 
 **Step 6 — live link payload** `0064`: `session_by_token` returns a fixed field list (today it
 sends `sessions.level` and the whole `questions` row — `difficulty`, `difficulty_rationale`,

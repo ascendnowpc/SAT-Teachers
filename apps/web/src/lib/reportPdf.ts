@@ -4,6 +4,7 @@ import { FEEDBACK_LABELS, RELATION_LABELS, type Claim, type Extraction } from '.
 import { buildGrid, confidenceAverage, recommendedPriority, timeManagement } from './grid.ts'
 import { buildReport, formatDuration, paceLabel, type Attempt } from './report.ts'
 import { buildReportDoc, disagreements, hasFindings } from './reportDoc.ts'
+import { describeLine, type ProgressLine } from './progress.ts'
 import { formatUtc } from './time.ts'
 import type { DomainNote, SessionItem, SessionReportRow, Subject } from './types.ts'
 
@@ -130,6 +131,11 @@ export interface ReportPdfInput {
   extraction: Extraction | null
   /** Why a stored reading was left out: it is of another transcript, or another form. */
   staleness: 'transcript' | 'form' | null
+  /**
+   * The student's line on each skill a targeted test was set on, across every
+   * teacher (0063). The Progress section; absent or empty, it is not printed.
+   */
+  progress?: ProgressLine[] | null
 }
 
 function clock(seconds: number): string {
@@ -396,7 +402,24 @@ export function reportPdfDoc(input: ReportPdfInput): ReportPdfDoc {
     footer: `Ascend Now · ${student} · ${subjectLabel(subject)} · ${when}`,
     filename: `Report - ${student} - ${subjectLabel(subject)} - ${day}`,
     headline,
+    extra: progressSection(input.progress ?? null),
   }
+}
+
+/** The Progress section: each skill's line, as sentences, raw beside mapped. */
+function progressSection(lines: ProgressLine[] | null): ReportPdfDoc['extra'] {
+  if (!lines || lines.length === 0) return []
+  return [
+    {
+      heading: 'Progress',
+      lines: lines.flatMap((l) => [
+        l.skill
+          ? (skillLabel(l.skill) ?? l.skill)
+          : `${sectionLabel(l.section) ?? l.section} (the whole section)`,
+        ...describeLine(l),
+      ]),
+    },
+  ]
 }
 
 // ------------------------------------------------------------ the letters --

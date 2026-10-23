@@ -29,6 +29,9 @@ import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow } from '../lib/types'
 import { TargetedReport } from './TargetedReport'
+import { ProgressLineView, skillTitle } from '../components/ProgressPanels'
+import { progressLines, type StudentProgress } from '../lib/progress'
+import { loadProgress } from '../lib/progressApi'
 
 /**
  * The session report.
@@ -77,6 +80,22 @@ export function SessionReport() {
   useEffect(() => {
     void loadWritten()
   }, [loadWritten])
+
+  const [studentProgress, setStudentProgress] = useState<StudentProgress | null>(null)
+  useEffect(() => {
+    if (!session || session.mode === 'targeted') return
+    let active = true
+    void loadProgress(session.student_id, session.subject).then(({ progress }) => {
+      if (active) setStudentProgress(progress)
+    })
+    return () => {
+      active = false
+    }
+  }, [session])
+  const progressLinesFor = useMemo(
+    () => (studentProgress ? progressLines(studentProgress) : []),
+    [studentProgress],
+  )
 
   const grid = useMemo(
     () => buildGrid(report, notes, session?.subject ?? 'english'),
@@ -301,6 +320,20 @@ export function SessionReport() {
             </dl>
             {meta?.summary && <p className="summary-note">{meta.summary}</p>}
           </div>
+
+          {/* Where the student stands on each skill a targeted test was set
+              on, across every teacher (0063) — the same line the PDF prints. */}
+          {progressLinesFor.length > 0 && (
+            <div className="card card-pad">
+              <div className="section-title">Progress</div>
+              {progressLinesFor.map((l) => (
+                <div key={`${l.section}/${l.skill ?? ''}`} className="progress-skill">
+                  <h3 className="cell-strong">{skillTitle(l.section, l.skill)}</h3>
+                  <ProgressLineView line={l} />
+                </div>
+              ))}
+            </div>
+          )}
 
           {session.teacher_notes && (
             <div className="card card-pad report-note">
