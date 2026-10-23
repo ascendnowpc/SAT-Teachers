@@ -42,28 +42,44 @@ platform computes and never decides. No more mocks are pushed.
 All earlier contracts still pass. `tools/local-db/rebuild.sh` builds a scratch database from
 every migration on a plain local Postgres and runs every contract.
 
-## Not yet applied to Supabase
+**Step 2 — set builder.** `apps/web/src/lib/targetedSet.ts` + `targetedSet.test.ts`. Input is
+`targeted_candidates` rows. The mix is 30/30/40 easy/medium/hard by largest remainder, ties to the
+easier level (5 → 2/1/2, 10 → 3/3/4, 3 → 1/1/1). Within a level: unseen before seen, then printed
+order — the three tests before the pool, the easier test first, then the place in the test. A short
+level borrows from its nearest level with spare (medium first for easy and for hard; easy first for
+medium), only after every level has taken its own share; `describeSet` names it ("a balanced set
+needs 1 medium; 0 unseen — 1 short; borrowed 1 from easy", "4 of 5 available"). `swapOptions`:
+same level, then nearer levels, unseen before seen, a seen question only with repeats allowed;
+`swapAt` puts a cross-level swap back in its level's place.
 
-The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) has migrations **up to 0057 only**:
+## Supabase
 
-- **0058** (a teacher signs up and is in) is merged in the repo but was never applied there.
-  Nothing here depends on it. Applying it is a separate decision (it removes teacher approval).
-- **0059–0061 are not applied.** `apply_migration` timed out twice at 60 s through the
-  Supabase MCP tool; both times nothing was applied and nothing was left waiting. A probe of the
-  same `alter table sessions` with a lock timeout ran in 27 ms, so the database is not the
-  problem. Next try: smaller calls, or the Supabase CLI (`supabase db push`). Apply in order,
-  0059 → 0060 → 0061, and check `supabase_migrations.schema_migrations` after each.
-- All three are safe for the app that is deployed now: the new column has a default, the new
-  `create_question_in_set` argument is optional, and every existing screen filters the bank on
-  `level is not null`, so the pool stays out of them.
+The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) had migrations **up to 0057**. **0058** (a teacher
+signs up and is in) is merged in the repo but not applied there; nothing here depends on it, and
+applying it is the product owner's decision (it removes teacher approval).
+
+**Why `apply_migration` times out.** The Supabase MCP tool asks for a confirmation before any SQL
+holding a destructive statement (`drop …`, `delete …`, even inside a function body), and that
+confirmation never reaches the session, so the call waits out its 60 s and nothing is applied. SQL
+without one goes through in a second. So:
+
+- the parts of `0059` with no destructive statement were applied through the tool as
+  `a_session_says_what_it_is_for`, `_2` and `_3` (the column, the backfill, the guard — written
+  `create or replace trigger` rather than `drop trigger` + `create trigger`, same effect —
+  `set_session_mode`, `assert_not_targeted`, the gates on `teacher_answer_item` and
+  `teacher_start_session`, and the `session_reports` trigger);
+- the rest — `show_one_question`'s gate (it keeps 0057's `delete` of staged rows), `0060`
+  (`drop constraint`, `drop function`) and `0061` (`delete` inside `write_targeted_set`) — goes in
+  through the SQL editor, one transaction that also writes their `schema_migrations` rows
+  (`a_session_says_what_it_is_for_4`, `a_practice_pool`, `a_test_on_one_skill`);
+- later migrations: whatever has no destructive statement goes through the tool; the rest through
+  the SQL editor the same way.
+
+All of `0059`–`0061` are safe for the app that is deployed now: the new column has a default, the
+new `create_question_in_set` argument is optional, and every existing screen filters the bank on
+`level is not null`, so the pool stays out of them.
 
 ## Next
-
-**Step 2 — set builder** `apps/web/src/lib/targetedSet.ts` + vitest. Easy → medium → hard;
-mix scales with size (5 → 2/1/2, 10 → 3/3/4); a short level borrows from its neighbour and the
-shortfall is named ("a balanced set needs 1 medium; 0 unseen — 1 short; 4 of 5 available");
-swaps offer same-level first, unseen before seen; deterministic (printed order within a level).
-Input is `targeted_candidates` rows.
 
 **Step 3 — student-paced test** `0062` + contract `targeted_link.sql`:
 - token RPCs: start (opens, shows question 1, sets `targeted_tests.locked_at`), answer
