@@ -12,7 +12,9 @@
 --      a draft cannot reach them through its row.
 --
 --  student_progress(student, subject) is the one door, for staff and for the
---  student's own PC. It returns numbers and ids only:
+--  student's own PC — and for the service role, which is how the edge
+--  function that emails a report to the PC prints the same line in its PDF.
+--  It returns numbers and ids only:
 --
 --    sessions   every session in the subject: id, mode, status, when, and the
 --               teacher's name. Cancelled ones are left out.
@@ -44,7 +46,8 @@ begin
   if p_subject not in ('english', 'mathematics') then raise exception 'no such subject'; end if;
 
   if not (is_teacher()
-          or (is_pc() and exists (select 1 from profiles where id = p_student and pc_id = auth.uid()))) then
+          or (is_pc() and exists (select 1 from profiles where id = p_student and pc_id = auth.uid()))
+          or coalesce(auth.jwt()->>'role', '') = 'service_role') then
     raise exception 'not your student';
   end if;
 
@@ -117,7 +120,7 @@ begin
 end $$;
 
 revoke execute on function public.student_progress(uuid, text) from public, anon, authenticated;
-grant  execute on function public.student_progress(uuid, text) to authenticated;
+grant  execute on function public.student_progress(uuid, text) to authenticated, service_role;
 
 comment on function public.student_progress(uuid, text) is
-  'A student''s progress in a subject, as numbers and ids: sessions, targeted tests, the questions put to them with right/timed out/time (no option, no key), the config, and the shared copies of summaries and overrides — never a draft. Staff, and the student''s own PC (0063).';
+  'A student''s progress in a subject, as numbers and ids: sessions, targeted tests, the questions put to them with right/timed out/time (no option, no key), the config, and the shared copies of summaries and overrides — never a draft. Staff, the student''s own PC, and the service role for the PDF (0063).';

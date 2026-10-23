@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   caveatText,
   defaultConfig,
+  formatPoints,
+  parsePoints,
   mapScore,
   onePointWorth,
   progressLine,
@@ -258,5 +260,19 @@ describe('progressLines', () => {
       items: [item('t1', true), item('t2', false)],
     })
     expect(progressLines(p).map((l) => l.skill)).toEqual([null, K])
+  })
+})
+
+describe('parsePoints and formatPoints', () => {
+  it('reads pairs, raw rising from 0 to 10', () => {
+    expect(parsePoints('0 20, 5 30, 8 40')).toEqual(POINTS)
+    expect(formatPoints(POINTS)).toBe('0 20, 5 30, 8 40')
+  })
+
+  it('refuses one point, a falling raw score, or anything not a pair', () => {
+    expect(parsePoints('0 20')).toBeNull()
+    expect(parsePoints('5 30, 2 25')).toBeNull()
+    expect(parsePoints('0 20, 11 50')).toBeNull()
+    expect(parsePoints('0 20, 5')).toBeNull()
   })
 })

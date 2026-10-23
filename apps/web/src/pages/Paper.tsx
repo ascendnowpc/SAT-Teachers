@@ -68,7 +68,8 @@ export function Paper() {
   // Only a live level test can be written into (0040), so only a live level
   // test offers it. The deactivated source papers are archives: a button here
   // would open a form that refuses.
-  const writable = Boolean(set?.level && set.is_active)
+  // …and the subject's practice pool (0060), written into the same way.
+  const writable = Boolean(set?.is_active && (set.level || set.kind === 'practice'))
 
   if (loading) return <div className="page page-loading">Loading…</div>
   if (error) {

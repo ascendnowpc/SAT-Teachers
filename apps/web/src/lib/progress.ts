@@ -46,6 +46,28 @@ export function defaultConfig(subject: Subject): ProgressConfig {
   }
 }
 
+/** [[0,20],[5,30]] → "0 20, 5 30", as the settings panel writes it. */
+export function formatPoints(points: ScorePoints): string {
+  return points.map(([r, l]) => `${r} ${l}`).join(', ')
+}
+
+/** "0 20, 5 30, 8 40" → [[0,20],[5,30],[8,40]], or null when it is not that. */
+export function parsePoints(text: string): ScorePoints | null {
+  const pairs = text
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => p.split(/\s+/).map(Number))
+  if (pairs.length < 2) return null
+  if (pairs.some((p) => p.length !== 2 || p.some((n) => !Number.isFinite(n)))) return null
+  let prev = -1
+  for (const [r] of pairs) {
+    if (r < 0 || r > 10 || r <= prev) return null
+    prev = r
+  }
+  return pairs as ScorePoints
+}
+
 /* ---------------------------------------------------------------- score --- */
 
 /** correct / reached, scaled to 10. Null when nothing was reached — no attempts is not 0. */

@@ -152,6 +152,10 @@ export function AdminSession() {
             <span className="num">{session.student?.display_id}</span>
             {session.student?.pc && <> · PC {session.student.pc}</>}
           </div>
+          {/* Their line on every skill a targeted test was set on (0063). */}
+          <Link className="cell-sub" to={`/students/${session.student_id}/progress`}>
+            Progress
+          </Link>
         </div>
         {isAdmin ? (
           <LinkCard token={session.access_token ?? null} />

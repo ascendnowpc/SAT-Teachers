@@ -164,6 +164,11 @@ begin
   perform __as(null, 'postgres');
   update profiles set is_active = true where id = pc.id;
 
+  perform __as(gen_random_uuid(), 'service_role');
+  n := jsonb_array_length(student_progress(stu.id, 'english')->'sessions');
+  return query select '1 readers'::text, 'the service role reads it, for the PDF the PC is emailed'::text,
+    '3'::text, n::text, __verdict(n = 3);
+
   -- ============ 2. what it says ============
   perform __as(pc.id);
   j := student_progress(stu.id, 'english');

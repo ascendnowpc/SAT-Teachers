@@ -5,6 +5,7 @@ import { AboutSat } from './pages/AboutSat'
 import { Account } from './pages/Account'
 import { AdminSession } from './pages/AdminSession'
 import { AdminTeacher } from './pages/AdminTeacher'
+import { AdminSettings } from './pages/AdminSettings'
 import { AdminUsers } from './pages/AdminUsers'
 import { Dashboard } from './pages/Dashboard'
 import { DiagnosticForm } from './pages/DiagnosticForm'
@@ -21,6 +22,7 @@ import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
 import { Signup } from './pages/Signup'
 import { StudentLink } from './pages/StudentLink'
+import { StudentProgress } from './pages/StudentProgress'
 
 export function App() {
   const { session, profile, loading, isTeacher, isAdmin } = useAuth()
@@ -80,6 +82,8 @@ export function App() {
         <Route path="/sessions" element={<Sessions />} />
         <Route path="/sessions/:id" element={<SessionRoom />} />
         <Route path="/sessions/:id/report" element={<SessionReport />} />
+        {/* Staff and the student's PC; student_progress decides who (0063). */}
+        <Route path="/students/:id/progress" element={<StudentProgress />} />
         <Route path="/account" element={<Account />} />
         <Route path="/about-sat" element={<AboutSat />} />
         {isAdmin && (
@@ -87,6 +91,7 @@ export function App() {
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/teachers/:id" element={<AdminTeacher />} />
             <Route path="/admin/sessions/:id" element={<AdminSession />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
             {/* The old overview counted sessions on a page that is not the
                 sessions list. Users is where its people half went. */}
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />

@@ -2341,3 +2341,26 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .exam-overall { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .targeted-console .muted { color: var(--muted); font-size: 14px; }
 .targeted-console td.clip { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The targeted test's set builder (0061). */
+.targeted-builder .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0 4px; }
+.targeted-builder .muted { color: var(--muted); font-size: 13px; }
+.targeted-set { list-style: decimal; padding-left: 22px; margin: 8px 0 0; display: grid; gap: 8px; }
+.targeted-set li { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+.targeted-set li .stem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.targeted-set li select { grid-column: 2 / -1; max-width: 100%; }
+@media (min-width: 700px) { .mode-pick.mode-pick-3 { grid-template-columns: 1fr 1fr 1fr; } }
+.mode-opt .mode-hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; margin-top: 4px; }
+.field-hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+/* Progress (0063): the line, one test's analysis, the staff panels. */
+@media (min-width: 900px) { .targeted-analysis .stat-row { grid-template-columns: repeat(5, 1fr); } }
+.insights { margin: 0 0 4px; padding-left: 20px; display: grid; gap: 4px; line-height: 1.5; }
+.progress-line .muted, .targeted-analysis .muted { color: var(--muted); font-size: 12.5px; }
+.progress-line tr.row-on td { background: var(--sky-wash); }
+.badge.verdict-improved { background: var(--ok-bg); color: var(--ok-fg); }
+.badge.verdict-minimal { background: var(--input); color: var(--ink-2); }
+.badge.verdict-declined { background: var(--danger-bg); color: var(--danger); }
+.override-shared { margin-top: 6px; font-size: 13px; }
+.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.card .muted { color: var(--muted); font-size: 13.5px; }

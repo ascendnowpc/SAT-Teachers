@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconBook, IconCalendar, IconHome, IconLogout, IconStack, IconUsers } from './icons'
+import { IconBook, IconCalendar, IconHome, IconLogout, IconSliders, IconStack, IconUsers } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -45,6 +45,12 @@ export function AppLayout() {
             {isAdmin && (
               <NavLink to="/admin/users" className={cls}>
                 <IconUsers /> Users
+              </NavLink>
+            )}
+            {/* How targeted tests are read (0061): the admin's alone. */}
+            {isAdmin && (
+              <NavLink to="/admin/settings" className={cls}>
+                <IconSliders /> Settings
               </NavLink>
             )}
           </nav>
