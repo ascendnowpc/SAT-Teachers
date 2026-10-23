@@ -130,6 +130,14 @@ lobby, leave and end-screen copy: answered / ran out of time / not reached), and
   --no-verify-jwt`, or `node tools/bundle-edge-function.mjs notify_pc_report` for the Management
   API). Safe before the migrations: a lesson's path only adds `student_progress`, best effort.
 
+**Step 6 — live link payload.** `0064_the_link_sends_a_fixed_list` + `link_payload.sql` (32).
+`session_by_token` builds a lesson's payload from named fields — exactly what `StudentStage`,
+`QuestionView` and `asked.ts` read — instead of `to_jsonb` of whole rows. Gone from the link:
+`level`, `level_size`, `levels_sat`, `teacher_notes`, `teacher_id`/`student_id` and the profiles'
+ids, `created_at`, `student_reasoning`, `marked_for_review`, and on the question `difficulty`,
+`difficulty_rationale`, `source_ref`, `section`, `skill`, `target_seconds`, `created_by`,
+`status`. The targeted branch is 0062's.
+
 ## Supabase
 
 The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) had migrations **up to 0057**. **0058** (a teacher
@@ -159,9 +167,8 @@ new `create_question_in_set` argument is optional, and every existing screen fil
 
 ## Next
 
-**Step 6 — live link payload** `0064`: `session_by_token` returns a fixed field list (today it
-sends `sessions.level` and the whole `questions` row — `difficulty`, `difficulty_rationale`,
-`source_ref`). Own contract; re-run every contract.
+All six steps are built. Left: apply 0059 (rest)–0064 to Supabase (see above), redeploy
+`notify_pc_report`, then mock scores (agreed for after the five steps).
 
 ## Rules to keep
 

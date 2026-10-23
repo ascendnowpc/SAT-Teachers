@@ -209,7 +209,10 @@ the moment the session exists: `/s/<token>`. Opening it puts the student straigh
 session with nothing to sign into — the same lobby, the same questions, the same clock. The token
 functions (0033) take the token, find the one session it names, and do exactly what that
 session's student could already do; the payload is built server-side and never carries the answer
-key, the token itself, or a question that is still staged. Students who already have an account
+key, the token itself, or a question that is still staged. Since `0064` it is a fixed list of
+fields — the ones the student's screen reads — rather than whole rows, so the session's level, the
+teacher's notes and a question's difficulty, rationale, source and skill never reach the browser,
+and a column added later stays off the link until somebody names it (`link_payload.sql`). Students who already have an account
 still sign in and still open their sessions at `/exam/:id`; the link is a second door, not a
 replacement for the first.
 
@@ -867,6 +870,7 @@ psql "$DATABASE_URL" -f supabase/tests/practice_pool.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted_link.sql
 psql "$DATABASE_URL" -f supabase/tests/student_progress.sql
+psql "$DATABASE_URL" -f supabase/tests/link_payload.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1048,7 +1052,7 @@ then **add the PCs** under Users → PCs; then apply `0056`, which drops the fre
 PC. Applied before the new app is live, `0056` would stop every booking until it was. After it,
 nobody can be booked until a PC exists — that is the rule, not a bug.
 
-**Order, for `0059`–`0063`.** All five are safe for the app being served before them: the new
+**Order, for `0059`–`0064`.** All six are safe for the app being served before them: the new
 column has a default, `create_question_in_set`'s new argument is optional, every existing screen
 filters the bank on `level is not null`, and each changed token function keeps a lesson on the
 code path it had. Apply them in order, then deploy `notify_pc_report` (its targeted branch and
