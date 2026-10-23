@@ -76,6 +76,32 @@ Front end: `lib/targetedClock.ts` (server-time countdowns, tested), `lib/targete
 lobby, leave and end-screen copy: answered / ran out of time / not reached), and
 `pages/TargetedConsole.tsx` (the watch, End test, Publish results; ticks every 5 s while live).
 
+**Step 4 — analytics and progress.** `lib/progress.ts`, `lib/targetedAnalytics.ts` (+ vitest),
+`0063_a_students_progress_in_numbers` + `student_progress.sql` (20).
+- `student_progress(student, subject)`: staff (any teacher, admin) and the student's own active
+  PC. Returns sessions (id, mode, status, at, teacher), targeted settings with `set_count`, the
+  items put in front of the student (answered/revealed/voided — never one still on screen) with
+  ids, section, skill, level, target, `is_correct`, `timed_out`, elapsed — **no option, no key, no
+  words** — the config, and the **shared** copies of summaries and overrides only. The browser
+  reads the question rows by id under RLS (staff: the bank; PC: `pc_has_question`) when it needs
+  words or format.
+- `progress.ts`: `mapScore` (linear, end slopes carried on), `rawOutOf10`, `verdictFor` /
+  `verdictText` (the agreed wording), `onePointWorth` + `caveatText` — the step through the
+  mapping, up and down from the score, averaged; a step's caveat uses the smaller of its two
+  points. `progressLine`: baseline = earliest completed diagnostic with answers on the skill
+  **dated before the first test on it**, else the first test; sessions between = completed live +
+  diagnostic, any teacher, excluding plotted points; a shared override is marked stale when its
+  `previous_session_id` is not the point before; `hint` = "N sessions since the last test on this
+  skill". A test with nothing reached is not plotted.
+- `targetedAnalytics.ts`: score over reached, not reached, timed out; by difficulty; time vs
+  target (question's `target_seconds`, else the clock it was shown with; timed-out left out);
+  rushed (wrong, < `RUSHED_RATIO`), gap (wrong, took its time), hesitation (right, >
+  `LABOURED_RATIO`); long vs short (`wordsIn` passage + stem ≥ `long_words`); formats via
+  `parsePassage`/`hasTable` (paired > table > figure > underlined > prose > none); plain-English
+  insights with counts; `longPattern` pooled across tests, gated by `pattern_min_each` and
+  `pattern_gap`.
+- `paper.ts` now imports `./passage.ts` / `./types.ts` so the edge bundle can follow it.
+
 ## Supabase
 
 The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) had migrations **up to 0057**. **0058** (a teacher
@@ -104,17 +130,6 @@ new `create_question_in_set` argument is optional, and every existing screen fil
 `level is not null`, so the pool stays out of them.
 
 ## Next
-
-**Step 4 — analytics** `lib/targetedAnalytics.ts`, `lib/progress.ts` + vitest, and `0063`
-`student_progress(student, subject)` for staff and the student's PC: numbers only (sessions,
-items, timed_out, not reached) plus the shared summary/override texts. Score mapping; accuracy
-by difficulty; time vs target; timed-out count; long vs short; format (paired text, table,
-figure, underlined, prose, no passage — reuse `parsePassage`/`hasTable`); rushing / gap /
-hesitation using `RUSHED_RATIO` / `LABOURED_RATIO`; plain-English insights with counts; the
-long-question flag pooled across tests on the skill and gated by `pattern_gap` /
-`pattern_min_each`; the progress line (baseline → tests, sessions between = completed live +
-diagnostic, same student and subject, any teacher), verdicts and the caveat; the hint
-"N sessions since the last test on this skill".
 
 **Step 5 — screens.** New session form: Diagnostic / Lesson / Targeted test (Diagnostic by
 default when the student has none in the subject); the builder; console panels (analytics,
