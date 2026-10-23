@@ -2335,3 +2335,9 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .sg-next .btn-primary:hover:not(:disabled) { background: #DCEB93; color: var(--lime-ink); }
 .sg-next p { color: rgba(255,255,255,.85); font-weight: 400; font-size: 14.5px; max-width: 56ch; }
 .sg-sources { margin-top: 16px; font-size: 12.5px; color: var(--muted); }
+
+/* A targeted test's clocks (0062): counting down, the last ten seconds marked. */
+.q-clock.low { color: var(--danger); }
+.exam-overall { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.targeted-console .muted { color: var(--muted); font-size: 14px; }
+.targeted-console td.clip { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

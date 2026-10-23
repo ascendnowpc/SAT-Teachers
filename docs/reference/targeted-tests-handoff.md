@@ -52,6 +52,30 @@ needs 1 medium; 0 unseen — 1 short; borrowed 1 from easy", "4 of 5 available")
 same level, then nearer levels, unseen before seen, a seen question only with repeats allowed;
 `swapAt` puts a cross-level swap back in its level's place.
 
+**Step 3 — student-paced test.** `0062_a_targeted_test_runs_on_the_clock` + `targeted_link.sql`
+(47). Internal: `targeted_lock` (row lock per test), `targeted_time_out`, `targeted_expire(session,
+slack)`, `targeted_show_next`, `targeted_step`, `targeted_start`, `targeted_answer`,
+`targeted_payload`. Doors: `start_session_by_token`, `answer_by_token`, `session_by_token`,
+`finish_by_token` and `teacher_finish_session` branch on mode (the lesson branch unchanged); new
+`advance_by_token` (anon) and `targeted_tick` (staff, expires only, never shows a question);
+`start_session_as_student` and `submit_answer` refuse a targeted test. Decisions taken in it:
+- a question's clock is `question_seconds`, else the question's `target_seconds`, else none (the
+  overall clock alone) — no invented default;
+- after an expiry the next question's clock starts when it is actually shown (on the student's
+  next read), so a closed tab does not come back to a chain of expired questions;
+- the overall clock running out times out the question on screen; **End test and leaving set it
+  aside (voided) = not reached**, like the questions never shown (which have no row at all);
+- an answer up to 2 s late is graded; later, it is recorded as timed out and the call succeeds;
+  an advance is accepted from 1 s before the clock and otherwise moves nothing (returns false);
+- a timed-out item is `answered`, no option, `is_correct = false`, `timed_out = true`, elapsed =
+  its full limit, so `reveal_answered_items` reveals it as incorrect.
+
+Front end: `lib/targetedClock.ts` (server-time countdowns, tested), `lib/targetedPayload.ts`
+(the fixed payload into the screen's shapes, tested), `gateway.advance`, the hook's clock offset,
+`StudentStage`'s targeted branch ("Question 2 of 5", both clocks, auto-advance at zero, its own
+lobby, leave and end-screen copy: answered / ran out of time / not reached), and
+`pages/TargetedConsole.tsx` (the watch, End test, Publish results; ticks every 5 s while live).
+
 ## Supabase
 
 The live project (`SAT`, `nsvaeqcsrlrvsmynwfft`) had migrations **up to 0057**. **0058** (a teacher
@@ -80,21 +104,6 @@ new `create_question_in_set` argument is optional, and every existing screen fil
 `level is not null`, so the pool stays out of them.
 
 ## Next
-
-**Step 3 — student-paced test** `0062` + contract `targeted_link.sql`:
-- token RPCs: start (opens, shows question 1, sets `targeted_tests.locked_at`), answer
-  (grades through `record_answer`, then shows the next), advance (only once the question's
-  time is up: records `timed_out`, `is_correct = false`, no option; moves on — cannot skip);
-- the server sets `first_viewed_at` when it shows a question and fixes `time_limit_seconds`
-  (`question_seconds` or the question's `target_seconds`); 2 s grace on an answer;
-- overall deadline `started_at + overall_seconds`; every read expires anything overdue first
-  (no cron); when the set or the time runs out the session ends; unseen = not reached;
-- `start_session_by_token` / `answer_by_token` route targeted sessions to the above;
-- the payload for targeted is a fixed field list: no level, difficulty, rationale, source_ref,
-  key, result or upcoming question;
-- `StudentStage` targeted branch (Bluebook layout, both timers corrected to server time, full
-  screen and leave guards); console for a targeted session: watch, End test, Publish results
-  (`reveal_answered_items`; a timed-out item reveals as incorrect).
 
 **Step 4 — analytics** `lib/targetedAnalytics.ts`, `lib/progress.ts` + vitest, and `0063`
 `student_progress(student, subject)` for staff and the student's PC: numbers only (sessions,

@@ -91,7 +91,13 @@ describe('buildSet', () => {
 
   it('leaves a seen question out unless repeats are allowed', () => {
     const rows = bank.map((x) => (x.question_id === 'e1' ? { ...x, seen: true } : x))
-    expect(ids(buildSet(rows, 5, { allowRepeats: false }).questions)).toEqual(['e2', 'e3', 'm1', 'h1', 'h2'])
+    expect(ids(buildSet(rows, 5, { allowRepeats: false }).questions)).toEqual([
+      'e2',
+      'e3',
+      'm1',
+      'h1',
+      'h2',
+    ])
   })
 
   it('takes unseen before seen when repeats are allowed', () => {
@@ -100,7 +106,13 @@ describe('buildSet', () => {
     expect(ids(b.questions)).toEqual(['e2', 'e3', 'm1', 'h1', 'h2'])
     // and reaches the seen one once the unseen run out
     const two = rows.filter((x) => x.question_id !== 'e3')
-    expect(ids(buildSet(two, 5, { allowRepeats: true }).questions)).toEqual(['e2', 'e1', 'm1', 'h1', 'h2'])
+    expect(ids(buildSet(two, 5, { allowRepeats: true }).questions)).toEqual([
+      'e2',
+      'e1',
+      'm1',
+      'h1',
+      'h2',
+    ])
   })
 
   it('borrows a short level from its neighbour and names the shortfall', () => {
@@ -110,7 +122,9 @@ describe('buildSet', () => {
     expect(b.borrowed).toEqual([{ for: 'medium', from: 'easy', count: 1 }])
     expect(ids(b.questions)).toEqual(['e1', 'e2', 'e3', 'h1', 'h2'])
     expect(b.missing).toBe(0)
-    expect(describeSet(b)).toEqual(['a balanced set needs 1 medium; 0 unseen — 1 short; borrowed 1 from easy'])
+    expect(describeSet(b)).toEqual([
+      'a balanced set needs 1 medium; 0 unseen — 1 short; borrowed 1 from easy',
+    ])
   })
 
   it('says how many are missing when nobody can lend', () => {
@@ -119,11 +133,20 @@ describe('buildSet', () => {
     expect(b.questions).toHaveLength(4)
     expect(b.missing).toBe(1)
     expect(b.available).toBe(4)
-    expect(describeSet(b)).toEqual(['a balanced set needs 1 medium; 0 unseen — 1 short', '4 of 5 available'])
+    expect(describeSet(b)).toEqual([
+      'a balanced set needs 1 medium; 0 unseen — 1 short',
+      '4 of 5 available',
+    ])
   })
 
   it('counts the seen questions in the shortfall only when repeats are allowed', () => {
-    const rows = [c('e1', 'easy', 1), c('e2', 'easy', 2), c('m1', 'medium', 1, { seen: true }), c('h1', 'hard', 1), c('h2', 'hard', 2)]
+    const rows = [
+      c('e1', 'easy', 1),
+      c('e2', 'easy', 2),
+      c('m1', 'medium', 1, { seen: true }),
+      c('h1', 'hard', 1),
+      c('h2', 'hard', 2),
+    ]
     expect(describeSet(buildSet(rows, 5, { allowRepeats: false }))).toEqual([
       'a balanced set needs 1 medium; 0 unseen — 1 short',
       '4 of 5 available',
@@ -132,7 +155,13 @@ describe('buildSet', () => {
   })
 
   it('borrows for hard from medium before easy', () => {
-    const rows = [c('e1', 'easy', 1), c('e2', 'easy', 2), c('e3', 'easy', 3), c('m1', 'medium', 1), c('m2', 'medium', 2)]
+    const rows = [
+      c('e1', 'easy', 1),
+      c('e2', 'easy', 2),
+      c('e3', 'easy', 3),
+      c('m1', 'medium', 1),
+      c('m2', 'medium', 2),
+    ]
     const b = buildSet(rows, 5, { allowRepeats: false })
     expect(b.borrowed).toEqual([
       { for: 'hard', from: 'medium', count: 1 },
@@ -143,7 +172,12 @@ describe('buildSet', () => {
 
   it('reads the pool’s questions after the tests’ at the same level', () => {
     const rows = [...bank, c('p1', 'easy', 1, { source: 'practice', set_level: null })]
-    expect(ids(buildSet(rows, 10, { allowRepeats: false }).questions).slice(0, 4)).toEqual(['e1', 'e2', 'e3', 'p1'])
+    expect(ids(buildSet(rows, 10, { allowRepeats: false }).questions).slice(0, 4)).toEqual([
+      'e1',
+      'e2',
+      'e3',
+      'p1',
+    ])
   })
 
   it('keeps one row per question', () => {

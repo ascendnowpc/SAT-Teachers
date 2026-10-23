@@ -134,7 +134,8 @@ function pools(candidates: Candidate[], o: BuildOptions): Record<Difficulty, Can
 /** One row per question. The server returns one already; this keeps the builder honest if it ever does not. */
 function dedupe(candidates: Candidate[]): Candidate[] {
   const seen = new Map<string, Candidate>()
-  for (const c of [...candidates].sort(printedOrder)) if (!seen.has(c.question_id)) seen.set(c.question_id, c)
+  for (const c of [...candidates].sort(printedOrder))
+    if (!seen.has(c.question_id)) seen.set(c.question_id, c)
   return [...seen.values()]
 }
 
@@ -142,7 +143,10 @@ function dedupe(candidates: Candidate[]): Candidate[] {
 export function inLevelOrder<T extends Pick<Candidate, 'difficulty'>>(set: T[]): T[] {
   return set
     .map((c, i) => ({ c, i }))
-    .sort((a, b) => LEVEL_ORDER.indexOf(a.c.difficulty) - LEVEL_ORDER.indexOf(b.c.difficulty) || a.i - b.i)
+    .sort(
+      (a, b) =>
+        LEVEL_ORDER.indexOf(a.c.difficulty) - LEVEL_ORDER.indexOf(b.c.difficulty) || a.i - b.i,
+    )
     .map(({ c }) => c)
 }
 
@@ -247,14 +251,24 @@ export function swapOptions(
     level ? Math.abs(LEVEL_ORDER.indexOf(c.difficulty) - LEVEL_ORDER.indexOf(level)) : 0
   return all
     .filter((c) => !inSet.has(c.question_id) && usable(c, o))
-    .sort((a, b) => distance(a) - distance(b) || LEVEL_ORDER.indexOf(a.difficulty) - LEVEL_ORDER.indexOf(b.difficulty) || preferenceOrder(a, b))
+    .sort(
+      (a, b) =>
+        distance(a) - distance(b) ||
+        LEVEL_ORDER.indexOf(a.difficulty) - LEVEL_ORDER.indexOf(b.difficulty) ||
+        preferenceOrder(a, b),
+    )
 }
 
 /**
  * The set with the question at `position` replaced, back in the order it is
  * sat — a swap to another level moves the question to its level's place.
  */
-export function swapAt(set: string[], candidates: Candidate[], position: number, questionId: string): string[] {
+export function swapAt(
+  set: string[],
+  candidates: Candidate[],
+  position: number,
+  questionId: string,
+): string[] {
   const byId = new Map(dedupe(candidates).map((c) => [c.question_id, c]))
   const next = set.map((id, i) => (i === position ? questionId : id))
   const known = next.map((id) => byId.get(id)).filter((c): c is Candidate => !!c)

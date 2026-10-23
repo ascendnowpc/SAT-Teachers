@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { SessionGateway } from '../lib/gateway'
-import type { Session, SessionItem } from '../lib/types'
+import { clockOffset } from '../lib/targetedClock'
+import type { Session, SessionItem, TargetedInfo } from '../lib/types'
 
 /**
  * The student's session, kept fresh.
@@ -16,6 +17,10 @@ import type { Session, SessionItem } from '../lib/types'
 export function useStudentSession(gateway: SessionGateway) {
   const [session, setSession] = useState<Session | null>(null)
   const [items, setItems] = useState<SessionItem[]>([])
+  // A targeted test's clocks and size (0062), and how far the browser's clock
+  // is from the server's — the screen counts down in server time.
+  const [targeted, setTargeted] = useState<TargetedInfo | null>(null)
+  const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,6 +33,8 @@ export function useStudentSession(gateway: SessionGateway) {
       const next = await gateway.load()
       setSession(next.session)
       setItems(next.items)
+      setTargeted(next.targeted ?? null)
+      if (next.targeted) setOffset(clockOffset(next.targeted.server_now, Date.now()))
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this session.')
@@ -93,5 +100,5 @@ export function useStudentSession(gateway: SessionGateway) {
     }
   }, [running])
 
-  return { session, items, loading, error, reload }
+  return { session, items, targeted, offset, loading, error, reload }
 }

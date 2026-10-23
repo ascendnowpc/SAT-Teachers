@@ -10,6 +10,13 @@ export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
 export type SessionStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 /**
+ * What a session is for (0059). live: a lesson, the teacher showing every
+ * question. diagnostic: the same flow, marked — a student's baseline on a skill
+ * is computed from it. targeted: a short set on one skill the student sits
+ * alone on their link, against the clock (0061, 0062).
+ */
+export type SessionMode = 'live' | 'diagnostic' | 'targeted'
+/**
  * Which of the three tests a session is on. Every session starts on 'easy'; the
  * teacher moves it while the session runs. The student is never shown it.
  */
@@ -101,6 +108,8 @@ export interface Session {
    */
   access_token?: string | null
   status: SessionStatus
+  /** Read as 'live' where absent: a row from before 0059, or a payload that leaves it out. */
+  mode?: SessionMode
   /**
    * The test the queue is running. Starts easy; the teacher moves it, with the
    * level buttons or by choosing a question from another test. Teacher-facing only.
@@ -136,6 +145,8 @@ export interface Assessment {
   elapsed_seconds: number | null
   diagnosis: Diagnosis | null
   teacher_note: string | null
+  /** A targeted test's clock ran out before an answer: recorded as wrong, no option (0061). */
+  timed_out?: boolean
 }
 
 export interface SessionItem {
@@ -161,6 +172,8 @@ export interface SessionItem {
   revealed_result: GradeResult | null
   revealed_correct_option: OptionLabel | null
   revealed_explanation: string | null
+  /** A targeted question's clock, fixed when it was shown (0061). Null in a lesson, or with no clock. */
+  time_limit_seconds?: number | null
   questions?: Question | null
   session_item_assessments?: Assessment | null
 }
@@ -176,7 +189,7 @@ export interface QuestionSet {
   /** Which source paper this set is, e.g. ENG-DIAG-INCLASS. Null when a teacher built it. */
   source_ref: string | null
   /** 'paper': questions are written into it, filed under Questions. 'test': assembled to be sat. */
-  kind: 'paper' | 'test'
+  kind: 'paper' | 'test' | 'practice'
   /** Which of the three English tests this is, or null for anything that is not one. */
   level: SessionLevel | null
   is_active: boolean
@@ -262,4 +275,32 @@ export interface ReportEmail {
   detail: string | null
   attempts: number
   updated_at: string
+}
+
+/** One row per targeted session (0061): what it is on and how it is clocked. */
+export interface TargetedTest {
+  session_id: string
+  subject: Subject
+  section: string
+  /** Null for a test on the whole section. */
+  skill: string | null
+  /** The size the teacher asked for; the set may be shorter. */
+  set_size: number
+  /** One clock for every question; null — each question's own target_seconds. */
+  question_seconds: number | null
+  overall_seconds: number
+  allow_repeats: boolean
+  /** When the student pressed Start. The set is fixed after it. */
+  locked_at: string | null
+  created_at: string
+}
+
+/** What a targeted test's link sends about the clocks and the set's size (0062). */
+export interface TargetedInfo {
+  question_count: number
+  overall_seconds: number
+  /** started_at + overall_seconds; null before the student starts. */
+  deadline: string | null
+  /** The server's clock when the payload was built, to correct the browser's against. */
+  server_now: string
 }

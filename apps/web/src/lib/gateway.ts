@@ -1,5 +1,6 @@
 import { row, rows, supabase } from './supabase'
-import type { OptionLabel, Session, SessionItem } from './types'
+import { fromTargeted, type TargetedPayload } from './targetedPayload'
+import type { OptionLabel, Session, SessionItem, TargetedInfo } from './types'
 
 /**
  * How the student's screen talks to the server.
@@ -27,8 +28,13 @@ export interface SessionGateway {
    * anonymous can subscribe to session_items, so that screen polls.
    */
   sessionId: string | null
-  load(): Promise<{ session: Session | null; items: SessionItem[] }>
+  load(): Promise<{ session: Session | null; items: SessionItem[]; targeted?: TargetedInfo | null }>
   start(): Promise<void>
+  /**
+   * A targeted test's "time is up" on the question on screen (0062). The
+   * server moves on only if it agrees; resolves to whether anything moved.
+   */
+  advance(itemId: string): Promise<boolean>
   // No setLevel. Which test a question comes from is the teacher's decision,
   // made on the console, and the student is not shown it (0047).
   markViewed(itemId: string): Promise<void>
@@ -86,6 +92,12 @@ export function accountGateway(sessionId: string): SessionGateway {
 
     async start() {
       fail((await supabase.rpc('start_session_as_student', { p_session: sessionId })).error)
+    },
+
+    // A targeted test runs on its link, where the clocks are; this door
+    // refuses one (0062), so there is nothing here to advance.
+    async advance() {
+      return false
     },
 
     async markViewed(itemId) {
@@ -146,13 +158,23 @@ export function linkGateway(token: string): SessionGateway {
     async load() {
       const { data, error } = await supabase.rpc('session_by_token', { p_token: token })
       fail(error)
-      const payload = (data ?? null) as { session: Session; items: SessionItem[] } | null
+      const payload = (data ?? null) as
+        | { session: Session; items: SessionItem[] }
+        | TargetedPayload
+        | null
       if (!payload) return { session: null, items: [] }
+      if ('targeted' in payload) return fromTargeted(payload)
       return { session: payload.session ?? null, items: payload.items ?? [] }
     },
 
     async start() {
       fail((await supabase.rpc('start_session_by_token', { p_token: token })).error)
+    },
+
+    async advance(itemId) {
+      const { data, error } = await supabase.rpc('advance_by_token', { p_token: token, p_item: itemId })
+      fail(error)
+      return data === true
     },
 
     async markViewed(itemId) {
@@ -193,3 +215,4 @@ export function linkGateway(token: string): SessionGateway {
     },
   }
 }
+
