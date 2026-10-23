@@ -74,9 +74,12 @@ export interface PdfBand {
 }
 
 export interface ReportPdfDoc {
+  /** Over the status in the band. "SESSION REPORT" when absent. */
+  kicker?: string
   title: string
   subtitle: string
-  status: 'Draft' | 'Published'
+  /** Computed: a targeted test's report, which has no draft — it is its answers (0062). */
+  status: 'Draft' | 'Published' | 'Computed'
   people: { label: string; value: string }[]
   /** No answered questions: the report says so and stops, as the page does. */
   empty: boolean
@@ -86,8 +89,12 @@ export interface ReportPdfDoc {
   domains: PdfDomain[]
   reflection: string | null
   conflicts: PdfClaim[]
+  /** The summary table's heading. "Overall diagnostic summary" when absent; not drawn when it is empty. */
+  summaryTitle?: string
   summary: { label: string; value: string; notes: string[] }[]
   summaryNote: string | null
+  /** Sections of plain lines after the summary: a targeted test's findings, the Progress section. */
+  extra?: { heading: string; lines: string[] }[]
   teacherRead: string | null
   skills: PdfBand[]
   sections: PdfBand[]

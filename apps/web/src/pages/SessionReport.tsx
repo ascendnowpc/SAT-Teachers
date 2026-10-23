@@ -28,6 +28,7 @@ import { buildReportDoc, disagreements, type DomainSection } from '../lib/report
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { DomainNote, SessionReportRow } from '../lib/types'
+import { TargetedReport } from './TargetedReport'
 
 /**
  * The session report.
@@ -127,6 +128,9 @@ export function SessionReport() {
 
   if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
+
+  // A targeted test has its own, simpler report (0062): computed, no form.
+  if (session.mode === 'targeted') return <TargetedReport session={session} items={items} />
 
   const when = formatUtc(session.scheduled_at)
 

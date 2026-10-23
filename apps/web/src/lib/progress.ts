@@ -1,3 +1,4 @@
+import { formatUtc } from './time.ts'
 import type { Difficulty, SessionMode, SessionStatus, Subject } from './types.ts'
 
 /**
@@ -437,4 +438,36 @@ export function sessionsSinceLastTest(
 ): number | null {
   const line = progressLine(p, section, skill)
   return line.points.some((x) => x.kind === 'test') ? line.sinceLast : null
+}
+
+/**
+ * The line as sentences, for a PDF: one per point, with its step, the step's
+ * caveat and the teacher's shared wording under it. The raw score is always
+ * beside the mapped one.
+ */
+export function describeLine(line: ProgressLine): string[] {
+  const out: string[] = []
+  for (const p of line.points) {
+    const what = `${p.isBaseline ? 'Baseline, ' : ''}${p.kind === 'diagnostic' ? 'diagnostic' : 'targeted test'}`
+    const extra = [
+      p.timedOut > 0 ? `${p.timedOut} timed out` : null,
+      p.notReached > 0 ? `${p.notReached} not reached` : null,
+    ].filter(Boolean)
+    out.push(
+      `${formatUtc(p.at)} — ${what}: ${p.correct} of ${p.reached} right${extra.length ? ` (${extra.join(', ')})` : ''}, ${p.raw.toFixed(1)}/10 → ${Math.round(p.level)}.`,
+    )
+    if (p.step) {
+      const sign = p.step.delta >= 0 ? '+' : ''
+      out.push(
+        `   ${VERDICT_LABELS[p.step.verdict]} (${sign}${Math.round(p.step.delta)}). ${p.step.text} ${p.step.caveat}`,
+      )
+    }
+    if (p.override?.shared_wording) {
+      out.push(
+        `   Teacher: ${p.override.shared_wording}${p.override.shared_context ? ` — ${p.override.shared_context}` : ''}`,
+      )
+    }
+  }
+  if (line.hint) out.push(`${line.hint[0].toUpperCase()}${line.hint.slice(1)}.`)
+  return out
 }

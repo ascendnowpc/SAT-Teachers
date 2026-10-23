@@ -99,3 +99,24 @@ describe('helpers', () => {
     expect(appBase(undefined)).toBe('https://sat-teachers.vercel.app')
   })
 })
+
+describe('reportEmail for a targeted test', () => {
+  it('says it is a targeted test, not a generated report', () => {
+    const mail = reportEmail({
+      pcName: 'Pat Progress',
+      studentName: 'Tia Targeted',
+      teacherName: 'Malya Rao',
+      subjectLabel: 'English',
+      when: '20 Oct 2026, 09:05 UTC',
+      sessionId: 's1',
+      appUrl: 'https://sat-teachers.vercel.app',
+      headline: '3 of 5 right on Transitions',
+      updated: false,
+      attached: true,
+      targeted: true,
+    })
+    expect(mail.subject).toBe('Targeted test: Tia Targeted — English, 20 Oct 2026')
+    expect(mail.text).toContain("Tia Targeted's English targeted test, set by Malya Rao")
+    expect(mail.text).not.toContain('generated')
+  })
+})

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   caveatText,
   defaultConfig,
+  describeLine,
   formatPoints,
   parsePoints,
   mapScore,
@@ -192,6 +193,14 @@ describe('progressLine', () => {
     // t1 2/10 → 24; t2 6/10 → 33.3: +9.3, improved.
     expect(line.points[2].step?.verdict).toBe('improved')
     expect(line.points[2].timedOut).toBe(1)
+  })
+
+  it('reads as sentences for the PDF, raw beside mapped', () => {
+    const text = describeLine(line)
+    expect(text[0]).toBe('1 Oct 2026, 10:00 UTC — Baseline, diagnostic: 1 of 2 right, 5.0/10 → 30.')
+    expect(text[1]).toBe('7 Oct 2026, 10:00 UTC — targeted test: 1 of 5 right, 2.0/10 → 24.')
+    expect(text[2]).toMatch(/^ {3}Declined \(-6\)\. Flagged for review\./)
+    expect(text[text.length - 1]).toBe('1 session since the last test on this skill.')
   })
 
   it('says how many sessions since the last test', () => {

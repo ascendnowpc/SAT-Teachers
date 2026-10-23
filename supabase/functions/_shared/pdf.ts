@@ -188,7 +188,7 @@ function header(l: Layout, doc: ReportPdfDoc, logo: Awaited<ReturnType<PDFDocume
   } else {
     l.at('Ascend Now', LEFT, PAGE_H - band / 2 - 5, { size: 15, font: l.f.bold, color: WHITE })
   }
-  const kicker = 'SESSION REPORT'
+  const kicker = doc.kicker ?? 'SESSION REPORT'
   l.at(kicker, PAGE_W - RIGHT - l.width(kicker, 8.5, l.f.bold), PAGE_H - band / 2 + 4, {
     size: 8.5,
     font: l.f.bold,
@@ -290,7 +290,8 @@ function domains(l: Layout, doc: ReportPdfDoc) {
 }
 
 function summary(l: Layout, doc: ReportPdfDoc) {
-  l.heading('Overall diagnostic summary')
+  if (doc.summary.length === 0 && !doc.summaryNote) return
+  l.heading(doc.summaryTitle ?? 'Overall diagnostic summary')
   const labelW = 150
   const valueW = WIDTH - labelW
   for (const row of doc.summary) {
@@ -489,6 +490,12 @@ export async function reportPdf(doc: ReportPdfDoc, logo: Uint8Array | null = nul
     }
 
     summary(l, doc)
+
+    for (const section of doc.extra ?? []) {
+      if (section.lines.length === 0) continue
+      l.heading(section.heading)
+      for (const line of section.lines) l.text(line, { size: 9.5 })
+    }
 
     if (doc.teacherRead) {
       l.heading('Teacher’s read')

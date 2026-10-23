@@ -1466,6 +1466,7 @@ table.board-table tr.live-row { background: var(--sky-wash); }
      the furniture: the sidebar, the back link and the buttons. */
   .report .page-head { display: flex !important; }
   .report .back-link, .report .btn { display: none !important; }
+  .report .no-print { display: none !important; }
   .report .card { box-shadow: none; border: 1px solid var(--border); }
   /* Keep the ticks and the score colours; a grey evaluation grid says less. */
   .report * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
