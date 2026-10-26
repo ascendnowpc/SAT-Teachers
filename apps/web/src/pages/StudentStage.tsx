@@ -8,10 +8,11 @@ import { Notice, Passage } from '../components/ui'
 import { useStudentSession } from '../hooks/useStudentSession'
 import type { SessionGateway } from '../lib/gateway'
 import { clock, openState } from '../lib/countdown'
+import { bindingClock, deadlineAt, outcomeOf, questionEndsAt, secondsLeft } from '../lib/targetedClock'
 import { askNumbers } from '../lib/report'
 import { formatUtcLong } from '../lib/time'
 import { OPTION_LABELS, subjectLabel } from '../lib/constants'
-import type { OptionLabel, Session, SessionItem } from '../lib/types'
+import type { OptionLabel, Session, SessionItem, TargetedInfo } from '../lib/types'
 
 /**
  * The student's screen: a lobby, then a test, one question at a time.
@@ -39,9 +40,15 @@ import type { OptionLabel, Session, SessionItem } from '../lib/types'
  * The screen takes a gateway rather than a session id, which is what lets the
  * same code serve a signed-in student and one who arrived on a link with no
  * account at all. See lib/gateway.
+ *
+ * A targeted test (0062) is the one session that runs itself: the server puts
+ * each question of the set up as the last is answered or runs out of time, so
+ * the screen says "Question 2 of 5", counts both clocks down in server time,
+ * and tells the server when the time is up. Still forward only: no skipping,
+ * no going back, and nothing about a question's level.
  */
 export function StudentStage({ gateway }: { gateway: SessionGateway }) {
-  const { session, items, loading, error, reload } = useStudentSession(gateway)
+  const { session, items, targeted, offset, loading, error, reload } = useStudentSession(gateway)
 
   const navigate = useNavigate()
   // A student on a link has no sessions list to be sent back to: the link is
@@ -127,6 +134,18 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
 
+  const isTargeted = session.mode === 'targeted'
+  // The signed-in door refuses a targeted test (0062): its clocks run on the link.
+  if (isTargeted && gateway.kind === 'account') {
+    return (
+      <div className="exam-wait">
+        <h2>Open this test from your link</h2>
+        <p>This test runs on the link your teacher sent you. Ask them for it if you cannot find it.</p>
+      </div>
+    )
+  }
+  const deadline = isTargeted ? deadlineAt(targeted?.deadline) : null
+
   // Bluebook gives a mathematics module a calculator and a reference sheet for
   // its whole length, and so does this: from the start of the test to the end,
   // between questions as well as on them.
@@ -137,6 +156,9 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
   // 20, again, after six easy ones — which told the student the one thing the
   // screen no longer says: that they had been moved.
   const number = done.length + (open ? 1 : 0)
+
+  // The clock on the question on screen: its own or the test's, whichever ends first.
+  const binding = isTargeted && open ? bindingClock(questionEndsAt(open), deadline) : null
 
   const finished = !open && done.length > 0
   // Live with nothing on the screen: started, and waiting for the teacher to
@@ -166,9 +188,27 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
           <span>{session.title || `${subjectLabel(session.subject)} session`}</span>
         </div>
 
-        {open && <div className="exam-progress-plain">Question {number}</div>}
+        {open && (
+          <div className="exam-progress-plain">
+            {isTargeted && targeted
+              ? `Question ${number} of ${targeted.question_count}`
+              : `Question ${number}`}
+          </div>
+        )}
 
         <div className="exam-actions">
+          {isTargeted && inProgress && deadline !== null && (
+            <span className="exam-overall" title="Time left for the whole test">
+              Test{' '}
+              <TimeLeft
+                endsAt={deadline}
+                offset={offset}
+                // On a question, that question's own countdown handles the
+                // end — it shows whichever clock runs out first.
+                onZero={open ? undefined : () => void later(reload)}
+              />
+            </span>
+          )}
           {math && <MathToolButtons tool={tool} onTool={setTool} />}
           {session.meeting_url && session.status !== 'completed' && (
             <a
@@ -205,7 +245,9 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
             <p>
               {open
                 ? `This is a test, so it runs full screen. Your clock is still running on question ${number}.`
-                : 'This is a test, so it runs full screen. Your next question will appear here when your teacher shows it.'}
+                : isTargeted
+                  ? 'This is a test, so it runs full screen. Your clock is still running.'
+                  : 'This is a test, so it runs full screen. Your next question will appear here when your teacher shows it.'}
             </p>
             <div className="leave-actions">
               <button
@@ -228,11 +270,18 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
         <div className="leave-veil" role="dialog" aria-modal="true" aria-labelledby="leave-title">
           <div className="leave-box">
             <h2 id="leave-title">Submit the test?</h2>
-            <p>
-              Your test will be submitted as it stands, with the {done.length} question
-              {done.length === 1 ? '' : 's'} you have answered. The rest are left unattempted and
-              you cannot come back to them.
-            </p>
+            {isTargeted ? (
+              <p>
+                Your test will be submitted as it stands. The question on your screen and the ones
+                after it will not be counted, and you cannot come back to them.
+              </p>
+            ) : (
+              <p>
+                Your test will be submitted as it stands, with the {done.length} question
+                {done.length === 1 ? '' : 's'} you have answered. The rest are left unattempted and
+                you cannot come back to them.
+              </p>
+            )}
             <div className="leave-actions">
               <button
                 type="button"
@@ -253,13 +302,20 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
       <div className="exam-main">
         <div className="exam-content">
           {open ? (
-            <ItemPane key={open.id} item={open} number={number} gateway={gateway} onChanged={reload} />
+            <ItemPane
+              key={open.id}
+              item={open}
+              number={number}
+              gateway={gateway}
+              onChanged={reload}
+              countdown={binding ? { ...binding, offset } : null}
+            />
           ) : between ? (
-            <WaitingForTeacher first={done.length === 0} />
+            isTargeted ? <NextComing /> : <WaitingForTeacher first={done.length === 0} />
           ) : finished ? (
-            <Finished items={done} />
+            <Finished items={done} targeted={isTargeted ? targeted : null} />
           ) : waiting ? (
-            <Lobby session={session} gateway={gateway} onStarted={reload} />
+            <Lobby session={session} gateway={gateway} onStarted={reload} targeted={isTargeted ? targeted : null} />
           ) : (
             <div className="exam-wait">
               <div className="ring" aria-hidden="true" />
@@ -327,10 +383,13 @@ function Lobby({
   session,
   gateway,
   onStarted,
+  targeted,
 }: {
   session: Session
   gateway: SessionGateway
   onStarted: () => Promise<void>
+  /** Set for a targeted test: it runs itself, and the student is told how. */
+  targeted: TargetedInfo | null
 }) {
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState(false)
@@ -362,11 +421,20 @@ function Lobby({
     <div className="exam-wait">
       <div className="ring" aria-hidden="true" />
       <h2>{state.open ? 'Ready when you are' : 'Not open yet'}</h2>
-      <p>
-        You answer one question at a time, each timed from the moment it appears. Your teacher puts
-        each question on your screen: submit your answer, then wait for the next one. You cannot go
-        back to a question once you have submitted it, and there is no set number of questions.
-      </p>
+      {targeted ? (
+        <p>
+          {targeted.question_count} question{targeted.question_count === 1 ? '' : 's'}, one at a
+          time, and {Math.round(targeted.overall_seconds / 60)} minutes for the whole test. Each
+          question has its own clock: answer it before the time runs out, or the next one comes up
+          on its own. You cannot skip a question or go back to one.
+        </p>
+      ) : (
+        <p>
+          You answer one question at a time, each timed from the moment it appears. Your teacher puts
+          each question on your screen: submit your answer, then wait for the next one. You cannot go
+          back to a question once you have submitted it, and there is no set number of questions.
+        </p>
+      )}
       <p className="exam-when">
         {formatUtcLong(session.scheduled_at)} — {state.label}
       </p>
@@ -412,6 +480,20 @@ function WaitingForTeacher({ first }: { first: boolean }) {
   )
 }
 
+/**
+ * A targeted test between two questions: only ever for the moment it takes
+ * the next one to arrive, since the server puts it up as the last one ends.
+ */
+function NextComing() {
+  return (
+    <div className="exam-wait">
+      <div className="ring" aria-hidden="true" />
+      <h2>Next question</h2>
+      <p>It will appear here in a moment.</p>
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------ finished --- */
 
 /**
@@ -425,13 +507,16 @@ function WaitingForTeacher({ first }: { first: boolean }) {
  * The key is not in the student's reach (question_keys is teacher-only), so it
  * comes from what the reveal copied onto the item itself.
  */
-function Finished({ items }: { items: SessionItem[] }) {
+function Finished({ items, targeted }: { items: SessionItem[]; targeted: TargetedInfo | null }) {
   // 1, 2, 3 over the questions they actually worked on — a question the
   // teacher set aside is not one of them and takes no number.
   const numbers = useMemo(() => askNumbers(items), [items])
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
+  // A targeted test: what ran out of time, and what was never reached.
+  const ranOut = targeted ? items.filter((i) => outcomeOf(i) === 'timed_out').length : 0
+  const notReached = targeted ? Math.max(0, targeted.question_count - items.length) : 0
 
   return (
     <div className="exam-done">
@@ -441,7 +526,9 @@ function Finished({ items }: { items: SessionItem[] }) {
             the end tells them nothing they can do anything with. */}
         <h2>Test submitted</h2>
         <p>
-          {items.length} answered.{' '}
+          {items.length - ranOut} answered.{' '}
+          {ranOut > 0 && `${ranOut} ran out of time. `}
+          {notReached > 0 && `${notReached} not reached. `}
           {out === 0
             ? 'Your teacher will go through it with you — your results appear here when they do.'
             : `You got ${right} of ${out} right.`}
@@ -464,6 +551,8 @@ function Finished({ items }: { items: SessionItem[] }) {
                   >
                     {it.revealed_result === 'correct' ? 'Right' : 'Wrong'}
                   </span>
+                ) : outcomeOf(it) === 'timed_out' ? (
+                  <span className="badge badge-neutral">Time ran out</span>
                 ) : (
                   <span className="badge badge-neutral">Answered</span>
                 )
@@ -494,12 +583,19 @@ function ItemPane({
   number,
   gateway,
   onChanged,
+  countdown = null,
 }: {
   item: SessionItem
   /** Where this question came in the session, counting only what was worked. */
   number: number
   gateway: SessionGateway
   onChanged: () => Promise<void>
+  /**
+   * A targeted test's clock on this question — whichever of its own and the
+   * test's runs out first — counted down in server time. Null in a lesson,
+   * where the clock counts up.
+   */
+  countdown?: { endsAt: number; which: 'question' | 'overall'; offset: number } | null
 }) {
   const [selected, setSelected] = useState<OptionLabel | null>(item.selected_option)
   const [struck, setStruck] = useState<OptionLabel[]>(item.eliminated_options ?? [])
@@ -573,6 +669,17 @@ function ItemPane({
     void gateway.markDecided(item.id)
   }, [stopped, selected, gateway, item.id])
 
+  // The time is up: say so, and the server moves on if it agrees. If it does
+  // not yet — the browser's clock a moment ahead — the reload after a short
+  // wait finds it moved, since every read expires what is overdue.
+  const [timeUp, setTimeUp] = useState(false)
+  const onTimeUp = useCallback(async () => {
+    setTimeUp(true)
+    const moved = await gateway.advance(item.id).catch(() => false)
+    await onChanged()
+    if (!moved) later(onChanged)
+  }, [gateway, item.id, onChanged])
+
   const submit = useCallback(async () => {
     if (!selected) return
     setBusy(true)
@@ -619,7 +726,11 @@ function ItemPane({
         <div className="exam-qhead">
           <span className="qn">{String(number).padStart(2, '0')}</span>
           <span className="spring" />
-          <QuestionClock itemId={item.id} running={!stopped} />
+          {countdown ? (
+            <TimeLeft endsAt={countdown.endsAt} offset={countdown.offset} onZero={() => void onTimeUp()} />
+          ) : (
+            <QuestionClock itemId={item.id} running={!stopped} />
+          )}
           <button
             type="button"
             className={`abc ${crossoutOn ? 'on' : ''}`}
@@ -650,7 +761,7 @@ function ItemPane({
                 <button
                   type="button"
                   className="ch-main"
-                  disabled={busy}
+                  disabled={busy || timeUp}
                   onClick={() => {
                     if (isStruck) setStruck((p) => p.filter((l) => l !== o.label))
                     setSelected(o.label)
@@ -708,13 +819,13 @@ function ItemPane({
             type="button"
             className="btn btn-primary btn-lg btn-block"
             style={{ marginTop: 16 }}
-            disabled={!selected || busy}
+            disabled={!selected || busy || timeUp}
             onClick={() => void submit()}
           >
             {/* Submit, not Next: sending an answer does not move the student
                 on. The teacher shows the next question (0057), and ends the
                 test when it is done — how many there are is up to them. */}
-            {busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Submit answer'}
+            {timeUp ? 'Time is up' : busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Submit answer'}
           </button>
           <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
         </div>
@@ -747,6 +858,48 @@ function QuestionClock({ itemId, running }: { itemId: string; running: boolean }
   return (
     <span className={`q-clock ${running ? '' : 'stopped'}`} aria-live="off">
       <IconClock /> {clock(seconds)}
+    </span>
+  )
+}
+
+/** Runs `fn` after the server's grace on a clock has passed (0062: 2 s). */
+function later(fn: () => Promise<void> | void) {
+  setTimeout(() => void fn(), 2500)
+}
+
+/**
+ * A targeted test's clock, counting down to `endsAt` in server time. Calls
+ * `onZero` once when it reaches zero. The last ten seconds are marked.
+ */
+function TimeLeft({
+  endsAt,
+  offset,
+  onZero,
+}: {
+  endsAt: number
+  offset: number
+  onZero?: () => void
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(t)
+  }, [])
+
+  const left = secondsLeft(endsAt, now, offset) ?? 0
+  const fired = useRef(false)
+  useEffect(() => {
+    fired.current = false
+  }, [endsAt])
+  useEffect(() => {
+    if (left > 0 || fired.current || !onZero) return
+    fired.current = true
+    onZero()
+  }, [left, onZero])
+
+  return (
+    <span className={`q-clock ${left <= 10 ? 'low' : ''}`} aria-live="off">
+      <IconClock /> {clock(Math.ceil(left))}
     </span>
   )
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Extraction } from './extraction'
+import type { ProgressLine } from './progress'
 import { reportPdfDoc, winAnsi, wrapText, type ReportPdfInput } from './reportPdf'
 import type { DomainNote, SessionItem, SessionReportRow } from './types'
 
@@ -278,5 +279,43 @@ describe('wrapText', () => {
     const lines = wrapText('see https://example.com/a/very/long/path', 10, measure)
     expect(lines.every((l) => l.length <= 10)).toBe(true)
     expect(lines.join('')).toBe('seehttps://example.com/a/very/long/path')
+  })
+})
+
+describe('the Progress section', () => {
+  const line: ProgressLine = {
+    section: 'expression_of_ideas',
+    skill: 'transitions',
+    points: [
+      {
+        sessionId: 'd',
+        kind: 'diagnostic',
+        isBaseline: true,
+        at: '2026-10-01T10:00:00Z',
+        correct: 1,
+        reached: 2,
+        timedOut: 0,
+        notReached: 0,
+        raw: 5,
+        level: 30,
+        sessionsBefore: 0,
+        step: null,
+        override: null,
+      },
+    ],
+    sinceLast: 2,
+    hint: '2 sessions since the last test on this skill',
+    summary: null,
+  }
+
+  it('is printed when the student has a line, under the skill’s name', () => {
+    const doc = reportPdfDoc(input({ progress: [line] }))
+    expect(doc.extra?.[0].heading).toBe('Progress')
+    expect(doc.extra?.[0].lines[0]).toBe('Transitions')
+    expect(doc.extra?.[0].lines[1]).toContain('Baseline, diagnostic: 1 of 2 right, 5.0/10 → 30.')
+  })
+
+  it('is left out when there is none', () => {
+    expect(reportPdfDoc(input()).extra).toEqual([])
   })
 })

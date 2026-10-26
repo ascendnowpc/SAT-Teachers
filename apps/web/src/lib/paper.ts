@@ -10,8 +10,8 @@
  * Nothing here reads the database. Give it the items in the paper's order and
  * it gives back the passages, their numbering, and the questions under each.
  */
-import { splitPassage, type PassageSegment } from './passage'
-import type { Question } from './types'
+import { splitPassage, type PassageSegment } from './passage.ts'
+import type { Question } from './types.ts'
 
 /* --------------------------------------------------------------- blocks --- */
 

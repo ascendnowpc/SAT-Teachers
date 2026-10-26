@@ -119,6 +119,11 @@ export interface ReportEmailInput {
   updated: boolean
   /** The PDF is attached. False when it could not be made, and the mail says so. */
   attached: boolean
+  /**
+   * A targeted test's report (0062): sent by hand, never generated, so it is
+   * "ready" rather than "generated", and a second one is simply another copy.
+   */
+  targeted?: boolean
 }
 
 /**
@@ -132,14 +137,19 @@ export function reportEmail(input: ReportEmailInput): Email {
   const reportUrl = `${base}/sessions/${input.sessionId}/report`
   const first = input.pcName.trim().split(/\s+/)[0] || 'there'
 
-  const subject = `${input.updated ? 'Updated report' : 'Report'}: ${input.studentName} — ${input.subjectLabel}, ${input.when.replace(/, \d\d:\d\d UTC$/, '')}`
+  const day = input.when.replace(/, \d\d:\d\d UTC$/, '')
+  const subject = input.targeted
+    ? `Targeted test: ${input.studentName} — ${input.subjectLabel}, ${day}`
+    : `${input.updated ? 'Updated report' : 'Report'}: ${input.studentName} — ${input.subjectLabel}, ${day}`
 
   // Who pressed Generate is not said: it may have been the teacher or an admin,
   // and the PC's question is whose lesson it was.
   const session = `${input.studentName}'s ${input.subjectLabel} session with ${input.teacherName} on ${input.when}`
-  const lead = input.updated
-    ? `The report on ${session} has been generated again. It replaces the one sent before.`
-    : `The report on ${session} has been generated.`
+  const lead = input.targeted
+    ? `The report on ${input.studentName}'s ${input.subjectLabel} targeted test, set by ${input.teacherName}, on ${input.when}.`
+    : input.updated
+      ? `The report on ${session} has been generated again. It replaces the one sent before.`
+      : `The report on ${session} has been generated.`
 
   const attachedLine = input.attached
     ? 'The report is attached as a PDF.'

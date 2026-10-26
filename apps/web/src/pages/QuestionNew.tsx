@@ -76,8 +76,11 @@ export function QuestionNew() {
   // A test is one of the live level tests or it is not a test: filing into a
   // deactivated paper puts a question somewhere no session reads from, which
   // is the same dead end by a longer road.
+  // The subject's practice pool counts too (0060): it is written into the same
+  // way, and a targeted test draws on it.
   const runnable = useCallback(
-    (s: QuestionSet | null): s is QuestionSet => Boolean(s && s.level && s.is_active),
+    (s: QuestionSet | null): s is QuestionSet =>
+      Boolean(s && s.is_active && (s.level || s.kind === 'practice')),
     [],
   )
 
@@ -197,7 +200,9 @@ export function QuestionNew() {
   // slow load of the question and a slow load of its test cannot race to
   // decide what gets saved.
   const effectiveSubject: Subject = home ? home.subject : subject
-  const effectiveDifficulty: Difficulty = home?.level ?? difficulty
+  // The pool has no level to give its questions, so it asks for one (0060).
+  const isPool = home?.kind === 'practice'
+  const effectiveDifficulty: Difficulty = isPool ? difficulty : (home?.level ?? difficulty)
 
   const sectionChoices = useMemo(() => SECTIONS[effectiveSubject], [effectiveSubject])
   const skillChoices = useMemo(() => skillsFor(section || null), [section])
@@ -230,6 +235,10 @@ export function QuestionNew() {
       setError('Open the test this question belongs to and add it there.')
       return
     }
+    if (isPool && !skill) {
+      setError('A practice question needs its skill — a targeted test finds its questions by skill.')
+      return
+    }
 
     setBusy(true)
     try {
@@ -256,7 +265,11 @@ export function QuestionNew() {
             p_difficulty: effectiveDifficulty,
             ...shared,
           })
-        : await supabase.rpc('create_question_in_set', { p_set: home!.id, ...shared })
+        : await supabase.rpc('create_question_in_set', {
+            p_set: home!.id,
+            ...shared,
+            ...(isPool ? { p_difficulty: difficulty } : {}),
+          })
       if (rpcError) throw new Error(rpcError.message)
 
       navigate(home ? `/tests/${home.id}` : '/questions')
@@ -369,7 +382,7 @@ export function QuestionNew() {
             </Field>
           </div>
 
-          <Field label="Skill">
+          <Field label="Skill" required={isPool}>
             <Select
               value={skill}
               onChange={(e) => setSkill(e.target.value)}
@@ -388,12 +401,14 @@ export function QuestionNew() {
             label="Difficulty"
             required
             hint={
-              home
-                ? `An item in the ${levelLabel(home.level!).toLowerCase()} test is ${home.level}. Move it to another test to change this.`
-                : undefined
+              isPool
+                ? 'The practice pool has no level of its own, so each question says how hard it is.'
+                : home
+                  ? `An item in the ${levelLabel(home.level!).toLowerCase()} test is ${home.level}. Move it to another test to change this.`
+                  : undefined
             }
           >
-            {home ? (
+            {home && !isPool ? (
               <Input readOnly value={levelLabel(home.level!)} />
             ) : (
               <Select

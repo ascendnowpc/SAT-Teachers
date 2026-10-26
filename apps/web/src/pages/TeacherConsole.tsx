@@ -34,6 +34,7 @@ import type {
   SessionLevel,
 } from '../lib/types'
 import { StatusBadge } from './Sessions'
+import { TargetedConsole } from './TargetedConsole'
 
 /**
  * The student's 1-3 confidence, in the words they were actually offered.
@@ -119,7 +120,10 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   // Only while there is still a question to choose. A finished session loads
   // nothing it would never show.
   const running =
-    session !== null && session.status !== 'completed' && session.status !== 'cancelled'
+    session !== null &&
+    session.status !== 'completed' &&
+    session.status !== 'cancelled' &&
+    session.mode !== 'targeted'
   const { tests, error: testsError } = useLevelTests(running ? session.subject : null)
 
   const call: OnCall = async (fn, args) => {
@@ -157,6 +161,19 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
 
   if (loading) return <div className="page page-loading">Loading…</div>
   if (!session) return <div className="page">Session not found.</div>
+
+  // A targeted test runs itself on the student's link (0062): its console
+  // watches, ends and publishes, and has none of the lesson's controls.
+  if (session.mode === 'targeted') {
+    return (
+      <TargetedConsole
+        session={session}
+        items={items}
+        reload={reload}
+        linkCard={<StudentLinkCard session={session} />}
+      />
+    )
+  }
 
   const over = session.status === 'completed' || session.status === 'cancelled'
   // Open means the student could start right now: its time has come, or the

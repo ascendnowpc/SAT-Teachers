@@ -26,11 +26,16 @@ import type { Question, QuestionSet, Subject } from '../lib/types'
  * call, or not at all — but "hard" is not "impossible", so anything the bank
  * still holds outside a test is named at the top rather than folded into a
  * total.
+ *
+ * Each subject also has its practice pool (0060): questions by skill that a
+ * targeted test can draw on and a lesson never shows. It is listed under its
+ * subject's tests and counted on its own, never in the tests' total.
  */
 export function Questions() {
   const navigate = useNavigate()
 
   const [tests, setTests] = useState<QuestionSet[]>([])
+  const [pools, setPools] = useState<QuestionSet[]>([])
   const [strays, setStrays] = useState(0)
   const [retired, setRetired] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -53,6 +58,14 @@ export function Questions() {
     }
 
     const found = rows<QuestionSet>(testRes.data)
+    const poolRes = await supabase
+      .from('question_sets')
+      .select('*, question_set_items(count)')
+      .eq('kind', 'practice')
+      .eq('is_active', true)
+    if (poolRes.error) setError(poolRes.error.message)
+    const poolSets = rows<QuestionSet>(poolRes.data)
+    setPools(poolSets)
     setTests(
       [...found].sort(
         (a, b) =>
@@ -71,7 +84,8 @@ export function Questions() {
         .select('question_id')
         .in(
           'set_id',
-          found.map((t) => t.id),
+          // A question in the pool is filed too: it is not a stray.
+          [...found, ...poolSets].map((t) => t.id),
         ),
       supabase.from('questions').select('id,status'),
     ])
@@ -106,8 +120,9 @@ export function Questions() {
       subject,
       tests: list,
       questions: list.reduce((n, t) => n + size(t), 0),
+      pool: pools.find((p) => p.subject === subject) ?? null,
     }))
-  }, [tests, size])
+  }, [tests, pools, size])
 
   const total = useMemo(() => tests.reduce((n, t) => n + size(t), 0), [tests, size])
 
@@ -197,6 +212,39 @@ export function Questions() {
                         </td>
                       </tr>
                     ))}
+                    {g.pool && (
+                      <tr
+                        key={g.pool.id}
+                        className="row-link"
+                        onClick={() => navigate(`/tests/${g.pool!.id}`)}
+                      >
+                        <td>
+                          <Link
+                            className="cell-link cell-strong"
+                            to={`/tests/${g.pool.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {g.pool.title}
+                          </Link>
+                          <div className="cell-sub">For targeted tests — never shown in a lesson</div>
+                        </td>
+                        <td>
+                          <span className="badge badge-neutral">By skill</span>
+                        </td>
+                        <td className={size(g.pool) === 0 ? 'num muted-cell' : 'num'}>
+                          {size(g.pool)}
+                        </td>
+                        <td className="row-actions">
+                          <Link
+                            className="btn btn-ghost btn-sm"
+                            to={`/questions/new?paper=${g.pool.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Add question
+                          </Link>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

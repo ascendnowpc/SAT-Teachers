@@ -2,15 +2,23 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
+import {
+  TargetedBuilder,
+  draftProblem,
+  emptyDraft,
+  type TargetedDraft,
+} from '../components/TargetedBuilder'
 import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { LEVELS, SUBJECTS } from '../lib/constants'
 import { loadPcs } from '../lib/pcApi'
+import type { StudentProgress } from '../lib/progress'
+import { loadProgress } from '../lib/progressApi'
 import { choosable } from '../lib/pcs'
 import { studentLink } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, QuestionSet, Session, Subject } from '../lib/types'
+import type { Profile, QuestionSet, Session, SessionMode, Subject } from '../lib/types'
 
 /**
  * Booking a session, which is now also where a student comes from.
@@ -29,6 +37,12 @@ import type { Profile, QuestionSet, Session, Subject } from '../lib/types'
  * change it, because changing it moves every report the student has to
  * somebody else. The PC reads the student's sessions and is emailed each
  * report as it is generated.
+ *
+ * And what the session is for (0059, 0061): a diagnostic, a lesson, or a
+ * targeted test on one skill. A student's first session in a subject is their
+ * diagnostic, so that is the default until they have one — across every
+ * teacher, which is why it is read through student_progress rather than the
+ * teacher's own sessions. A targeted test is booked with its set, built here.
  */
 export function SessionNew() {
   const { isAdmin } = useAuth()
@@ -48,6 +62,11 @@ export function SessionNew() {
   const [pcId, setPcId] = useState('')
 
   const [subject, setSubject] = useState<Subject>('english')
+  /** What the session is for. Chosen by the form until the teacher chooses it. */
+  const [kind, setKind] = useState<SessionMode>('diagnostic')
+  const [kindChosen, setKindChosen] = useState(false)
+  const [progress, setProgress] = useState<StudentProgress | null>(null)
+  const [draft, setDraft] = useState<TargetedDraft>(() => emptyDraft('english'))
   const [title, setTitle] = useState('')
   const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
   const [duration, setDuration] = useState(60)
@@ -168,6 +187,37 @@ export function SessionNew() {
     setPcId(mode === 'existing' ? (chosen?.pc_id ?? '') : '')
   }, [mode, chosen?.id, chosen?.pc_id])
 
+  // The student's sessions in this subject, every teacher's: whether they have
+  // had their diagnostic, and for the builder, how long since a test.
+  useEffect(() => {
+    setProgress(null)
+    if (mode !== 'existing' || !studentId) return
+    let active = true
+    void loadProgress(studentId, subject).then(({ progress: p }) => {
+      if (active) setProgress(p)
+    })
+    return () => {
+      active = false
+    }
+  }, [mode, studentId, subject])
+
+  const hasDiagnostic =
+    progress?.sessions.some((x) => x.mode === 'diagnostic' && x.status !== 'cancelled') ?? false
+  useEffect(() => {
+    if (kindChosen) return
+    setKind(mode === 'existing' && hasDiagnostic ? 'live' : 'diagnostic')
+  }, [kindChosen, mode, hasDiagnostic])
+
+  // A new subject starts the set again.
+  useEffect(() => {
+    setDraft(emptyDraft(subject))
+  }, [subject])
+
+  // A targeted test needs the student's history to build its set, so it is for
+  // a student already on the roster.
+  const targeted = kind === 'targeted'
+  const targetedProblem = targeted ? draftProblem(draft) : null
+
   const noPcs = pcsRead && pcOptions.length === 0
   // Fixed and already on the row, or chosen here from the ones that can be.
   const pcReady = locked || pcOptions.some((o) => o.value === pcId)
@@ -182,7 +232,8 @@ export function SessionNew() {
     !busy &&
     scheduledAt !== '' &&
     pcReady &&
-    (mode === 'existing' ? studentId !== '' : namedNewStudent)
+    (mode === 'existing' ? studentId !== '' : namedNewStudent && !targeted) &&
+    targetedProblem === null
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -223,6 +274,31 @@ export function SessionNew() {
         }
       }
       if (!student) throw new Error('Pick a student for this session.')
+      if (targeted) {
+        const { data, error: err } = await supabase.rpc('create_targeted_session', {
+          p_student: student.id,
+          p_subject: subject,
+          p_section: draft.section,
+          p_skill: draft.skill,
+          p_scheduled_at: utcInputToIso(scheduledAt),
+          p_title: title.trim() || null,
+          p_size: draft.size,
+          p_questions: draft.questions,
+          p_allow_repeats: draft.allowRepeats,
+          p_question_seconds: draft.questionSeconds,
+          p_overall_seconds: draft.overallMinutes * 60,
+        })
+        if (err) throw new Error(err.message)
+        const { data: made, error: readErr } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', data as string)
+          .single()
+        if (readErr) throw new Error(readErr.message)
+        setCreated(row<Session>(made))
+        return
+      }
+
       if (bankRead && !runnable.includes(subject)) {
         throw new Error(
           `There are no ${subject} questions yet. Fill that subject's three tests in the question bank first.`,
@@ -240,6 +316,7 @@ export function SessionNew() {
           scheduled_at: utcInputToIso(scheduledAt),
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
+          mode: kind,
         })
         // The token comes back with it: it is the next thing the teacher needs.
         .select('*')
@@ -374,6 +451,61 @@ export function SessionNew() {
         </div>
 
         <div className="card card-pad">
+          <div className="section-title">What it is for</div>
+          <div className="mode-pick mode-pick-3" role="group" aria-label="What the session is for">
+            {(
+              [
+                ['diagnostic', 'Diagnostic', 'Where they start. Their baseline on every skill.'],
+                ['live', 'Lesson', 'You show each question, as in any lesson.'],
+                [
+                  'targeted',
+                  'Targeted test',
+                  'A short set on one skill, sat alone on their link, timed.',
+                ],
+              ] as [SessionMode, string, string][]
+            ).map(([value, label, hint]) => (
+              <button
+                key={value}
+                type="button"
+                className={`mode-opt ${kind === value ? 'on' : ''}`}
+                onClick={() => {
+                  setKind(value)
+                  setKindChosen(true)
+                }}
+              >
+                <strong>{label}</strong>
+                <span className="mode-hint">{hint}</span>
+              </button>
+            ))}
+          </div>
+          {kind === 'diagnostic' && mode === 'existing' && hasDiagnostic && (
+            <Notice kind="info">
+              This student has a diagnostic in {subject === 'english' ? 'English' : 'Mathematics'}{' '}
+              already. A second one counts as a session between targeted tests, not as a new
+              baseline.
+            </Notice>
+          )}
+          {targeted && mode === 'new' && (
+            <Notice kind="info">
+              A targeted test is built from what the student has already seen, so it is for a
+              student on the roster. Book their diagnostic first.
+            </Notice>
+          )}
+          {targeted && mode === 'existing' && studentId && (
+            <TargetedBuilder
+              studentId={studentId}
+              subject={subject}
+              draft={draft}
+              onChange={setDraft}
+              progress={progress}
+            />
+          )}
+          {targetedProblem && studentId && mode === 'existing' && (
+            <p className="field-hint">{targetedProblem}</p>
+          )}
+        </div>
+
+        <div className="card card-pad">
           <div className="section-title">When and where</div>
 
           <div className="grid-2">
@@ -386,25 +518,35 @@ export function SessionNew() {
               />
             </Field>
 
-            <Field label="Duration">
-              <Select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                {[30, 45, 60, 90, 120].map((m) => (
-                  <option key={m} value={m}>
-                    {m} minutes
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            {/* A targeted test's length is its overall clock, set above. */}
+            {!targeted && (
+              <Field label="Duration">
+                <Select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                  {[30, 45, 60, 90, 120].map((m) => (
+                    <option key={m} value={m}>
+                      {m} minutes
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
           </div>
 
-          <Field label="Meeting link">
-            <Input
-              type="url"
-              value={meetingUrl}
-              onChange={(e) => setMeetingUrl(e.target.value)}
-              placeholder="https://zoom.us/j/…"
-            />
-          </Field>
+          {!targeted && (
+            <Field label="Meeting link">
+              <Input
+                type="url"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                placeholder="https://zoom.us/j/…"
+              />
+            </Field>
+          )}
+          {targeted && (
+            <p className="field-hint">
+              The student can start it from their link any time after this, and sits it alone.
+            </p>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
@@ -489,7 +631,8 @@ function PcField({
   if (noPcs && !locked) {
     return (
       <Notice kind="error">
-        There are no PCs to choose from yet, and a session cannot be booked without the student’s PC.{' '}
+        There are no PCs to choose from yet, and a session cannot be booked without the student’s
+        PC.{' '}
         {isAdmin ? (
           <>
             Add one under <Link to="/admin/users?tab=pcs">Users → PCs</Link>.
