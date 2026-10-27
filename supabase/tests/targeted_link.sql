@@ -6,7 +6,9 @@
 --  What has to hold:
 --
 --  Starting
---    * not before its time; then it opens, the set locks, and question 1 is on
+--    * not before its time, unless its teacher or an admin lets the student in
+--      early (0025's waiver, which leaves the scheduled time as it was; another
+--      teacher cannot); then it opens, the set locks, and question 1 is on
 --      screen with the server's first_viewed_at and the test's clock on it —
 --      and nothing else is: the next question does not exist yet
 --    * the set cannot be changed once it has started
@@ -118,8 +120,26 @@ begin
   exception when others then txt := 'refused'; end;
   return query select '1 starting'::text, 'not before its time'::text, 'refused'::text, txt, __verdict(txt = 'refused');
 
+  -- Letting them in early, from the console.
+  perform __as(x_id);
+  begin perform set_session_open_early(tgt, true); txt := 'opened';
+  exception when others then txt := 'refused'; end;
+  return query select '1 starting'::text, 'another teacher cannot let them in early'::text,
+    'refused'::text, txt, __verdict(txt = 'refused');
+
+  perform __as(ad_id);
+  txt := (set_session_open_early(tgt, true) is not null)::text
+      || ',' || (set_session_open_early(tgt, false) is null)::text;
+  return query select '1 starting'::text, 'an admin can let them in early, and take it back'::text,
+    'true,true'::text, txt, __verdict(txt = 'true,true');
+
+  perform __as(t_id);
+  perform set_session_open_early(tgt, true);
   perform __as(null, 'postgres');
-  update sessions set scheduled_at = now() - interval '1 minute' where id = tgt;
+  select (opened_early_at is not null and scheduled_at > now() + interval '23 hours')::text
+    into txt from sessions where id = tgt;
+  return query select '1 starting'::text, 'its teacher lets them in early; the scheduled time stays'::text,
+    'true'::text, txt, __verdict(txt = 'true');
 
   perform __as(null, 'anon');
   n := start_session_by_token(tok);
