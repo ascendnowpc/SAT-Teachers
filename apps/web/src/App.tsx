@@ -99,7 +99,11 @@ export function App() {
         )}
         {isTeacher && (
           <>
-            <Route path="/sessions/new" element={<SessionNew />} />
+            {/* Two forms, one per tab of the sessions list: a diagnostic is
+                run live, a targeted test is sat alone. Keyed, so going from
+                one to the other starts a fresh form. */}
+            <Route path="/sessions/new" element={<SessionNew key="diagnostic" kind="diagnostic" />} />
+            <Route path="/sessions/new/targeted" element={<SessionNew key="targeted" kind="targeted" />} />
             <Route path="/questions" element={<Questions />} />
             <Route path="/questions/new" element={<QuestionNew />} />
             <Route path="/questions/:id/edit" element={<QuestionNew />} />

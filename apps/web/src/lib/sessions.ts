@@ -1,5 +1,5 @@
-import { LEVELS, levelLabel } from './constants'
-import type { Session, SessionLevel, SessionStatus, Subject } from './types'
+import { LEVELS, levelLabel, sectionLabel, skillLabel, subjectLabel } from './constants'
+import type { Session, SessionLevel, SessionStatus, Subject, TargetedSummary } from './types'
 
 /**
  * The sessions list, as a table.
@@ -16,6 +16,54 @@ import type { Session, SessionLevel, SessionStatus, Subject } from './types'
  * values. Everything here is that narrowing, kept out of the component so it
  * can be tested without one.
  */
+
+/**
+ * The two kinds of session, kept apart on every staff screen: a diagnostic,
+ * which the teacher runs live and writes up, and a targeted test, which the
+ * student sits alone and which has its own report. A session from before
+ * sessions said what they were for (mode 'live') ran the diagnostic's flow, so
+ * it is filed with the diagnostics.
+ */
+export type SessionKind = 'diagnostic' | 'targeted'
+
+export function kindOf(s: Pick<Session, 'mode'>): SessionKind {
+  return s.mode === 'targeted' ? 'targeted' : 'diagnostic'
+}
+
+export const KIND_LABELS: Record<SessionKind, string> = {
+  diagnostic: 'Diagnostic',
+  targeted: 'Targeted test',
+}
+
+/** Where each tab's New button goes: a form for each kind. */
+export const NEW_SESSION: Record<SessionKind, string> = {
+  diagnostic: '/sessions/new',
+  targeted: '/sessions/new/targeted',
+}
+
+/** The sessions list, opened on one kind's tab. */
+export function sessionsTab(kind: SessionKind): string {
+  return kind === 'targeted' ? '/sessions?tab=targeted' : '/sessions'
+}
+
+/** The embedded targeted_tests row, whichever shape PostgREST sent it in. */
+export function targetedOf(s: Pick<Session, 'targeted'>): TargetedSummary | null {
+  const t = s.targeted
+  if (!t) return null
+  return Array.isArray(t) ? (t[0] ?? null) : t
+}
+
+/** The title the teacher gave it, or what it is: "English diagnostic". */
+export function sessionTitle(s: Pick<Session, 'title' | 'subject' | 'mode'>): string {
+  if (s.title) return s.title
+  return `${subjectLabel(s.subject)} ${kindOf(s) === 'targeted' ? 'targeted test' : 'diagnostic'}`
+}
+
+/** "Inferences", or "Craft and Structure — whole section". */
+export function targetedLabel(t: TargetedSummary | null): string | null {
+  if (!t) return null
+  return t.skill ? skillLabel(t.skill) : `${sectionLabel(t.section)} — whole section`
+}
 
 export interface SessionFilters {
   /** Free text over student, teacher, title, display id and PC. */
@@ -42,7 +90,7 @@ export const NO_FILTERS: SessionFilters = {
   teacher: 'all',
 }
 
-export type SortKey = 'when' | 'student' | 'title' | 'status' | 'level'
+export type SortKey = 'when' | 'student' | 'title' | 'status' | 'level' | 'skill'
 export interface Sort {
   key: SortKey
   dir: 'asc' | 'desc'
@@ -80,8 +128,11 @@ export function levelsLabel(levels: SessionLevel[]): string {
 
 /** Everything about a session a search box should match. */
 function haystack(s: Session): string {
+  const t = targetedOf(s)
   return [
     s.title,
+    targetedLabel(t),
+    t && sectionLabel(t.section),
     s.student?.full_name,
     s.student?.display_id,
     s.student?.pc,
@@ -150,6 +201,8 @@ function compare(a: Session, b: Session, key: SortKey): number {
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     case 'level':
       return furthest(a) - furthest(b)
+    case 'skill':
+      return (targetedLabel(targetedOf(a)) ?? '').localeCompare(targetedLabel(targetedOf(b)) ?? '')
   }
 }
 

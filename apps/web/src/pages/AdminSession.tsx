@@ -8,11 +8,18 @@ import { CopyButton, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { reportStage, STAGE_LABELS } from '../lib/admin'
-import { diagnosisLabel, sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import { diagnosisLabel, sectionLabel, skillLabel } from '../lib/constants'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
 import { buildReport, formatDuration, paceLabel } from '../lib/report'
-import { levelsLabel, levelsOf, studentLink } from '../lib/sessions'
+import {
+  kindOf,
+  levelsLabel,
+  levelsOf,
+  sessionTitle,
+  sessionsTab,
+  studentLink,
+} from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import { parseTranscript } from '../lib/transcript'
@@ -104,14 +111,14 @@ export function AdminSession() {
           <IconBack /> {session.teacher?.full_name ?? 'The teacher'}
         </Link>
       ) : (
-        <Link className="back-link" to="/sessions">
-          <IconBack /> Sessions
+        <Link className="back-link" to={sessionsTab(kindOf(session))}>
+          <IconBack /> {kindOf(session) === 'targeted' ? 'Targeted tests' : 'Diagnostics'}
         </Link>
       )}
 
       <div className="page-head">
         <div>
-          <h1>{session.title || `${subjectLabel(session.subject)} session`}</h1>
+          <h1>{sessionTitle(session)}</h1>
           <p className="sub head-meta">
             <StatusBadge status={session.status} />
             <span>

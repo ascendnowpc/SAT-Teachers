@@ -2353,6 +2353,8 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 @media (min-width: 700px) { .mode-pick.mode-pick-3 { grid-template-columns: 1fr 1fr 1fr; } }
 .mode-opt .mode-hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; margin-top: 4px; }
 .field-hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+/* A note under a row of fields, inside the same card: where the baseline is. */
+.card > .grid-2 + .notice { margin: 16px 0 0; }
 
 /* Progress (0063): the line, one test's analysis, the staff panels. */
 @media (min-width: 900px) { .targeted-analysis .stat-row { grid-template-columns: repeat(5, 1fr); } }
@@ -2365,3 +2367,34 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .override-shared { margin-top: 6px; font-size: 13px; }
 .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
 .card .muted { color: var(--muted); font-size: 13.5px; }
+
+/* Settings: four questions, each a sentence with its number in it. */
+.settings .card + .card, .settings > .notice + .card { margin-top: 18px; }
+.settings-lead { color: var(--ink-2); font-size: 14px; line-height: 1.6; margin: 0 0 14px; max-width: 68ch; }
+.settings-sentence { color: var(--ink); font-size: 14.5px; line-height: 2.4; margin: 0; }
+.settings-sentence + .settings-sentence { margin-top: 10px; }
+.input.input-inline {
+  display: inline-block; width: 76px; padding: 5px 10px; margin: 0 2px;
+  text-align: center; font-variant-numeric: tabular-nums; vertical-align: baseline;
+}
+.settings-points { border-collapse: collapse; margin: 0 0 10px; }
+.settings-points th {
+  text-align: left; font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 12px 6px 0;
+}
+.settings-points td { padding: 0 12px 8px 0; }
+.settings-points .input { width: 120px; max-width: 24vw; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .settings-points th, .settings-points td { padding-right: 8px; } }
+.settings-preview-title { font-size: 12.5px; font-weight: 500; color: var(--muted); margin: 18px 0 8px; }
+.settings-preview { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.settings-preview li {
+  display: grid; justify-items: center; min-width: 50px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--navy-50);
+}
+.settings-preview .k { font-size: 11.5px; color: var(--muted); }
+.settings-preview .v { font-size: 15px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.settings-rules { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 10px; }
+.settings-rules li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: 14.5px; }
+.settings-rules .badge { min-width: 118px; justify-content: center; }
+.settings-save { margin-top: 18px; }
+.settings-save .notice { margin-bottom: 10px; }
+.settings-save-row { display: flex; flex-wrap: wrap; gap: 10px; }

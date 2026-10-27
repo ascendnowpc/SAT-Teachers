@@ -11,6 +11,7 @@ import {
   progressLines,
   rawOutOf10,
   sessionsSinceLastTest,
+  settingsProblem,
   verdictFor,
   verdictText,
   type ProgressItem,
@@ -283,5 +284,77 @@ describe('parsePoints and formatPoints', () => {
     expect(parsePoints('5 30, 2 25')).toBeNull()
     expect(parsePoints('0 20, 11 50')).toBeNull()
     expect(parsePoints('0 20, 5')).toBeNull()
+  })
+})
+
+describe('settingsProblem', () => {
+  const ok = defaultConfig('english')
+
+  it('passes the defaults', () => {
+    expect(settingsProblem(ok)).toBeNull()
+  })
+
+  it('takes the points in any order', () => {
+    expect(
+      settingsProblem({
+        ...ok,
+        score_points: [
+          [8, 40],
+          [0, 20],
+          [5, 30],
+        ],
+      }),
+    ).toBeNull()
+  })
+
+  it('names what is wrong with the points', () => {
+    expect(settingsProblem({ ...ok, score_points: [[0, 20]] })).toMatch(/two points/)
+    expect(
+      settingsProblem({
+        ...ok,
+        score_points: [
+          [0, 20],
+          [5, NaN],
+        ],
+      }),
+    ).toMatch(/both numbers/)
+    expect(
+      settingsProblem({
+        ...ok,
+        score_points: [
+          [0, 20],
+          [11, 50],
+        ],
+      }),
+    ).toMatch(/0 to 10/)
+    expect(
+      settingsProblem({
+        ...ok,
+        score_points: [
+          [0, 20],
+          [5, 30],
+          [5, 35],
+        ],
+      }),
+    ).toMatch(/both for 5 out of 10/)
+    expect(
+      settingsProblem({
+        ...ok,
+        score_points: [
+          [0, 30],
+          [5, 20],
+        ],
+      }),
+    ).toMatch(/rise/)
+  })
+
+  it('refuses what the table would', () => {
+    expect(settingsProblem({ ...ok, improved_at: 0 })).toMatch(/Improved/)
+    expect(settingsProblem({ ...ok, declined_at: 0 })).toMatch(/Declined/)
+    expect(settingsProblem({ ...ok, long_words: 0 })).toMatch(/long question/)
+    expect(settingsProblem({ ...ok, default_set_size: 21 })).toMatch(/1 to 20/)
+    expect(settingsProblem({ ...ok, pattern_min_each: 0 })).toMatch(/each kind/)
+    expect(settingsProblem({ ...ok, pattern_gap: 0 })).toMatch(/percentage points/)
+    expect(settingsProblem({ ...ok, pattern_gap: 1 })).toBeNull()
   })
 })

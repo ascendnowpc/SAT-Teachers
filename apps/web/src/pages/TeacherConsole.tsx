@@ -197,7 +197,7 @@ export function TeacherConsole({ sessionId }: { sessionId: string }) {
   return (
     <div className="page page-wide">
       <Link className="back-link" to="/sessions">
-        <IconBack /> Sessions
+        <IconBack /> Diagnostics
       </Link>
 
       <div className="room-head">

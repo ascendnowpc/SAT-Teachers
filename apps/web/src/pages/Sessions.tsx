@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { CopyButton, DifficultyBadge, Input, Notice, Select } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { DIFFICULTIES, SUBJECTS, subjectLabel } from '../lib/constants'
 import {
   DEFAULT_SORT,
+  KIND_LABELS,
+  NEW_SESSION,
   NO_FILTERS,
   filterSessions,
+  kindOf,
   levelsLabel,
   levelsOf,
+  sessionTitle,
   sortSessions,
   studentLink,
   studentOptions,
+  targetedLabel,
+  targetedOf,
   teacherOptions,
   type SessionFilters,
+  type SessionKind,
   type Sort,
   type SortKey,
 } from '../lib/sessions'
@@ -21,9 +28,12 @@ import { utcParts, utcTime } from '../lib/time'
 import { rows, supabase } from '../lib/supabase'
 import type { Session } from '../lib/types'
 
+// The targeted test's skill and size come along (0061): staff and the PC read
+// them, and for anybody else the embed is simply empty.
 const SESSION_SELECT =
   '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
-  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc)'
+  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc),' +
+  ' targeted:targeted_tests(section,skill,set_size)'
 
 /**
  * Every session, in one table.
@@ -37,6 +47,12 @@ const SESSION_SELECT =
  * The grouping is not lost, it is a filter now: pick a student and the table is
  * their history. Which also means it composes — that student's live sessions,
  * that student on the hard test — where a heading never could.
+ *
+ * Staff read it as two tabs, Diagnostics and Targeted tests, because they are
+ * two different things to book and to read: a diagnostic is run live and
+ * written up with the form, a targeted test is sat alone on the clock and has
+ * its own report. Each tab has its own columns and its own New button. A
+ * student sees their sessions in one list — to them both are just a link.
  */
 export function Sessions() {
   const { isTeacher, isAdmin, isPc } = useAuth()
@@ -44,6 +60,10 @@ export function Sessions() {
   // who taught them (0055). They open a session to read it; they book nothing.
   const staff = isTeacher || isPc
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const tab: SessionKind = params.get('tab') === 'targeted' ? 'targeted' : 'diagnostic'
+  const setTab = (next: SessionKind) =>
+    setParams(next === 'targeted' ? { tab: 'targeted' } : {}, { replace: true })
 
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,20 +86,38 @@ export function Sessions() {
     void load()
   }, [load])
 
-  const students = useMemo(() => studentOptions(sessions), [sessions])
+  // Staff see one kind at a time; a student sees everything they have.
+  const counts = useMemo(() => {
+    const n: Record<SessionKind, number> = { diagnostic: 0, targeted: 0 }
+    for (const s of sessions) n[kindOf(s)] += 1
+    return n
+  }, [sessions])
+  const inTab = useMemo(
+    () => (staff ? sessions.filter((s) => kindOf(s) === tab) : sessions),
+    [sessions, staff, tab],
+  )
+  const targeted = staff && tab === 'targeted'
+
+  const students = useMemo(() => studentOptions(inTab), [inTab])
   // An admin's list spans the whole school, so it needs the other axis too, and
   // a PC's spans every teacher their students have had. A teacher's is all
   // their own sessions and the filter would hold one name.
   const teachers = useMemo(
-    () => (isAdmin || isPc ? teacherOptions(sessions) : []),
-    [sessions, isAdmin, isPc],
+    () => (isAdmin || isPc ? teacherOptions(inTab) : []),
+    [inTab, isAdmin, isPc],
   )
+  // A targeted test has no level — it is one skill across all three — so the
+  // level filter is the diagnostics' alone, as is sorting on it.
   const shown = useMemo(
-    () => sortSessions(filterSessions(sessions, filters), sort),
-    [sessions, filters, sort],
+    () =>
+      sortSessions(
+        filterSessions(inTab, targeted ? { ...filters, level: 'all' } : filters),
+        targeted && sort.key === 'level' ? DEFAULT_SORT : sort,
+      ),
+    [inTab, filters, sort, targeted],
   )
 
-  const narrowed = shown.length !== sessions.length
+  const narrowed = shown.length !== inTab.length
   function set<K extends keyof SessionFilters>(key: K, value: SessionFilters[K]) {
     setFilters((f) => ({ ...f, [key]: value }))
   }
@@ -101,24 +139,42 @@ export function Sessions() {
         <div>
           <h1>Sessions</h1>
           <p className="sub">
-            {isTeacher
-              ? isAdmin
-                ? 'Every session in the school. Narrow by teacher, student, or anything else you are looking for.'
-                : 'Every session you have run or scheduled. Search a student, or narrow by what you are looking for.'
-              : isPc
-                ? 'Every session of the students you are PC to. Open one to read it and its report.'
-                : 'Your tutoring sessions. Open one once its time has come.'}
+            {!staff
+              ? 'Your tutoring sessions. Open one once its time has come.'
+              : tab === 'targeted'
+                ? isPc
+                  ? 'Short timed tests on one skill, which your students sat alone. Each has its own report.'
+                  : 'Short timed tests on one skill. The student sits them alone on their link; each has its own report and adds a point to their progress on that skill.'
+                : isPc
+                  ? 'Sessions your students had live with their teacher, each written up in a report.'
+                  : 'Sessions you run live with the student: you put each question up and write it up after. A student’s first in a subject is their baseline.'}
           </p>
         </div>
         <div className="spring" />
         {isTeacher && (
-          <Link className="btn btn-primary" to="/sessions/new">
-            New session
+          <Link className="btn btn-primary" to={NEW_SESSION[tab]}>
+            {tab === 'targeted' ? 'New targeted test' : 'New diagnostic'}
           </Link>
         )}
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
+
+      {staff && (
+        <div className="tabs">
+          {(['diagnostic', 'targeted'] as SessionKind[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={`tab ${tab === k ? 'on' : ''}`}
+              onClick={() => setTab(k)}
+            >
+              {k === 'targeted' ? 'Targeted tests' : 'Diagnostics'}
+              {!loading && <> ({counts[k]})</>}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="filters">
         <Input
@@ -126,7 +182,11 @@ export function Sessions() {
           type="search"
           value={filters.query}
           placeholder={
-            staff ? 'Search a student, teacher, PC, id or title…' : 'Search a teacher or a title…'
+            targeted
+              ? 'Search a student, skill, teacher, PC or id…'
+              : staff
+                ? 'Search a student, teacher, PC, id or title…'
+                : 'Search a teacher or a title…'
           }
           aria-label="Search sessions"
           onChange={(e) => set('query', e.target.value)}
@@ -178,7 +238,7 @@ export function Sessions() {
         {/* The level is the teacher's judgement about the student, and a
             student reading "hard test" beside their own session learns the one
             thing their exam screen no longer tells them. */}
-        {staff && (
+        {staff && !targeted && (
           <Select
             value={filters.level}
             aria-label="Filter by level"
@@ -208,7 +268,7 @@ export function Sessions() {
 
         <span className="spring" />
         <span className="filter-count">
-          {loading ? 'Loading…' : `${shown.length} of ${sessions.length}`}
+          {loading ? 'Loading…' : `${shown.length} of ${inTab.length}`}
         </span>
         {narrowed && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFilters(NO_FILTERS)}>
@@ -219,20 +279,30 @@ export function Sessions() {
 
       {loading ? (
         <div className="empty">Loading…</div>
-      ) : sessions.length === 0 ? (
+      ) : inTab.length === 0 ? (
         <div className="card">
           <div className="empty">
-            <h3>No sessions yet</h3>
+            <h3>
+              {!staff
+                ? 'No sessions yet'
+                : targeted
+                  ? 'No targeted tests yet'
+                  : 'No diagnostics yet'}
+            </h3>
             <p>
-              {isTeacher
-                ? 'Create a session with a student and send them the link. That is the whole of it.'
+              {!staff
+                ? 'Once a teacher schedules a session with you, it will show up here.'
                 : isPc
-                  ? 'None of your students has a session yet. A student becomes yours when a teacher books them with you as their PC.'
-                  : 'Once a teacher schedules a session with you, it will show up here.'}
+                  ? targeted
+                    ? 'None of your students has been set a targeted test yet.'
+                    : 'None of your students has a session yet. A student becomes yours when a teacher books them with you as their PC.'
+                  : targeted
+                    ? 'Once a student has had their diagnostic, set them a short timed test on a skill they found hard. They sit it alone on their link.'
+                    : 'Book a student’s diagnostic and send them the link. Their first one in a subject is the baseline every skill is measured from.'}
             </p>
             {isTeacher && (
-              <Link className="btn btn-primary" to="/sessions/new">
-                New session
+              <Link className="btn btn-primary" to={NEW_SESSION[tab]}>
+                {targeted ? 'New targeted test' : 'New diagnostic'}
               </Link>
             )}
           </div>
@@ -260,8 +330,14 @@ export function Sessions() {
                     sort={sort}
                     onSort={toggleSort}
                   />
-                  <SortHead label="Session" k="title" sort={sort} onSort={toggleSort} />
-                  {staff && <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />}
+                  {targeted ? (
+                    <SortHead label="Skill" k="skill" sort={sort} onSort={toggleSort} />
+                  ) : (
+                    <SortHead label="Session" k="title" sort={sort} onSort={toggleSort} />
+                  )}
+                  {staff && !targeted && (
+                    <SortHead label="Level" k="level" sort={sort} onSort={toggleSort} />
+                  )}
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
                   <th>Answered</th>
                   {isTeacher && <th aria-label="Actions" />}
@@ -269,7 +345,14 @@ export function Sessions() {
               </thead>
               <tbody>
                 {shown.map((s) => (
-                  <SessionRow key={s.id} session={s} staff={staff} canLink={isTeacher} onOpen={navigate} />
+                  <SessionRow
+                    key={s.id}
+                    session={s}
+                    staff={staff}
+                    targeted={targeted}
+                    canLink={isTeacher}
+                    onOpen={navigate}
+                  />
                 ))}
               </tbody>
             </table>
@@ -305,12 +388,15 @@ function SortHead({
 function SessionRow({
   session: s,
   staff,
+  targeted,
   canLink,
   onOpen,
 }: {
   session: Session
   /** Read from the staff side: the student is the counterpart, and the row opens the session. */
   staff: boolean
+  /** The targeted tests' tab: the skill instead of the title, no level, answered out of the set. */
+  targeted: boolean
   /** Offer the student's link. A teacher's; a PC books and sends nothing. */
   canLink: boolean
   onOpen: (to: string) => void
@@ -321,6 +407,7 @@ function SessionRow({
   const counterpart = staff ? s.student : s.teacher
   const to = staff ? `/sessions/${s.id}` : `/exam/${s.id}`
   const token = s.access_token ?? null
+  const test = targeted ? targetedOf(s) : null
 
   return (
     <tr className={s.status === 'live' ? 'live-row row-link' : 'row-link'} onClick={() => onOpen(to)}>
@@ -347,13 +434,26 @@ function SessionRow({
           <span className="dash">—</span>
         )}
       </td>
-      <td>
-        <div className="cell-strong">{s.title || `${subjectLabel(s.subject)} session`}</div>
-        <div className="cell-sub">
-          {subjectLabel(s.subject)} · {s.duration_mins} min
-        </div>
-      </td>
-      {staff && (
+      {targeted ? (
+        <td>
+          <div className="cell-strong">{targetedLabel(test) ?? sessionTitle(s)}</div>
+          <div className="cell-sub">
+            {subjectLabel(s.subject)}
+            {test && <> · {test.set_size} questions</>}
+            {s.title && <> · {s.title}</>}
+          </div>
+        </td>
+      ) : (
+        <td>
+          <div className="cell-strong">{sessionTitle(s)}</div>
+          <div className="cell-sub">
+            {/* A student's one list holds both kinds, so it says which. */}
+            {!staff && <>{KIND_LABELS[kindOf(s)]} · </>}
+            {subjectLabel(s.subject)} · {s.duration_mins} min
+          </div>
+        </td>
+      )}
+      {staff && !targeted && (
         <td>
           <LevelsSat session={s} />
         </td>
@@ -365,7 +465,14 @@ function SessionRow({
           loads a whole test at a time and loads another one when the level
           moves, so question_count reads 27 for a lesson of six questions. */}
       <td className="num">
-        {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
+        {s.answered_count > 0 ? (
+          <>
+            {s.answered_count}
+            {test && <span className="muted-cell"> of {test.set_size}</span>}
+          </>
+        ) : (
+          <span className="dash">—</span>
+        )}
       </td>
       {canLink && (
         <td className="row-actions">

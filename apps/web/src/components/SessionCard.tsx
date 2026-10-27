@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { subjectLabel } from '../lib/constants'
+import { KIND_LABELS, kindOf, sessionTitle } from '../lib/sessions'
 import { formatUtc, utcParts } from '../lib/time'
 import type { Session } from '../lib/types'
 import { StatusBadge } from '../pages/Sessions'
@@ -32,7 +33,7 @@ export function SessionCard({
         <div className="m">{when.month}</div>
       </div>
       <div className="body">
-        <h3>{s.title || `${subjectLabel(s.subject)} session`}</h3>
+        <h3>{sessionTitle(s)}</h3>
         <div className="meta">
           {formatUtc(s.scheduled_at)} · {s.duration_mins} min
           {counterpart && (
@@ -45,6 +46,8 @@ export function SessionCard({
         </div>
         <div className="tags">
           <StatusBadge status={s.status} />
+          {/* Staff book and read the two kinds apart; the card says which. */}
+          {isTeacher && <span className="badge badge-neutral">{KIND_LABELS[kindOf(s)]}</span>}
           <span className="badge badge-neutral">{subjectLabel(s.subject)}</span>
         </div>
       </div>
