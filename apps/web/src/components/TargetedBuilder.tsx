@@ -1,41 +1,41 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SECTIONS, skillsFor } from '../lib/constants'
+import { SECTIONS, sectionLabel, skillLabel, skillsFor } from '../lib/constants'
 import { sessionsSinceLastTest, type StudentProgress } from '../lib/progress'
 import { loadCandidates, loadConfig } from '../lib/progressApi'
-import { supabase } from '../lib/supabase'
+import { rows, supabase } from '../lib/supabase'
 import {
   buildSet,
-  byLevel,
   chosenSet,
   describeSet,
-  LEVEL_ORDER,
   levelCounts,
   seededRandom,
   type Candidate,
 } from '../lib/targetedSet'
-import type { Difficulty, Subject } from '../lib/types'
+import type { Question, Subject } from '../lib/types'
+import { MathText } from './MathText'
+import { MAX_SET, TargetedPicker, whereFrom } from './TargetedPicker'
 import { DifficultyBadge, Field, Input, Notice, Select } from './ui'
 
 /**
  * What the teacher asks for when they book a targeted test (0061): the skill
- * first, then the questions on it, then the clocks.
+ * first, then how the questions are chosen, then the clocks.
  *
- * The questions are chosen one of two ways. **Choose them myself** lists every
- * question on the skill, by level, each with a box to tick — the start of its
- * passage under the stem, since a skill's stems are often word for word the
- * same. **Pick for me** draws a balanced set at random (lib/targetedSet:
- * easy → medium → hard, unseen before seen), and Pick again draws another.
- * Switching from a pick to choosing keeps the pick ticked, to adjust.
+ * Neither way is chosen until the teacher picks one. **Choose them myself**
+ * opens the questions on the skill in a pop-up (TargetedPicker) to tick;
+ * **Pick for me** draws a balanced set at random (lib/targetedSet: easy →
+ * medium → hard, unseen before seen), and Pick again draws another. Either
+ * way the form then shows the set as a short numbered list, with Edit to open
+ * the pop-up on it — a pick edited by hand becomes a set chosen by hand.
  *
- * This replaced a set built in printed order with a Swap menu under every
- * question, which made choosing a set ten menus long.
+ * The questions used to be listed down the form itself, fifty boxes deep on a
+ * well-stocked skill, and before that a Swap menu under every question.
  */
 export interface TargetedDraft {
   section: string
   /** Null: the whole section. */
   skill: string | null
-  /** Ticked by the teacher, or drawn at random. */
-  how: 'manual' | 'auto'
+  /** Ticked by the teacher, drawn at random, or not chosen yet. */
+  how: 'manual' | 'auto' | null
   /** Pick for me: how many to draw. A ticked set is as long as what is ticked. */
   size: number
   /** Pick for me: the draw. Pick again is a new one. */
@@ -58,7 +58,7 @@ export function emptyDraft(subject: Subject): TargetedDraft {
   return {
     section: SECTIONS[subject][0].value,
     skill: null,
-    how: 'manual',
+    how: null,
     size: 0,
     seed: newSeed(),
     questionSeconds: null,
@@ -70,40 +70,23 @@ export function emptyDraft(subject: Subject): TargetedDraft {
 
 /** The size the test is booked with: what was asked for, or what was ticked. */
 export function bookedSize(d: TargetedDraft): number {
-  return d.how === 'manual' ? d.questions.length : d.size
+  return d.how === 'auto' ? d.size : d.questions.length
 }
 
 /** What create_targeted_session would refuse, said before it is pressed. Null when it is ready. */
 export function draftProblem(d: TargetedDraft): string | null {
+  if (d.how === null) return 'Choose how the questions are picked.'
   if (d.questions.length === 0)
     return d.how === 'manual'
-      ? 'Tick the questions you want in the test.'
+      ? 'Choose the questions for the test.'
       : 'The set is empty — there are no questions on this skill to use.'
   const size = bookedSize(d)
-  if (size < 1 || size > 20 || d.questions.length > 20) return 'A targeted test is 1 to 20 questions.'
+  if (size < 1 || size > MAX_SET || d.questions.length > MAX_SET)
+    return `A targeted test is 1 to ${MAX_SET} questions.`
   if (d.questionSeconds !== null && (d.questionSeconds < 10 || d.questionSeconds > 900))
     return 'A question’s clock is 10 to 900 seconds.'
   if (d.overallMinutes < 1 || d.overallMinutes > 180) return 'The whole test is 1 to 180 minutes.'
   return null
-}
-
-/** The most a set can hold (write_targeted_set). */
-const MAX = 20
-
-interface QuestionRow {
-  id: string
-  stem: string
-  difficulty: Difficulty
-  passage: string | null
-}
-
-const LEVEL_LABEL: Record<Difficulty, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' }
-
-/** The opening of a passage, on one line: enough to tell two "main idea" questions apart. */
-function opening(passage: string | null): string | null {
-  if (!passage) return null
-  const flat = passage.replace(/\s+/g, ' ').trim()
-  return flat.length > 150 ? `${flat.slice(0, 150).trimEnd()}…` : flat
 }
 
 export function TargetedBuilder({
@@ -121,9 +104,10 @@ export function TargetedBuilder({
   progress: StudentProgress | null
 }) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [questions, setQuestions] = useState<Map<string, QuestionRow>>(new Map())
+  const [questions, setQuestions] = useState<Map<string, Question>>(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [picking, setPicking] = useState(false)
 
   // The admin's default size, once per subject, when nothing has been chosen.
   useEffect(() => {
@@ -137,6 +121,8 @@ export function TargetedBuilder({
     }
   }, [subject, draft.size])
 
+  // The questions themselves too, without their keys: the pop-up shows each
+  // one the way the student will see it.
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -149,10 +135,10 @@ export function TargetedBuilder({
         if (ids.length) {
           const { data } = await supabase
             .from('questions')
-            .select('id, stem, difficulty, passage')
+            .select('*, question_options(*)')
             .in('id', ids)
           if (!active) return
-          setQuestions(new Map(((data ?? []) as QuestionRow[]).map((q) => [q.id, q])))
+          setQuestions(new Map(rows<Question>(data).map((q) => [q.id, q])))
         } else {
           setQuestions(new Map())
         }
@@ -180,7 +166,7 @@ export function TargetedBuilder({
     if (loading) return
     if (draft.how === 'auto') {
       onChange({ ...draft, questions: built.questions.map((c) => c.question_id) })
-    } else {
+    } else if (draft.how === 'manual') {
       const kept = chosenSet(draft.questions, candidates).map((c) => c.question_id)
       if (kept.join() !== draft.questions.join()) onChange({ ...draft, questions: kept })
     }
@@ -188,43 +174,22 @@ export function TargetedBuilder({
 
   const byId = useMemo(() => new Map(candidates.map((c) => [c.question_id, c])), [candidates])
   const set = draft.questions.map((id) => byId.get(id)).filter((c): c is Candidate => !!c)
-  const counts = levelCounts(set)
   const since = progress ? sessionsSinceLastTest(progress, draft.section, draft.skill) : null
   const notes = describeSet(built)
-  const levels = useMemo(() => byLevel(candidates), [candidates])
-  const ticked = new Set(draft.questions)
-  const full = ticked.size >= MAX
+  const on = draft.skill ? skillLabel(draft.skill) : `${sectionLabel(draft.section)} — whole section`
 
-  function toggle(id: string) {
-    const next = new Set(ticked)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    const chosen = chosenSet(next, candidates)
+  function applyTicked(ids: string[]) {
+    const chosen = chosenSet(ids, candidates)
     onChange({
       ...draft,
+      how: 'manual',
       questions: chosen.map((c) => c.question_id),
       // The server refuses a seen question unless repeats are allowed, and a
       // ticked one was ticked on purpose.
       allowRepeats: chosen.some((c) => c.seen),
     })
+    setPicking(false)
   }
-
-  function setLevel(level: Difficulty, on: boolean) {
-    const next = new Set(ticked)
-    for (const c of levels[level]) {
-      if (on && next.size >= MAX) break
-      if (on) next.add(c.question_id)
-      else next.delete(c.question_id)
-    }
-    const chosen = chosenSet(next, candidates)
-    onChange({
-      ...draft,
-      questions: chosen.map((c) => c.question_id),
-      allowRepeats: chosen.some((c) => c.seen),
-    })
-  }
-
-  const summary = `${set.length} question${set.length === 1 ? '' : 's'} · ${counts.easy} easy, ${counts.medium} medium, ${counts.hard} hard`
 
   return (
     <div className="targeted-builder">
@@ -265,29 +230,30 @@ export function TargetedBuilder({
         </Field>
       </div>
 
-      <div className="label targeted-how-label">The questions</div>
+      <div className="targeted-how-label">
+        The questions
+        <span className="muted">
+          {loading
+            ? ' · reading the bank…'
+            : ` · ${candidates.length} on ${draft.skill ? 'this skill' : 'this section'}`}
+        </span>
+      </div>
       <div className="mode-pick" role="group" aria-label="How the questions are chosen">
         <button
           type="button"
           className={`mode-opt ${draft.how === 'manual' ? 'on' : ''}`}
           aria-pressed={draft.how === 'manual'}
-          onClick={() =>
-            draft.how !== 'manual' &&
-            onChange({
-              ...draft,
-              how: 'manual',
-              // What was picked stays ticked, to adjust.
-              allowRepeats: set.some((c) => c.seen),
-            })
-          }
+          disabled={loading || candidates.length === 0}
+          onClick={() => setPicking(true)}
         >
           <strong>Choose them myself</strong>
-          <span className="mode-hint">Every question on the skill, with a box to tick.</span>
+          <span className="mode-hint">Read each question and tick the ones you want.</span>
         </button>
         <button
           type="button"
           className={`mode-opt ${draft.how === 'auto' ? 'on' : ''}`}
           aria-pressed={draft.how === 'auto'}
+          disabled={loading || candidates.length === 0}
           onClick={() =>
             draft.how !== 'auto' &&
             onChange({ ...draft, how: 'auto', allowRepeats: false, seed: newSeed() })
@@ -299,137 +265,51 @@ export function TargetedBuilder({
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
+      {!loading && candidates.length === 0 && !error && (
+        <p className="field-hint">
+          There are no questions on this {draft.skill ? 'skill' : 'section'} yet. Choose another,
+          or add some to the practice pool.
+        </p>
+      )}
 
       {draft.how === 'auto' && (
-        <div className="grid-2">
-          <Field label="How many" hint="The set may be shorter if the bank is.">
+        <div className="targeted-auto">
+          <label className="targeted-auto-size">
+            How many
             <Input
               type="number"
               min={1}
-              max={MAX}
+              max={MAX_SET}
               value={draft.size || ''}
               onChange={(e) =>
                 onChange({ ...draft, size: Math.max(0, Number(e.target.value) || 0) })
               }
             />
-          </Field>
-          <label className="check targeted-repeats">
+          </label>
+          <label className="check">
             <input
               type="checkbox"
               checked={draft.allowRepeats}
               onChange={(e) => onChange({ ...draft, allowRepeats: e.target.checked })}
             />{' '}
-            Allow questions the student has seen before (unseen ones still come first)
+            Include questions they have seen (unseen still come first)
           </label>
         </div>
       )}
 
-      <div className="targeted-set-head">
-        <div className="section-title">
-          {draft.how === 'manual' ? `Ticked — ${summary}` : `The set — ${summary}`}
-        </div>
-        {draft.how === 'auto' ? (
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            disabled={loading || candidates.length === 0}
-            onClick={() => onChange({ ...draft, seed: newSeed() })}
-          >
-            Pick again
-          </button>
-        ) : (
-          set.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => onChange({ ...draft, questions: [], allowRepeats: false })}
-            >
-              Clear
-            </button>
-          )
-        )}
-      </div>
-
-      {loading ? (
-        <p className="muted">Reading the bank…</p>
-      ) : candidates.length === 0 ? (
-        <p className="muted">There are no questions on this {draft.skill ? 'skill' : 'section'} yet.</p>
-      ) : draft.how === 'auto' ? (
-        <>
-          {notes.length > 0 && (
-            <Notice kind="info">
-              {notes.map((n) => (
-                <div key={n}>{n}</div>
-              ))}
-            </Notice>
-          )}
-          <ol className="targeted-set">
-            {set.map((c) => (
-              <QuestionLine key={c.question_id} c={c} q={questions.get(c.question_id)} />
-            ))}
-          </ol>
-        </>
-      ) : (
-        <div className="targeted-pick">
-          {full && (
-            <p className="field-hint">A targeted test is at most {MAX} questions.</p>
-          )}
-          {LEVEL_ORDER.map((level) =>
-            levels[level].length === 0 ? null : (
-              <section key={level} className="targeted-level">
-                <div className="targeted-level-head">
-                  <DifficultyBadge level={level} />
-                  <span className="muted">
-                    {levels[level].filter((c) => ticked.has(c.question_id)).length} of{' '}
-                    {levels[level].length} ticked
-                  </span>
-                  <span className="spring" />
-                  {levels[level].every((c) => ticked.has(c.question_id)) ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setLevel(level, false)}
-                    >
-                      Untick all {LEVEL_LABEL[level].toLowerCase()}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      disabled={full}
-                      onClick={() => setLevel(level, true)}
-                    >
-                      Tick all {LEVEL_LABEL[level].toLowerCase()}
-                    </button>
-                  )}
-                </div>
-                <ul>
-                  {levels[level].map((c) => {
-                    const on = ticked.has(c.question_id)
-                    return (
-                      <li key={c.question_id} className={on ? 'on' : ''}>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            disabled={!on && full}
-                            onChange={() => toggle(c.question_id)}
-                          />
-                          <QuestionText c={c} q={questions.get(c.question_id)} />
-                        </label>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            ),
-          )}
-        </div>
+      {draft.how !== null && !loading && (
+        <ChosenSet
+          set={set}
+          questions={questions}
+          notes={draft.how === 'auto' ? notes : []}
+          onEdit={() => setPicking(true)}
+          onPickAgain={
+            draft.how === 'auto' ? () => onChange({ ...draft, seed: newSeed() }) : undefined
+          }
+        />
       )}
 
-      <div className="section-title" style={{ marginTop: 18 }}>
-        Timing
-      </div>
+      <div className="section-title targeted-timing">Timing</div>
       <div className="grid-2">
         <Field label="The whole test (minutes)">
           <Input
@@ -465,30 +345,106 @@ export function TargetedBuilder({
           </Field>
         </div>
       )}
+
+      {picking && (
+        <TargetedPicker
+          candidates={candidates}
+          questions={questions}
+          initial={draft.questions}
+          title={on ?? ''}
+          onUse={applyTicked}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </div>
   )
 }
 
-/** The stem, the start of the passage, and where the question comes from. */
-function QuestionText({ c, q }: { c: Candidate; q: QuestionRow | undefined }) {
-  const from = opening(q?.passage ?? null)
-  return (
-    <span className="targeted-q">
-      <span className="stem">{q?.stem ?? '—'}</span>
-      {from && <span className="passage">{from}</span>}
-      <span className="meta">
-        {c.source === 'practice' ? 'Practice pool' : `${LEVEL_LABEL[c.set_level ?? c.difficulty]} test, #${c.set_position}`}
-        {c.seen && <span className="badge badge-neutral">Seen before</span>}
-      </span>
-    </span>
-  )
-}
+/**
+ * The set, as the form shows it once it is chosen: how many and how they
+ * split by level, then one line a question in the order they are sat.
+ */
+function ChosenSet({
+  set,
+  questions,
+  notes,
+  onEdit,
+  onPickAgain,
+}: {
+  set: Candidate[]
+  questions: Map<string, Question>
+  /** What the draw could not balance. */
+  notes: string[]
+  onEdit: () => void
+  /** Only for a set picked at random. */
+  onPickAgain?: () => void
+}) {
+  const counts = levelCounts(set)
 
-function QuestionLine({ c, q }: { c: Candidate; q: QuestionRow | undefined }) {
+  if (set.length === 0) {
+    return (
+      <div className="chosen-empty">
+        <p>No questions chosen yet.</p>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onEdit}>
+          Choose questions
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <li>
-      <DifficultyBadge level={c.difficulty} />
-      <QuestionText c={c} q={q} />
-    </li>
+    <div className="chosen">
+      <div className="chosen-head">
+        <div>
+          <div className="chosen-count">
+            {set.length} question{set.length === 1 ? '' : 's'}
+          </div>
+          <div className="chosen-mix">
+            {(['easy', 'medium', 'hard'] as const).map((l) =>
+              counts[l] > 0 ? (
+                <span key={l} className={`badge badge-${l}`}>
+                  {counts[l]} {l}
+                </span>
+              ) : null,
+            )}
+          </div>
+        </div>
+        <span className="spring" />
+        {onPickAgain && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onPickAgain}>
+            Pick again
+          </button>
+        )}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onEdit}>
+          {onPickAgain ? 'Change by hand' : 'Edit'}
+        </button>
+      </div>
+
+      {notes.length > 0 && (
+        <Notice kind="info">
+          {notes.map((n) => (
+            <div key={n}>{n}</div>
+          ))}
+        </Notice>
+      )}
+
+      <ol className="chosen-list">
+        {set.map((c, i) => {
+          const q = questions.get(c.question_id)
+          return (
+            <li key={c.question_id}>
+              <span className="chosen-n">{i + 1}</span>
+              <span className="chosen-text">
+                <span className="chosen-stem">
+                  <MathText text={q?.stem ?? '—'} math={q?.subject === 'mathematics'} />
+                </span>
+                <span className="chosen-from">{whereFrom(c)}</span>
+              </span>
+              <DifficultyBadge level={c.difficulty} />
+            </li>
+          )
+        })}
+      </ol>
+    </div>
   )
 }

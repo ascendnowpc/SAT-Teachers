@@ -795,15 +795,17 @@ under another name, counted the same way between tests. Nothing books one now, a
 files those rows with the diagnostics.
 
 **Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
-section), then the questions, one of two ways, then the clocks. **Choose them myself** lists
-every question on the skill from `targeted_candidates`, by level, each with a box to tick, the
-start of its passage under the stem (a skill's stems are often word for word the same) and
-"Seen before" on any the student has met; the set is what is ticked, sat easy → medium → hard.
-**Pick for me** draws a balanced set at random — `lib/targetedSet.ts`: a size (5 by default, an
-admin's setting), easy → medium → hard (5 → 2/1/2, 10 → 3/3/4), unseen before seen, a seeded
-draw that Pick again replaces. A level the bank cannot fill borrows from its neighbour and the
-form says so — "a balanced set needs 1 medium; 0 unseen — 1 short". Switching from a pick to
-choosing keeps the pick ticked, to adjust. `create_targeted_session` books the session and its
+section), then how the questions are chosen, then the clocks. **Choose them myself** opens a
+pop-up (`components/TargetedPicker.tsx`) on every question on the skill from
+`targeted_candidates`: the levels as tabs, a box to tick on each question, "seen before" on any
+the student has met, and the question clicked shown whole on the right the way the student will
+see it — a skill's stems are often word for word the same. "Use these" brings the ticks back;
+the set is sat easy → medium → hard. **Pick for me** draws a balanced set at random —
+`lib/targetedSet.ts`: a size (5 by default, an admin's setting), easy → medium → hard (5 →
+2/1/2, 10 → 3/3/4), unseen before seen, a seeded draw that Pick again replaces. A level the bank
+cannot fill borrows from its neighbour and the form says so — "a balanced set needs 1 medium; 0
+unseen — 1 short". Either way the form then shows the set as a numbered list with its mix by
+level, and Edit reopens the pop-up on it. `create_targeted_session` books the session and its
 set in one transaction and checks every question again; a ticked set allows repeats exactly
 when a ticked question was seen. The set is the teacher's and an admin's to read: it is what the
 student has not seen.

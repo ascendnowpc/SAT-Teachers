@@ -2346,31 +2346,65 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 /* The targeted test's set builder (0061). */
 .targeted-builder .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0 4px; }
 .targeted-builder .muted { color: var(--muted); font-size: 13px; }
-.targeted-set { list-style: decimal; padding-left: 22px; margin: 8px 0 0; display: grid; gap: 8px; }
-.targeted-set li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; }
 .targeted-how-label { margin: 6px 0 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
-.targeted-builder .targeted-repeats { align-self: end; margin: 0 0 18px; }
-.targeted-set-head { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
-.targeted-set-head .section-title { flex: 1; margin-bottom: 0; }
-/* Choose them myself: every question on the skill, a box each, by level. */
-.targeted-pick { display: grid; gap: 16px; margin-top: 10px; }
-.targeted-level-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.targeted-level-head .spring { flex: 1; }
-.targeted-level ul {
-  list-style: none; margin: 0; padding: 0;
-  border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: #fff;
+.targeted-how-label .muted { font-weight: 400; }
+.mode-opt:disabled { cursor: default; opacity: .55; }
+.targeted-timing { margin-top: 22px; }
+
+/* Pick for me: how many, and whether seen questions may come back. */
+.targeted-auto { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; margin: 0 0 14px; }
+.targeted-auto-size { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.targeted-auto-size .input { width: 84px; text-align: center; font-variant-numeric: tabular-nums; }
+.targeted-builder .targeted-auto .check { margin: 0; }
+
+/* The chosen set, once chosen: how many, the mix, a line a question. */
+.chosen { border: 1px solid var(--border); border-radius: var(--r); background: #fff; overflow: hidden; }
+.chosen-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 16px; background: var(--navy-50); }
+.chosen-head .spring { flex: 1; }
+.chosen-count { font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--ink); line-height: 1.2; }
+.chosen-mix { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chosen > .notice { margin: 12px 16px 0; }
+.chosen-list { list-style: none; margin: 0; padding: 4px 0; }
+.chosen-list li {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  padding: 10px 16px;
 }
-.targeted-level li + li { border-top: 1px solid var(--border); }
-.targeted-level li.on { background: var(--sky-wash); }
-.targeted-level label {
-  display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start;
-  padding: 10px 14px; cursor: pointer;
+.chosen-list li + li { border-top: 1px solid var(--border); }
+.chosen-n {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--navy-50); font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
-.targeted-level input[type='checkbox'] { width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--navy-700); }
-.targeted-q { display: grid; gap: 3px; min-width: 0; }
-.targeted-q .stem { font-size: 14px; font-weight: 500; color: var(--ink); }
-.targeted-q .passage { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.targeted-q .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+.chosen-text { display: grid; gap: 2px; min-width: 0; }
+.chosen-stem {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 14px; line-height: 1.45; color: var(--ink);
+}
+.chosen-from { font-size: 12px; color: var(--muted); }
+.chosen-empty {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  padding: 16px 18px; border: 1px dashed var(--border-strong); border-radius: var(--r);
+}
+.chosen-empty p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* The pop-up that chooses them: the console's picker, with a box a row. */
+.tpick-sub { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+.tpick-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.tpick-tabs .spring { flex: 1; }
+.tpick-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start;
+  padding: 8px 10px; border: 1px solid transparent; border-radius: var(--r-sm);
+}
+.tpick-row + .tpick-row { margin-top: 2px; }
+.tpick-row.on { background: var(--sky-wash); }
+.tpick-row.focus { border-color: var(--navy-700); }
+.tpick-row input[type='checkbox'] { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--navy-700); cursor: pointer; }
+.tpick-text {
+  min-width: 0; padding: 0; border: 0; background: none; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+}
+.tpick-text:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.tpick-num { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tpick-list .picker-skill { margin-top: 2px; }
 @media (min-width: 700px) { .mode-pick.mode-pick-3 { grid-template-columns: 1fr 1fr 1fr; } }
 .mode-opt .mode-hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; margin-top: 4px; }
 .field-hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
