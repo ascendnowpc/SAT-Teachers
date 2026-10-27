@@ -850,7 +850,9 @@ percentage points more often). Nothing stored depends on them: a change re-reads
 
 **The practice pool** (`0060`) is a set per subject, listed in the bank with the three tests. A
 question written into it says its own difficulty and must have a skill; no lesson control can
-reach it, since they all look a test up by its level.
+reach it, since they all look a test up by its level. English's pool holds 48 Cross-Text
+Connections questions (`0065`, `ENG-PRACTICE-CTC-Q01` … `Q53`): 14 easy, 17 medium, 17 hard,
+transcribed from OnePrep with its accuracy and timing figures as each one's difficulty rationale.
 
 ## The one rule that shapes the schema
 
