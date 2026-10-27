@@ -1,21 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { IconBack, IconClock } from '../components/icons'
-import {
-  OverridePanel,
-  ProgressLineView,
-  SkillNotesPanel,
-  TargetedAnalysisView,
-  skillTitle,
-  useLongPattern,
-} from '../components/ProgressPanels'
+import { OverridePanel, SkillNotesPanel, skillTitle } from '../components/ProgressPanels'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
 import { clock } from '../lib/countdown'
-import { progressLine, type ProgressConfig, type StudentProgress } from '../lib/progress'
-import { loadConfig, loadProgress } from '../lib/progressApi'
-import { analyseTargeted } from '../lib/targetedAnalytics'
+import { progressLine, type StudentProgress } from '../lib/progress'
+import { loadProgress } from '../lib/progressApi'
 import { questionEndsAt, secondsLeft } from '../lib/targetedClock'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -108,19 +100,14 @@ export function TargetedConsole({
   const isOpen = due || session.opened_early_at !== null
   const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
 
-  // What it says, once it is over: the analysis, and the line on this skill
-  // across every teacher's sessions with the student.
-  const [cfg, setCfg] = useState<ProgressConfig | null>(null)
+  // The line on this skill, once it is over: the override panel writes
+  // against the point before this one. Everything else it says is the report's.
   const [progress, setProgress] = useState<StudentProgress | null>(null)
   useEffect(() => {
     if (!over) return
     let active = true
-    void Promise.all([
-      loadConfig(session.subject),
-      loadProgress(session.student_id, session.subject),
-    ]).then(([c, p]) => {
+    void loadProgress(session.student_id, session.subject).then((p) => {
       if (!active) return
-      setCfg(c)
       setProgress(p.progress)
       if (p.error) setLoadError(p.error)
     })
@@ -164,26 +151,10 @@ export function TargetedConsole({
   const unrevealed = items.filter((i) => i.status === 'answered').length
   const onScreen = rows.findIndex((r) => standingOf(r.item, over) === 'on_screen')
 
-  const analysis =
-    over && cfg
-      ? analyseTargeted(
-          items.map((i) => ({
-            status: i.status,
-            is_correct: i.session_item_assessments?.is_correct ?? null,
-            timed_out: i.session_item_assessments?.timed_out ?? false,
-            elapsed_seconds: i.session_item_assessments?.elapsed_seconds ?? null,
-            time_limit_seconds: i.time_limit_seconds ?? null,
-            question: i.questions ?? null,
-          })),
-          set.length,
-          cfg,
-        )
-      : null
   const line = useMemo(
     () => (progress && test ? progressLine(progress, test.section, test.skill) : null),
     [progress, test],
   )
-  const pattern = useLongPattern(progress, line, cfg)
   const here = line?.points.findIndex((p) => p.sessionId === session.id) ?? -1
   const previous = line && here > 0 ? line.points[here - 1].sessionId : null
 
@@ -299,28 +270,21 @@ export function TargetedConsole({
         </div>
       )}
 
-      {over && analysis && (
-        <div className="card card-pad">
-          <div className="section-title">
-            What it says{' '}
-            <Link className="btn btn-ghost btn-sm" to={`/sessions/${session.id}/report`}>
-              The report
-            </Link>
+      {/* What it says lives on the report alone — the analysis, the line on
+          the skill and the summary — so the console only points to it. */}
+      {over && reached > 0 && (
+        <div className="card card-pad report-cta">
+          <div>
+            <div className="section-title">The report</div>
+            <p className="muted">
+              What the answers say, how it is scored, progress on{' '}
+              {test ? skillTitle(test.section, test.skill) : 'the skill'} and a summary of every
+              targeted test.
+            </p>
           </div>
-          <TargetedAnalysisView analysis={analysis} config={cfg} />
-        </div>
-      )}
-
-      {over && line && test && (
-        <div className="card card-pad">
-          <div className="section-title">Progress on {skillTitle(test.section, test.skill)}</div>
-          <ProgressLineView line={line} highlight={session.id} />
-          {pattern && <p className="muted">{pattern.text}</p>}
-          <p className="muted">
-            <Link to={`/students/${session.student_id}/progress`}>
-              Every skill for this student
-            </Link>
-          </p>
+          <Link className="btn btn-primary" to={`/sessions/${session.id}/report`}>
+            Open the report
+          </Link>
         </div>
       )}
 
