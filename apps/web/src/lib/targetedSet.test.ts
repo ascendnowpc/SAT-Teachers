@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildSet,
+  byLevel,
+  chosenSet,
   describeSet,
   inLevelOrder,
   levelCounts,
   mixFor,
   printedOrder,
-  swapAt,
-  swapOptions,
+  seededRandom,
   type Candidate,
 } from './targetedSet'
 import type { Difficulty } from './types'
@@ -187,37 +188,60 @@ describe('buildSet', () => {
   })
 })
 
-describe('swapOptions', () => {
+describe('buildSet at random (Pick for me)', () => {
   const bank = [
-    c('e1', 'easy', 1),
-    c('e2', 'easy', 2),
-    c('e3', 'easy', 3, { seen: true }),
-    c('m1', 'medium', 1),
-    c('m2', 'medium', 2),
-    c('h1', 'hard', 1),
-    c('h2', 'hard', 2),
+    ...Array.from({ length: 8 }, (_, i) => c(`e${i + 1}`, 'easy', i + 1)),
+    ...Array.from({ length: 8 }, (_, i) => c(`m${i + 1}`, 'medium', i + 1)),
+    ...Array.from({ length: 8 }, (_, i) => c(`h${i + 1}`, 'hard', i + 1)),
   ]
-  const set = ['e1', 'm1', 'h1']
+  const pick = (seed: number, rows = bank) =>
+    ids(buildSet(rows, 5, { allowRepeats: false, random: seededRandom(seed) }).questions)
 
-  it('offers the same level first, then the nearer levels, nothing already in the set', () => {
-    expect(ids(swapOptions(set, bank, 0, { allowRepeats: false }))).toEqual(['e2', 'm2', 'h2'])
-    expect(ids(swapOptions(set, bank, 1, { allowRepeats: false }))).toEqual(['m2', 'e2', 'h2'])
+  it('is the same draw for the same seed, and keeps the balance', () => {
+    expect(pick(7)).toEqual(pick(7))
+    const levels = pick(7).map((id) => id[0])
+    expect(levels).toEqual(['e', 'e', 'm', 'h', 'h'])
   })
 
-  it('offers seen questions after unseen, and only when repeats are allowed', () => {
-    expect(ids(swapOptions(set, bank, 0, { allowRepeats: true }))).toEqual(['e2', 'e3', 'm2', 'h2'])
+  it('draws differently for another seed', () => {
+    const draws = new Set([1, 2, 3, 4, 5, 6].map((s) => pick(s).join()))
+    expect(draws.size).toBeGreaterThan(1)
+  })
+
+  it('still takes unseen before seen', () => {
+    const rows = bank.map((x) => (x.difficulty === 'easy' && x.set_position > 2 ? { ...x, seen: true } : x))
+    for (const seed of [1, 2, 3]) {
+      const easy = buildSet(rows, 5, { allowRepeats: true, random: seededRandom(seed) }).questions
+        .filter((q) => q.difficulty === 'easy')
+        .map((q) => q.question_id)
+      expect(easy.sort()).toEqual(['e1', 'e2'])
+    }
   })
 })
 
-describe('swapAt', () => {
-  const bank = [c('e1', 'easy', 1), c('e2', 'easy', 2), c('m1', 'medium', 1), c('h1', 'hard', 1)]
+describe('byLevel and chosenSet (Choose myself)', () => {
+  const bank = [
+    c('h2', 'hard', 2),
+    c('e2', 'easy', 2),
+    c('m1', 'medium', 1),
+    c('e1', 'easy', 1),
+    c('p1', 'easy', 1, { source: 'practice', set_level: null }),
+    c('h1', 'hard', 1),
+  ]
 
-  it('replaces in place within a level', () => {
-    expect(swapAt(['e1', 'm1', 'h1'], bank, 0, 'e2')).toEqual(['e2', 'm1', 'h1'])
+  it('lists every question by level, in printed order', () => {
+    const l = byLevel(bank)
+    expect(ids(l.easy)).toEqual(['e1', 'e2', 'p1'])
+    expect(ids(l.medium)).toEqual(['m1'])
+    expect(ids(l.hard)).toEqual(['h1', 'h2'])
   })
 
-  it('moves a question swapped to another level to its level’s place', () => {
-    expect(swapAt(['e1', 'm1', 'h1'], bank, 2, 'e2')).toEqual(['e1', 'e2', 'm1'])
+  it('puts what was ticked in the order it is sat, whatever order it was ticked in', () => {
+    expect(ids(chosenSet(['h2', 'p1', 'm1', 'e1'], bank))).toEqual(['e1', 'p1', 'm1', 'h2'])
+  })
+
+  it('drops a question that is not on the skill', () => {
+    expect(ids(chosenSet(['e1', 'elsewhere'], bank))).toEqual(['e1'])
   })
 })
 

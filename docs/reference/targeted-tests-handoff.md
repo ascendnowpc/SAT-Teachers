@@ -115,6 +115,12 @@ lobby, leave and end-screen copy: answered / ran out of time / not reached), and
   `/sessions/new/targeted` a targeted test, each its own form (`SessionNew kind=…`). Old `live`
   rows are filed with the diagnostics (`lib/sessions.ts` `kindOf`). The list embeds
   `targeted_tests(section, skill, set_size)` for the skill column. No migration.
+- **Since: choosing the set.** The product owner wants the skill first, then the questions —
+  "Choose them myself" (every candidate by level, a checkbox each, the passage's opening under
+  the stem) or "Pick for me" (a balanced draw at random, `BuildOptions.random` with
+  `seededRandom`, Pick again). The Swap menus are gone, with `swapOptions`/`swapAt`; `chosenSet`
+  orders a ticked set. A ticked set books with `p_size` = what is ticked and allows repeats
+  exactly when a ticked question was seen. No migration.
 - Targeted console, once over: analysis, the line on the skill (with the long pattern), the
   override panel (against the point before), and the private note + PC summary
   (`components/ProgressPanels.tsx`).

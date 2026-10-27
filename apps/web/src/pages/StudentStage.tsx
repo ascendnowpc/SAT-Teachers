@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Explanation } from '../components/Explanation'
 import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
 import { MathText } from '../components/MathText'
@@ -558,15 +559,11 @@ function Finished({ items, targeted }: { items: SessionItem[]; targeted: Targete
                 )
               }
               footer={
-                it.revealed_explanation && (
-                  <div className="q-note">
-                    <div className="section-title">Why</div>
-                    <MathText
-                      text={it.revealed_explanation}
-                      math={it.questions?.subject === 'mathematics'}
-                    />
-                  </div>
-                )
+                <Explanation
+                  text={it.revealed_explanation}
+                  math={it.questions?.subject === 'mathematics'}
+                  title="Why"
+                />
               }
             />
           </article>
