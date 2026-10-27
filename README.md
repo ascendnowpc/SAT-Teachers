@@ -795,15 +795,25 @@ under another name, counted the same way between tests. Nothing books one now, a
 files those rows with the diagnostics.
 
 **Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
-section), a size (5 by default, an admin's setting), the clocks, and whether a question the
-student has already seen may come back. `lib/targetedSet.ts` builds the set from
-`targeted_candidates`: easy → medium → hard (5 → 2/1/2, 10 → 3/3/4), unseen before seen, the
-three tests in printed order before the practice pool. A level the bank cannot fill borrows from
-its neighbour and the form says so — "a balanced set needs 1 medium; 0 unseen — 1 short" —
-because no skill has ten questions across the three tests yet. Any question can be swapped
-before the student starts; `create_targeted_session` books the session and its set in one
-transaction and checks every question again. The set is the teacher's and an admin's to read:
-it is what the student has not seen.
+section), then the questions, one of two ways, then the clocks. **Choose them myself** lists
+every question on the skill from `targeted_candidates`, by level, each with a box to tick, the
+start of its passage under the stem (a skill's stems are often word for word the same) and
+"Seen before" on any the student has met; the set is what is ticked, sat easy → medium → hard.
+**Pick for me** draws a balanced set at random — `lib/targetedSet.ts`: a size (5 by default, an
+admin's setting), easy → medium → hard (5 → 2/1/2, 10 → 3/3/4), unseen before seen, a seeded
+draw that Pick again replaces. A level the bank cannot fill borrows from its neighbour and the
+form says so — "a balanced set needs 1 medium; 0 unseen — 1 short". Switching from a pick to
+choosing keeps the pick ticked, to adjust. `create_targeted_session` books the session and its
+set in one transaction and checks every question again; a ticked set allows repeats exactly
+when a ticked question was seen. The set is the teacher's and an admin's to read: it is what the
+student has not seen.
+
+**Explanations** are drawn in the shape they were written in (`lib/explanation.ts`,
+`components/Explanation.tsx`). The OnePrep items (`0065`) say why the key is right and why each
+other choice is wrong, each with a named step and often a key phrase; the test page and the
+student's results lay that out as OnePrep does — the key's reason, then one row per other
+choice — and show OnePrep's accuracy and timing as figures under "Why easy". An explanation in
+any other shape is shown as written, its line breaks kept.
 
 **Sitting it** (`0062`). The student opens their link and presses Start. The server puts question
 1 up, stamps when it did, and fixes its clock (the test's seconds a question, or the question's

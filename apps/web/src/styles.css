@@ -2347,9 +2347,30 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .targeted-builder .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0 4px; }
 .targeted-builder .muted { color: var(--muted); font-size: 13px; }
 .targeted-set { list-style: decimal; padding-left: 22px; margin: 8px 0 0; display: grid; gap: 8px; }
-.targeted-set li { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
-.targeted-set li .stem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.targeted-set li select { grid-column: 2 / -1; max-width: 100%; }
+.targeted-set li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; }
+.targeted-how-label { margin: 6px 0 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
+.targeted-builder .targeted-repeats { align-self: end; margin: 0 0 18px; }
+.targeted-set-head { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.targeted-set-head .section-title { flex: 1; margin-bottom: 0; }
+/* Choose them myself: every question on the skill, a box each, by level. */
+.targeted-pick { display: grid; gap: 16px; margin-top: 10px; }
+.targeted-level-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.targeted-level-head .spring { flex: 1; }
+.targeted-level ul {
+  list-style: none; margin: 0; padding: 0;
+  border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: #fff;
+}
+.targeted-level li + li { border-top: 1px solid var(--border); }
+.targeted-level li.on { background: var(--sky-wash); }
+.targeted-level label {
+  display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start;
+  padding: 10px 14px; cursor: pointer;
+}
+.targeted-level input[type='checkbox'] { width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--navy-700); }
+.targeted-q { display: grid; gap: 3px; min-width: 0; }
+.targeted-q .stem { font-size: 14px; font-weight: 500; color: var(--ink); }
+.targeted-q .passage { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.targeted-q .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
 @media (min-width: 700px) { .mode-pick.mode-pick-3 { grid-template-columns: 1fr 1fr 1fr; } }
 .mode-opt .mode-hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; margin-top: 4px; }
 .field-hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
@@ -2398,3 +2419,48 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .settings-save { margin-top: 18px; }
 .settings-save .notice { margin-bottom: 10px; }
 .settings-save-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* An explanation in OnePrep's shape (lib/explanation): why the key is right,
+   then each other choice on its own row, every part with its step. */
+.expl-plain { white-space: pre-line; }
+.expl-head {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  font-size: 13.5px; font-weight: 600; color: var(--ink);
+}
+.expl-letter {
+  display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px;
+  border-radius: 50%; border: 1px solid var(--border-strong); background: #fff;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+}
+.expl-letter-ok { background: var(--sky-dark); border-color: var(--sky-dark); color: #fff; }
+.expl-right {
+  padding: 14px 16px; border-radius: var(--r-sm);
+  background: var(--sky-wash); border: 1px solid rgba(59, 164, 222, .25);
+}
+.expl-wrong { margin-top: 14px; }
+.expl-wrong ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.expl-wrong li {
+  display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff;
+}
+.expl-lead { margin: 2px 0 0; color: var(--ink); font-weight: 500; }
+.expl-step { margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--navy-100); }
+.expl-right .expl-step:first-child { margin-top: 0; }
+.expl-step-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.expl-step-n {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--sky-dark);
+}
+.expl-key { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.expl-key q {
+  quotes: '“' '”'; margin-left: 4px; padding: 1px 6px; border-radius: 4px;
+  background: var(--medium-bg); color: var(--ink); font-style: italic;
+}
+.expl-step p { margin: 4px 0 0; }
+.expl-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 0; }
+.expl-stats > div {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff;
+}
+.expl-stats dt { font-size: 11.5px; color: var(--muted); }
+.expl-stats dd { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.expl-source { margin: 6px 0 0; font-size: 12px; color: var(--muted); }

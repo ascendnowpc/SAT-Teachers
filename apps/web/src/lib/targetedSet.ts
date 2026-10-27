@@ -3,12 +3,14 @@ import type { Difficulty } from './types'
 /**
  * Building a targeted test's set (0061), in the parts that are arithmetic
  * rather than screen: how many of each level a set of a given size asks for,
- * which questions fill it, what is missing when the bank cannot, and what a
- * question can be swapped for.
+ * which questions fill it, what is missing when the bank cannot, and the
+ * order a set the teacher ticked by hand is sat in.
  *
  * Everything here is deterministic — the same candidates give the same set —
  * because a teacher who reopens the builder should see the set they left, and
- * the server checks the set again on save (write_targeted_set) anyway.
+ * the server checks the set again on save (write_targeted_set) anyway. "Pick
+ * for me" draws at random, through a seeded generator: the same seed is the
+ * same draw, and Pick again is a new seed.
  */
 
 /** One row of `targeted_candidates`. */
@@ -117,17 +119,51 @@ export interface BuiltSet {
 
 export interface BuildOptions {
   allowRepeats: boolean
+  /**
+   * A draw at random within each level, unseen still before seen — what Pick
+   * for me uses. Without it a level fills in printed order.
+   */
+  random?: () => number
 }
 
 function usable(c: Candidate, o: BuildOptions): boolean {
   return o.allowRepeats || !c.seen
 }
 
+/** A number generator that gives the same run for the same seed (mulberry32). */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function shuffled<T>(xs: T[], random: () => number): T[] {
+  const out = [...xs]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
 /** The candidates at each level that can go in a set, best first. */
 function pools(candidates: Candidate[], o: BuildOptions): Record<Difficulty, Candidate[]> {
   const out = { easy: [], medium: [], hard: [] } as Record<Difficulty, Candidate[]>
   for (const c of dedupe(candidates)) if (usable(c, o)) out[c.difficulty].push(c)
-  for (const l of LEVEL_ORDER) out[l].sort(preferenceOrder)
+  for (const l of LEVEL_ORDER) {
+    out[l].sort(preferenceOrder)
+    const random = o.random
+    if (random) {
+      const fresh = out[l].filter((c) => !c.seen)
+      const seen = out[l].filter((c) => c.seen)
+      out[l] = [...shuffled(fresh, random), ...shuffled(seen, random)]
+    }
+  }
   return out
 }
 
@@ -231,48 +267,22 @@ export function describeSet(b: BuiltSet): string[] {
   return lines
 }
 
-/**
- * What the question at `position` (from 0) can be swapped for: anything not
- * already in the set, the same level first, then the nearer levels, unseen
- * before seen within each, in printed order. A seen question is offered only
- * when repeats are allowed — the server refuses it otherwise.
- */
-export function swapOptions(
-  set: string[],
-  candidates: Candidate[],
-  position: number,
-  o: BuildOptions,
-): Candidate[] {
-  const all = dedupe(candidates)
-  const current = all.find((c) => c.question_id === set[position])
-  const inSet = new Set(set)
-  const level = current?.difficulty
-  const distance = (c: Candidate) =>
-    level ? Math.abs(LEVEL_ORDER.indexOf(c.difficulty) - LEVEL_ORDER.indexOf(level)) : 0
-  return all
-    .filter((c) => !inSet.has(c.question_id) && usable(c, o))
-    .sort(
-      (a, b) =>
-        distance(a) - distance(b) ||
-        LEVEL_ORDER.indexOf(a.difficulty) - LEVEL_ORDER.indexOf(b.difficulty) ||
-        preferenceOrder(a, b),
-    )
+/** Every question on the skill, by level, in printed order — the list a teacher ticks from. */
+export function byLevel(candidates: Candidate[]): Record<Difficulty, Candidate[]> {
+  const out = { easy: [], medium: [], hard: [] } as Record<Difficulty, Candidate[]>
+  for (const c of dedupe(candidates)) out[c.difficulty].push(c)
+  return out
 }
 
 /**
- * The set with the question at `position` replaced, back in the order it is
- * sat — a swap to another level moves the question to its level's place.
+ * The questions a teacher ticked, in the order they are sat: easy → medium →
+ * hard, printed order within a level. An id that is not a candidate — a
+ * question from another skill, left over from before the skill changed — is
+ * dropped.
  */
-export function swapAt(
-  set: string[],
-  candidates: Candidate[],
-  position: number,
-  questionId: string,
-): string[] {
-  const byId = new Map(dedupe(candidates).map((c) => [c.question_id, c]))
-  const next = set.map((id, i) => (i === position ? questionId : id))
-  const known = next.map((id) => byId.get(id)).filter((c): c is Candidate => !!c)
-  return inLevelOrder(known).map((c) => c.question_id)
+export function chosenSet(ticked: Iterable<string>, candidates: Candidate[]): Candidate[] {
+  const want = new Set(ticked)
+  return LEVEL_ORDER.flatMap((l) => byLevel(candidates)[l].filter((c) => want.has(c.question_id)))
 }
 
 /** The set's own count at each level — what the builder shows beside the mix. */

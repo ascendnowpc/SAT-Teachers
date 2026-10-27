@@ -4,6 +4,7 @@ import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
 import {
   TargetedBuilder,
+  bookedSize,
   draftProblem,
   emptyDraft,
   type TargetedDraft,
@@ -286,7 +287,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           p_skill: draft.skill,
           p_scheduled_at: utcInputToIso(scheduledAt),
           p_title: title.trim() || null,
-          p_size: draft.size,
+          p_size: bookedSize(draft),
           p_questions: draft.questions,
           p_allow_repeats: draft.allowRepeats,
           p_question_seconds: draft.questionSeconds,
