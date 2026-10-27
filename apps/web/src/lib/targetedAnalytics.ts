@@ -107,6 +107,12 @@ export interface TargetedAnalysis {
   short: Tally
   formats: { format: Format; label: string; tally: Tally }[]
   insights: string[]
+  /**
+   * The insights a screen does not already show as figures: everything but the
+   * score sentence and the by-level one, which the report draws as numbers and
+   * bars. The PDF prints `insights` whole.
+   */
+  findings: string[]
 }
 
 function isReached(i: Pick<AnalysedItem, 'status'>): boolean {
@@ -180,6 +186,12 @@ export function analyseTargeted(
   }))
 
   const insights: string[] = []
+  const findings: string[] = []
+  // A finding is an insight too; the score and the levels are insights only.
+  const find = (text: string) => {
+    insights.push(text)
+    findings.push(text)
+  }
   if (met.length === 0) {
     insights.push(
       notReached > 0
@@ -192,7 +204,7 @@ export function analyseTargeted(
         (notReached > 0 ? `, ${notReached} not reached` : '') +
         ` — ${raw!.toFixed(1)} out of 10, level score ${Math.round(level!)}.`,
     )
-    if (timedOut > 0) insights.push(`${plural(timedOut, 'question')} ran out of time.`)
+    if (timedOut > 0) find(`${plural(timedOut, 'question')} ran out of time — counted as wrong.`)
 
     const levels = (['easy', 'medium', 'hard'] as Difficulty[]).filter(
       (d) => byDifficulty[d].total > 0,
@@ -208,25 +220,23 @@ export function analyseTargeted(
       )
     }
     if (rushed > 0)
-      insights.push(
-        `Wrong in under half the target time on ${plural(rushed, 'question')} — rushing.`,
-      )
+      find(`Wrong in under half the target time on ${plural(rushed, 'question')} — rushing.`)
     if (gap > 0)
-      insights.push(
+      find(
         `Wrong after taking the time on ${plural(gap, 'question')} — a gap in method or knowledge, not speed.`,
       )
     if (hesitation > 0)
-      insights.push(
+      find(
         `Right but over ${LABOURED_RATIO}× the target time on ${plural(hesitation, 'question')} — hesitation.`,
       )
     if (long.total > 0 && short.total > 0) {
-      insights.push(
+      find(
         `Long questions ${long.correct} of ${long.total} right; short ${short.correct} of ${short.total}.`,
       )
     }
     for (const f of formatRows) {
       if (f.tally.correct < f.tally.total && formatRows.length > 1) {
-        insights.push(`${f.label}: ${f.tally.correct} of ${f.tally.total} right.`)
+        find(`${f.label}: ${f.tally.correct} of ${f.tally.total} right.`)
       }
     }
   }
@@ -248,6 +258,7 @@ export function analyseTargeted(
     short,
     formats: formatRows,
     insights,
+    findings,
   }
 }
 

@@ -3,10 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import {
   ProgressLineView,
+  ScoringNote,
   SkillNotesPanel,
   skillTitle,
   useLongPattern,
 } from '../components/ProgressPanels'
+import { TestsSummary } from '../components/TestsSummary'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { SUBJECTS } from '../lib/constants'
@@ -113,17 +115,23 @@ export function StudentProgress() {
           </p>
         </div>
       ) : (
-        lines.map((line) => (
-          <SkillCard
-            key={`${line.section}/${line.skill ?? ''}`}
-            line={line}
-            progress={progress}
-            cfg={cfg}
-            staff={isTeacher}
-            studentId={id}
-            subject={subject}
-          />
-        ))
+        <>
+          {cfg && <ScoringNote config={cfg} />}
+          {isTeacher && (
+            <TestsSummary studentId={id} subject={subject} studentName={student?.full_name ?? ''} />
+          )}
+          {lines.map((line) => (
+            <SkillCard
+              key={`${line.section}/${line.skill ?? ''}`}
+              line={line}
+              progress={progress}
+              cfg={cfg}
+              staff={isTeacher}
+              studentId={id}
+              subject={subject}
+            />
+          ))}
+        </>
       )}
     </div>
   )

@@ -121,6 +121,14 @@ lobby, leave and end-screen copy: answered / ran out of time / not reached), and
   `seededRandom`, Pick again). The Swap menus are gone, with `swapOptions`/`swapAt`; `chosenSet`
   orders a ticked set. A ticked set books with `p_size` = what is ticked and allows repeats
   exactly when a ticked question was seen. No migration.
+- **Since: a report that explains itself, and a summary.** The targeted report opens on the result
+  in a sentence with the change since the point before; the analysis labels every figure, has
+  "How is this scored?" (`ScoringNote`, from `progress_config`) and accuracy by level as bars;
+  `TargetedAnalysis.findings` is the insights minus what the figures show. "Generate summary"
+  (`components/TestsSummary.tsx`, staff only) calls the edge function `summarise_targeted_tests`,
+  which reads `student_progress` as the caller and asks Gemini for a headline, ≤ 4 points and a
+  next step from `lib/targetedSummary.ts`'s facts — numbers only. Not stored. Deployed to the live
+  project as a single esbuild bundle (verify_jwt on).
 - Targeted console, once over: analysis, the line on the skill (with the long pattern), the
   override panel (against the point before), and the private note + PC summary
   (`components/ProgressPanels.tsx`).
