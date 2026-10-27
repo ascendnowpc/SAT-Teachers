@@ -44,7 +44,20 @@ import type { ReportEmail, Session, SessionItem, TargetedTest } from '../lib/typ
  * a click away, and staff can ask Gemini for a few lines on every targeted
  * test the student has sat (TestsSummary).
  */
-export function TargetedReport({ session, items }: { session: Session; items: SessionItem[] }) {
+export function TargetedReport({
+  session,
+  items,
+  embedded = false,
+}: {
+  session: Session
+  items: SessionItem[]
+  /**
+   * Inside the targeted console, under its own heading: the report's body
+   * without the page, its back link or its title — the console shows it all
+   * at once rather than behind a second click.
+   */
+  embedded?: boolean
+}) {
   const { profile, isTeacher, isAdmin } = useAuth()
   const [test, setTest] = useState<TargetedTest | null>(null)
   const [progress, setProgress] = useState<StudentProgress | null>(null)
@@ -90,29 +103,33 @@ export function TargetedReport({ session, items }: { session: Session; items: Se
   const over = session.status === 'completed'
 
   return (
-    <div className="page report">
-      <Link className="back-link" to={`/sessions/${session.id}`}>
-        <IconBack /> Session
-      </Link>
+    <div className={embedded ? 'report report-embedded' : 'page report'}>
+      {!embedded && (
+        <Link className="back-link" to={`/sessions/${session.id}`}>
+          <IconBack /> Session
+        </Link>
+      )}
 
-      <div className="page-head">
-        <div>
-          <h1>
-            {session.student?.full_name || 'Student'} —{' '}
-            {test ? skillName(test.section, test.skill) : 'targeted test'}
-          </h1>
-          <p className="sub">
-            {subjectLabel(session.subject)} · targeted test ·{' '}
-            {formatUtc(session.started_at ?? session.scheduled_at)} · set by{' '}
-            {session.teacher?.full_name}
-          </p>
+      {!embedded && (
+        <div className="page-head">
+          <div>
+            <h1>
+              {session.student?.full_name || 'Student'} —{' '}
+              {test ? skillName(test.section, test.skill) : 'targeted test'}
+            </h1>
+            <p className="sub">
+              {subjectLabel(session.subject)} · targeted test ·{' '}
+              {formatUtc(session.started_at ?? session.scheduled_at)} · set by{' '}
+              {session.teacher?.full_name}
+            </p>
+          </div>
+          <div className="spring" />
+          <span className="badge badge-sky">Computed from the answers</span>
+          <button type="button" className="btn btn-sm" onClick={() => window.print()}>
+            Save as PDF
+          </button>
         </div>
-        <div className="spring" />
-        <span className="badge badge-sky">Computed from the answers</span>
-        <button type="button" className="btn btn-sm" onClick={() => window.print()}>
-          Save as PDF
-        </button>
-      </div>
+      )}
 
       {error && <Notice kind="error">{error}</Notice>}
       {!over && (

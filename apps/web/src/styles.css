@@ -2530,5 +2530,6 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .ai-headline { margin: 4px 0 10px; font-size: 15.5px; font-weight: 500; color: var(--ink); line-height: 1.5; }
 .ai-points { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 6px; line-height: 1.55; font-size: 14px; }
 .ai-next { margin: 0 0 8px; font-size: 14px; line-height: 1.55; }
-.report-cta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; }
-.report-cta p { margin: 0; }
+/* The targeted report inside the console, under the test card. */
+.report-embedded { margin-top: 18px; }
+.report-embedded + .card, .report-embedded + section { margin-top: 18px; }
