@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { IconBack, IconClock } from '../components/icons'
-import { OverridePanel, SkillNotesPanel, skillTitle } from '../components/ProgressPanels'
+import { OverridePanel, SkillNotesPanel } from '../components/ProgressPanels'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Difficulty, Session, SessionItem, TargetedTest } from '../lib/types'
 import { StatusBadge } from './Sessions'
+import { TargetedReport } from './TargetedReport'
 
 /**
  * The console for a targeted test (0062).
@@ -270,23 +271,9 @@ export function TargetedConsole({
         </div>
       )}
 
-      {/* What it says lives on the report alone — the analysis, the line on
-          the skill and the summary — so the console only points to it. */}
-      {over && reached > 0 && (
-        <div className="card card-pad report-cta">
-          <div>
-            <div className="section-title">The report</div>
-            <p className="muted">
-              What the answers say, how it is scored, progress on{' '}
-              {test ? skillTitle(test.section, test.skill) : 'the skill'} and a summary of every
-              targeted test.
-            </p>
-          </div>
-          <Link className="btn btn-primary" to={`/sessions/${session.id}/report`}>
-            Open the report
-          </Link>
-        </div>
-      )}
+      {/* Once it is over, the report itself, all at once: the result, how it
+          is scored, the line on the skill, the summary, every question. */}
+      {over && reached > 0 && <TargetedReport session={session} items={items} embedded />}
 
       {over && test && line && here > 0 && (
         <OverridePanel sessionId={session.id} previousSessionId={previous} />
@@ -300,38 +287,41 @@ export function TargetedConsole({
         />
       )}
 
-      <div className="board">
-        <div className="board-scroll">
-          <table className="board-table">
-            <thead>
-              <tr>
-                <th className="num">#</th>
-                <th>Question</th>
-                <th>Level</th>
-                <th>Where it stands</th>
-                <th>Answer</th>
-                <th className="num">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.position}>
-                  <td className="num">{i + 1}</td>
-                  <td className="clip">{r.questions?.stem ?? '—'}</td>
-                  <td>{r.questions && <DifficultyBadge level={r.questions.difficulty} />}</td>
-                  <td>
-                    <StandingBadge standing={standings[i]} item={r.item} />
-                  </td>
-                  <td>{r.item?.selected_option ?? '—'}</td>
-                  <td className="num">
-                    <ItemTime item={r.item} />
-                  </td>
+      {/* While it runs, the watch; once it is over the report above has every question. */}
+      {!(over && reached > 0) && (
+        <div className="board">
+          <div className="board-scroll">
+            <table className="board-table">
+              <thead>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Question</th>
+                  <th>Level</th>
+                  <th>Where it stands</th>
+                  <th>Answer</th>
+                  <th className="num">Time</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.position}>
+                    <td className="num">{i + 1}</td>
+                    <td className="clip">{r.questions?.stem ?? '—'}</td>
+                    <td>{r.questions && <DifficultyBadge level={r.questions.difficulty} />}</td>
+                    <td>
+                      <StandingBadge standing={standings[i]} item={r.item} />
+                    </td>
+                    <td>{r.item?.selected_option ?? '—'}</td>
+                    <td className="num">
+                      <ItemTime item={r.item} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
