@@ -6,15 +6,26 @@ import {
   TargetedAnalysisView,
   useLongPattern,
 } from '../components/ProgressPanels'
+import { TestsSummary } from '../components/TestsSummary'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { subjectLabel } from '../lib/constants'
 import { loadReportEmail, sendReportAgain } from '../lib/pcApi'
 import { deliveryLine } from '../lib/pcs'
-import { progressLine, type ProgressConfig, type StudentProgress } from '../lib/progress'
+import {
+  progressLine,
+  VERDICT_LABELS,
+  type ProgressConfig,
+  type StudentProgress,
+} from '../lib/progress'
 import { loadConfig, loadProgress } from '../lib/progressApi'
 import { supabase } from '../lib/supabase'
-import { analyseTargetedItems, skillName, targetedRows } from '../lib/targetedReport'
+import {
+  analyseTargetedItems,
+  skillName,
+  targetedRows,
+  type TargetedRow,
+} from '../lib/targetedReport'
 import { formatUtc } from '../lib/time'
 import type { ReportEmail, Session, SessionItem, TargetedTest } from '../lib/types'
 
@@ -27,6 +38,11 @@ import type { ReportEmail, Session, SessionItem, TargetedTest } from '../lib/typ
  * Nothing emails it on its own. "Send to PC" is the teacher's or an admin's,
  * pressed as themselves; each press is a row in report_emails keyed by when it
  * went, and the line under the button reads the newest.
+ *
+ * It opens on the result in one sentence — right of reached, the score, the
+ * level score and the change since the point before — with how each is scored
+ * a click away, and staff can ask Gemini for a few lines on every targeted
+ * test the student has sat (TestsSummary).
  */
 export function TargetedReport({ session, items }: { session: Session; items: SessionItem[] }) {
   const { profile, isTeacher, isAdmin } = useAuth()
@@ -67,6 +83,8 @@ export function TargetedReport({ session, items }: { session: Session; items: Se
   )
   const pattern = useLongPattern(progress, line, cfg)
   const rows = targetedRows(items)
+  const point = line?.points.find((p) => p.sessionId === session.id) ?? null
+  const before = line && point ? line.points[line.points.indexOf(point) - 1] : undefined
 
   const mine = session.teacher_id === profile?.id || isAdmin
   const over = session.status === 'completed'
@@ -105,10 +123,47 @@ export function TargetedReport({ session, items }: { session: Session; items: Se
         <SendToPc sessionId={session.id} pcName={session.student?.pc ?? null} />
       )}
 
+      {analysis && analysis.reached > 0 && (
+        <div className="card card-pad result-line">
+          <p>
+            <strong>
+              {analysis.correct} of {analysis.reached} right
+            </strong>{' '}
+            on {test ? skillName(test.section, test.skill) : 'this skill'} —{' '}
+            {analysis.raw!.toFixed(1)} out of 10, level score {Math.round(analysis.level!)}.
+          </p>
+          {point?.step && before && (
+            <p>
+              <span className={`badge verdict-${point.step.verdict}`}>
+                {VERDICT_LABELS[point.step.verdict]}
+              </span>{' '}
+              {point.step.delta >= 0 ? 'Up' : 'Down'} {Math.abs(Math.round(point.step.delta))} level
+              points from {Math.round(before.level)} at the{' '}
+              {before.isBaseline ? 'baseline' : 'last test'} ({before.correct} of {before.reached}{' '}
+              right, {formatUtc(before.at)}). <span className="muted">{point.step.caveat}</span>
+            </p>
+          )}
+          {point && point.isBaseline && (
+            <p className="muted">
+              The first point on this skill: there is no diagnostic with answers on it, so this test
+              is the baseline the next ones are measured from.
+            </p>
+          )}
+        </div>
+      )}
+
+      {isTeacher && session.student && (
+        <TestsSummary
+          studentId={session.student_id}
+          subject={session.subject}
+          studentName={session.student.full_name}
+        />
+      )}
+
       {analysis && (
         <div className="card card-pad">
           <div className="section-title">What the answers say</div>
-          <TargetedAnalysisView analysis={analysis} />
+          <TargetedAnalysisView analysis={analysis} config={cfg} />
         </div>
       )}
 
@@ -138,7 +193,9 @@ export function TargetedReport({ session, items }: { session: Session; items: Se
                 <tr key={r.number}>
                   <td className="num">{r.number}</td>
                   <td>{r.level && <DifficultyBadge level={r.level} />}</td>
-                  <td>{r.outcome}</td>
+                  <td>
+                    <OutcomeBadge outcome={r.outcome} />
+                  </td>
                   <td>{r.answer}</td>
                   <td className="num">
                     {r.seconds === null ? '—' : `${r.seconds}s${r.limit ? ` / ${r.limit}s` : ''}`}
@@ -158,6 +215,14 @@ export function TargetedReport({ session, items }: { session: Session; items: Se
       )}
     </div>
   )
+}
+
+function OutcomeBadge({ outcome }: { outcome: TargetedRow['outcome'] }) {
+  const kind =
+    outcome === 'right' ? 'badge-ok' : outcome === 'not reached' ? 'badge-neutral' : 'badge-bad'
+  const label =
+    outcome === 'timed out' ? 'Ran out of time' : outcome[0].toUpperCase() + outcome.slice(1)
+  return <span className={`badge ${kind}`}>{label}</span>
 }
 
 /** The manual send, and what became of the last one. */

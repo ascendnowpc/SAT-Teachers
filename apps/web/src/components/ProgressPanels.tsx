@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { sectionLabel, skillLabel } from '../lib/constants'
 import {
+  onePointWorth,
   VERDICT_LABELS,
   type ProgressConfig,
   type ProgressLine,
@@ -49,10 +50,10 @@ export function ProgressLineView({
               <tr>
                 <th>When</th>
                 <th>What</th>
-                <th className="num">Raw</th>
-                <th className="num">Score</th>
-                <th className="num">Sessions before</th>
-                <th>Step</th>
+                <th className="num">Score /10</th>
+                <th className="num">Level score</th>
+                <th className="num">Sessions since the last</th>
+                <th>Change</th>
               </tr>
             </thead>
             <tbody>
@@ -108,41 +109,137 @@ export function ProgressLineView({
   )
 }
 
-/** One test's analysis: the headline numbers and the plain-English findings. */
-export function TargetedAnalysisView({ analysis }: { analysis: TargetedAnalysis }) {
+/**
+ * One test's analysis, read top to bottom: the result in figures with how
+ * each is scored under them, accuracy at each level as bars, the time, and
+ * then only what the figures do not already say.
+ */
+export function TargetedAnalysisView({
+  analysis,
+  config,
+}: {
+  analysis: TargetedAnalysis
+  /** The admin's settings, for "How is this scored?". Left out until read. */
+  config?: ProgressConfig | null
+}) {
   const a = analysis
+  const levels = LEVELS.filter((l) => a.byDifficulty[l].total > 0)
+  const avg = (n: number) => Math.round(n / a.time.timed)
   return (
     <div className="targeted-analysis">
       <div className="stat-row">
         <div className="stat">
           <div className="v">
-            {a.correct}/{a.reached}
+            {a.correct}
+            <span className="of"> of {a.reached}</span>
           </div>
-          <div className="l">right of reached</div>
+          <div className="l">right</div>
+          <div className="n">of the questions reached</div>
         </div>
         <div className="stat">
-          <div className="v">{a.raw === null ? '—' : a.raw.toFixed(1)}</div>
-          <div className="l">raw out of 10</div>
+          <div className="v">
+            {a.raw === null ? '—' : a.raw.toFixed(1)}
+            <span className="of">/10</span>
+          </div>
+          <div className="l">score</div>
+          <div className="n">right ÷ reached × 10</div>
         </div>
         <div className="stat">
           <div className="v">{a.level === null ? '—' : round(a.level)}</div>
           <div className="l">level score</div>
+          <div className="n">the score on the school’s scale</div>
         </div>
         <div className="stat">
           <div className="v">{a.timedOut}</div>
-          <div className="l">timed out</div>
+          <div className="l">ran out of time</div>
+          <div className="n">counted as wrong</div>
         </div>
         <div className="stat">
           <div className="v">{a.notReached}</div>
           <div className="l">not reached</div>
+          <div className="n">left out of the score</div>
         </div>
       </div>
-      <ul className="insights">
-        {a.insights.map((t) => (
-          <li key={t}>{t}</li>
-        ))}
-      </ul>
+
+      {config && <ScoringNote config={config} />}
+
+      {levels.length > 0 && (
+        <div className="by-level">
+          <div className="by-level-title">By level</div>
+          {levels.map((l) => {
+            const t = a.byDifficulty[l]
+            return (
+              <div className="by-level-row" key={l}>
+                <span className={`badge badge-${l}`}>{l[0].toUpperCase() + l.slice(1)}</span>
+                <span className="by-level-bar" aria-hidden="true">
+                  <span
+                    className={`fill fill-${l}`}
+                    style={{ width: `${(t.correct / t.total) * 100}%` }}
+                  />
+                </span>
+                <span className="by-level-n">
+                  {t.correct} of {t.total} right
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {a.time.timed > 0 && (
+        <p className="muted">
+          Averaged {avg(a.time.seconds)}s a question, against a target of {avg(a.time.target)}s.
+        </p>
+      )}
+
+      {a.findings.length > 0 && (
+        <>
+          <div className="by-level-title">What stands out</div>
+          <ul className="insights">
+            {a.findings.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
+  )
+}
+
+const LEVELS = ['easy', 'medium', 'hard'] as const
+
+/**
+ * How a targeted test is scored, in a line that opens: the score out of 10,
+ * the level score and its mapping, and when a change counts — the admin's own
+ * numbers (progress_config), so it says what the screen above it did.
+ */
+export function ScoringNote({ config }: { config: ProgressConfig }) {
+  const pts = [...config.score_points].sort((a, b) => a[0] - b[0])
+  const size = config.default_set_size
+  const worth = round(onePointWorth(size, 5, config.score_points))
+  return (
+    <details className="how-scored">
+      <summary>How is this scored?</summary>
+      <ul>
+        <li>
+          <strong>Score out of 10</strong> — right answers ÷ questions reached × 10, so 3 right of 5
+          is 6.0. A question that ran out of its own time counts as wrong; questions the student
+          never reached (the whole test’s time ran out, or it was ended) are left out.
+        </li>
+        <li>
+          <strong>Level score</strong> — the score out of 10 put on the school’s scale, so tests of
+          any length compare: {pts.map(([r, l]) => `${r}/10 → ${l}`).join(', ')}, a straight line
+          between, rising at the same rate above the last.
+        </li>
+        <li>
+          <strong>The change</strong> — against the test before on the same skill, or the diagnostic
+          for the first. Up {config.improved_at} or more is <em>Improved</em>, down{' '}
+          {-config.declined_at} or more is <em>Declined</em>, anything between is{' '}
+          <em>Minimal change</em>. On a {size}-question test one question is worth about {worth}{' '}
+          level points, so a single question can decide it.
+        </li>
+      </ul>
+    </details>
   )
 }
 

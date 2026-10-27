@@ -307,7 +307,7 @@ export function TargetedConsole({
               The report
             </Link>
           </div>
-          <TargetedAnalysisView analysis={analysis} />
+          <TargetedAnalysisView analysis={analysis} config={cfg} />
         </div>
       )}
 

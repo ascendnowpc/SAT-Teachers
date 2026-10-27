@@ -837,7 +837,20 @@ test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what w
 out of 10 *and* mapped to a level score, always side by side; accuracy by difficulty; time
 against target, with rushing, gaps and hesitation counted; what timed out; long questions against
 short; the formats; and the same in sentences with their counts. Whether long questions are the
-trouble is pooled over every test on the skill and only said with enough of each.
+trouble is pooled over every test on the skill and only said with enough of each. The report opens
+on the result in one sentence — right of reached, the score, the level score, and the change
+since the point before with its verdict — and every figure says what it means under it, with
+**How is this scored?** a click away: the score, the admin's mapping and thresholds, and what one
+question is worth, in the settings' own numbers. Accuracy by level is drawn as bars.
+
+**A summary by Gemini.** On the report and the student's progress page, staff can press
+**Generate summary** for a few lines on every targeted test the student has sat in the subject:
+a headline, at most four points, one next step. `summarise_targeted_tests` checks the caller is
+a teacher or an admin, loads the numbers itself through `student_progress` as the caller, and
+shows the model those numbers only — each skill's line, each test's score, change and reading
+(`lib/targetedSummary.ts`) — never the questions or the answers; the prompt holds it to the
+facts and to calling one question a small sample. Nothing is stored: pressing it again reads
+again. It uses `GEMINI_API_KEY`, and `SUMMARY_MODEL` if set.
 
 **Progress** (`lib/progress.ts`, `0063`). The line on a skill starts at the earliest diagnostic
 with answers on it, or at the first test when there is none, and runs through every test since,
@@ -1026,6 +1039,7 @@ ship to every browser and the quote check would be a promise the client makes ab
 ```bash
 supabase secrets set GEMINI_API_KEY=...
 supabase functions deploy extract_session_context
+supabase functions deploy summarise_targeted_tests   # the targeted tests' summary button, same key
 ```
 
 Deploy it again after any change to it or to the library files it imports. The deployed copy is

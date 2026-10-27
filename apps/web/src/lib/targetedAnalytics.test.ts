@@ -109,13 +109,18 @@ describe('analyseTargeted', () => {
   it('says it in plain English, with the counts', () => {
     expect(a.insights).toEqual([
       '2 of 5 right, 1 not reached — 4.0 out of 10, level score 28.',
-      '1 question ran out of time.',
+      '1 question ran out of time — counted as wrong.',
       'Easy 2 of 2, medium 0 of 1, hard 0 of 2.',
       'Wrong in under half the target time on 1 question — rushing.',
       'Wrong after taking the time on 1 question — a gap in method or knowledge, not speed.',
       'Right but over 1.6× the target time on 1 question — hesitation.',
       'Long questions 0 of 2 right; short 2 of 3.',
     ])
+  })
+
+  it('leaves the score and the levels out of the findings, which a screen draws as figures', () => {
+    expect(a.findings).toEqual(a.insights.filter((_, i) => i !== 0 && i !== 2))
+    expect(analyseTargeted([], 5, cfg).findings).toEqual([])
   })
 
   it('says nothing was reached rather than scoring zero', () => {
