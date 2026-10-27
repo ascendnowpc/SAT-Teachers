@@ -77,6 +77,55 @@ export function rawOutOf10(correct: number, reached: number): number | null {
 }
 
 /**
+ * What is wrong with a score mapping, in the settings page's words, or null.
+ * The points are taken in any order — the page sorts them before saving. A
+ * mapping that falls is refused here though the database would take it: more
+ * right answers can never mean a lower level.
+ */
+export function pointsProblem(pts: ScorePoints): string | null {
+  if (pts.length < 2) return 'The level score needs at least two points to draw a line through.'
+  if (pts.some(([r, l]) => !Number.isFinite(r) || !Number.isFinite(l)))
+    return 'Every point needs both numbers: a score out of 10 and its level score.'
+  if (pts.some(([r]) => r < 0 || r > 10)) return 'A score out of 10 runs from 0 to 10.'
+  const sorted = [...pts].sort((a, b) => a[0] - b[0])
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i][0] === sorted[i - 1][0])
+      return `Two points are both for ${sorted[i][0]} out of 10.`
+    if (sorted[i][1] < sorted[i - 1][1])
+      return 'The level score has to rise with the score: more right answers can never mean a lower level.'
+  }
+  return null
+}
+
+/**
+ * What set_progress_config would refuse, or would accept but read oddly, said
+ * before Save is pressed. Null when it is fine.
+ */
+export function settingsProblem(cfg: Omit<ProgressConfig, 'subject'>): string | null {
+  const points = pointsProblem(cfg.score_points)
+  if (points) return points
+  if (!(cfg.improved_at > 0)) return 'Improved has to start at a rise of at least 1 point.'
+  if (!(cfg.declined_at < 0)) return 'Declined has to start at a fall of at least 1 point.'
+  if (!Number.isInteger(cfg.long_words) || cfg.long_words < 1 || cfg.long_words > 1000)
+    return 'A long question is 1 to 1000 words.'
+  if (
+    !Number.isInteger(cfg.default_set_size) ||
+    cfg.default_set_size < 1 ||
+    cfg.default_set_size > 20
+  )
+    return 'A targeted test is 1 to 20 questions.'
+  if (
+    !Number.isInteger(cfg.pattern_min_each) ||
+    cfg.pattern_min_each < 1 ||
+    cfg.pattern_min_each > 100
+  )
+    return 'The long-question flag needs 1 to 100 of each kind.'
+  if (!(cfg.pattern_gap > 0 && cfg.pattern_gap <= 1))
+    return 'The gap between short and long is 1 to 100 percentage points.'
+  return null
+}
+
+/**
  * The level score for a raw score out of 10: linear between the mapping's
  * points; beyond either end, the end segment's slope carries on. With the
  * default (0,20) (5,30) (8,40), 9 ≈ 43.3 and 10 ≈ 46.7.

@@ -181,8 +181,8 @@ export function TargetedConsole({
 
   return (
     <div className="page page-wide targeted-console">
-      <Link className="back-link" to="/sessions">
-        <IconBack /> Sessions
+      <Link className="back-link" to="/sessions?tab=targeted">
+        <IconBack /> Targeted tests
       </Link>
 
       <div className="room-head">

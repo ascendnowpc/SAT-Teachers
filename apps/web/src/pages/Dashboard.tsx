@@ -5,6 +5,7 @@ import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
 import { newTeachers, newTeacherSince, NEW_TEACHER_DAYS, reportStage } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
+import { NEW_SESSION } from '../lib/sessions'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Difficulty, Profile, Session, SessionReportRow, Subject } from '../lib/types'
@@ -163,9 +164,14 @@ export function Dashboard() {
                   : `Nothing booked yet. Give your teacher your ID — ${profile.display_id} — so they can schedule one.`}
             </p>
             {isTeacher && (
-              <Link className="btn btn-primary" to="/sessions/new">
-                New session
-              </Link>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Link className="btn btn-primary" to={NEW_SESSION.diagnostic}>
+                  New diagnostic
+                </Link>
+                <Link className="btn btn-ghost" to={NEW_SESSION.targeted}>
+                  New targeted test
+                </Link>
+              </div>
             )}
           </div>
         </div>

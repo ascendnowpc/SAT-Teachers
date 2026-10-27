@@ -15,10 +15,10 @@ import { loadPcs } from '../lib/pcApi'
 import type { StudentProgress } from '../lib/progress'
 import { loadProgress } from '../lib/progressApi'
 import { choosable } from '../lib/pcs'
-import { studentLink } from '../lib/sessions'
+import { sessionsTab, studentLink, type SessionKind } from '../lib/sessions'
 import { row, rows, supabase } from '../lib/supabase'
-import { defaultUtcSlot, utcInputToIso } from '../lib/time'
-import type { Profile, QuestionSet, Session, SessionMode, Subject } from '../lib/types'
+import { defaultUtcSlot, formatUtc, utcInputToIso } from '../lib/time'
+import type { Profile, QuestionSet, Session, Subject } from '../lib/types'
 
 /**
  * Booking a session, which is now also where a student comes from.
@@ -38,18 +38,28 @@ import type { Profile, QuestionSet, Session, SessionMode, Subject } from '../lib
  * somebody else. The PC reads the student's sessions and is emailed each
  * report as it is generated.
  *
- * And what the session is for (0059, 0061): a diagnostic, a lesson, or a
- * targeted test on one skill. A student's first session in a subject is their
- * diagnostic, so that is the default until they have one — across every
+ * It books one of two things, chosen before the teacher arrives — the
+ * Diagnostics tab's New button or the Targeted tests tab's — so the form only
+ * asks what that kind needs (0059, 0061). A diagnostic is run live: a time, a
+ * length and a meeting link. A student's first one in a subject is their
+ * baseline, and the form says when they already have one — across every
  * teacher, which is why it is read through student_progress rather than the
- * teacher's own sessions. A targeted test is booked with its set, built here.
+ * teacher's own sessions. A targeted test is sat alone on the link: it is for
+ * a student already on the roster, since its set is built from what they have
+ * seen, and it is booked with that set, built here.
+ *
+ * There used to be a third choice, Lesson (mode 'live'): the diagnostic's
+ * flow under another name, counted the same way between targeted tests as a
+ * later diagnostic is. It is not offered any more; the rows it made are filed
+ * with the diagnostics.
  */
-export function SessionNew() {
+export function SessionNew({ kind }: { kind: SessionKind }) {
   const { isAdmin } = useAuth()
   const [students, setStudents] = useState<Profile[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
 
-  /** Which of the two kinds of student this session is for. */
+  const targeted = kind === 'targeted'
+  /** Which of the two kinds of student this session is for. A targeted test's is always one on the roster. */
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [studentId, setStudentId] = useState('')
   const [first, setFirst] = useState('')
@@ -62,9 +72,6 @@ export function SessionNew() {
   const [pcId, setPcId] = useState('')
 
   const [subject, setSubject] = useState<Subject>('english')
-  /** What the session is for. Chosen by the form until the teacher chooses it. */
-  const [kind, setKind] = useState<SessionMode>('diagnostic')
-  const [kindChosen, setKindChosen] = useState(false)
   const [progress, setProgress] = useState<StudentProgress | null>(null)
   const [draft, setDraft] = useState<TargetedDraft>(() => emptyDraft('english'))
   const [title, setTitle] = useState('')
@@ -201,21 +208,18 @@ export function SessionNew() {
     }
   }, [mode, studentId, subject])
 
-  const hasDiagnostic =
-    progress?.sessions.some((x) => x.mode === 'diagnostic' && x.status !== 'cancelled') ?? false
-  useEffect(() => {
-    if (kindChosen) return
-    setKind(mode === 'existing' && hasDiagnostic ? 'live' : 'diagnostic')
-  }, [kindChosen, mode, hasDiagnostic])
+  // Their first diagnostic in the subject, whoever ran it: where the baseline
+  // comes from. A lesson from before diagnostics were marked does not count.
+  const firstDiagnostic =
+    progress?.sessions
+      .filter((x) => x.mode === 'diagnostic' && x.status !== 'cancelled')
+      .sort((a, b) => a.at.localeCompare(b.at))[0] ?? null
 
   // A new subject starts the set again.
   useEffect(() => {
     setDraft(emptyDraft(subject))
   }, [subject])
 
-  // A targeted test needs the student's history to build its set, so it is for
-  // a student already on the roster.
-  const targeted = kind === 'targeted'
   const targetedProblem = targeted ? draftProblem(draft) : null
 
   const noPcs = pcsRead && pcOptions.length === 0
@@ -232,7 +236,7 @@ export function SessionNew() {
     !busy &&
     scheduledAt !== '' &&
     pcReady &&
-    (mode === 'existing' ? studentId !== '' : namedNewStudent && !targeted) &&
+    (mode === 'existing' ? studentId !== '' : namedNewStudent) &&
     targetedProblem === null
 
   async function onSubmit(e: FormEvent) {
@@ -316,7 +320,9 @@ export function SessionNew() {
           scheduled_at: utcInputToIso(scheduledAt),
           duration_mins: duration,
           meeting_url: meetingUrl.trim() || null,
-          mode: kind,
+          // A later diagnostic counts as a session between targeted tests;
+          // only the first is the baseline (lib/progress).
+          mode: 'diagnostic',
         })
         // The token comes back with it: it is the next thing the teacher needs.
         .select('*')
@@ -335,14 +341,23 @@ export function SessionNew() {
 
   if (created) return <Created session={created} />
 
+  const subjectName = subject === 'english' ? 'English' : 'Mathematics'
+
   return (
     <div className="page">
-      <Link className="back-link" to="/sessions">
-        <IconBack /> Sessions
+      <Link className="back-link" to={sessionsTab(kind)}>
+        <IconBack /> {targeted ? 'Targeted tests' : 'Diagnostics'}
       </Link>
 
       <div className="page-head">
-        <h1>New session</h1>
+        <div>
+          <h1>{targeted ? 'New targeted test' : 'New diagnostic'}</h1>
+          <p className="sub">
+            {targeted
+              ? 'A short set on one skill. The student sits it alone on their link, against the clock, and it has its own report.'
+              : 'A live session: you put each question up for the student and fill the diagnostic form after. Their first one in a subject is their baseline.'}
+          </p>
+        </div>
       </div>
 
       <form onSubmit={onSubmit} noValidate>
@@ -351,25 +366,37 @@ export function SessionNew() {
         <div className="card card-pad">
           <div className="section-title">Who</div>
 
-          <div className="mode-pick" role="group" aria-label="Which student">
-            <button
-              type="button"
-              className={`mode-opt ${mode === 'existing' ? 'on' : ''}`}
-              onClick={() => setMode('existing')}
-            >
-              A student you have
-            </button>
-            <button
-              type="button"
-              className={`mode-opt ${mode === 'new' ? 'on' : ''}`}
-              onClick={() => setMode('new')}
-            >
-              Someone new
-            </button>
-          </div>
+          {/* A targeted test is built from what the student has already
+              seen, so it is for somebody already on the roster. */}
+          {!targeted && (
+            <div className="mode-pick" role="group" aria-label="Which student">
+              <button
+                type="button"
+                className={`mode-opt ${mode === 'existing' ? 'on' : ''}`}
+                onClick={() => setMode('existing')}
+              >
+                A student you have
+              </button>
+              <button
+                type="button"
+                className={`mode-opt ${mode === 'new' ? 'on' : ''}`}
+                onClick={() => setMode('new')}
+              >
+                Someone new
+              </button>
+            </div>
+          )}
 
           {mode === 'existing' ? (
-            <Field label="Student" required>
+            <Field
+              label="Student"
+              required
+              hint={
+                targeted
+                  ? 'The set is built from what they have already seen, so a targeted test is for a student who has had a session.'
+                  : undefined
+              }
+            >
               <Combobox
                 options={options}
                 value={studentId}
@@ -444,72 +471,50 @@ export function SessionNew() {
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Diagnostic follow-up"
+                placeholder={
+                  targeted ? 'Optional — the skill is shown anyway' : 'Diagnostic follow-up'
+                }
               />
             </Field>
           </div>
-        </div>
 
-        <div className="card card-pad">
-          <div className="section-title">What it is for</div>
-          <div className="mode-pick mode-pick-3" role="group" aria-label="What the session is for">
-            {(
-              [
-                ['diagnostic', 'Diagnostic', 'Where they start. Their baseline on every skill.'],
-                ['live', 'Lesson', 'You show each question, as in any lesson.'],
-                [
-                  'targeted',
-                  'Targeted test',
-                  'A short set on one skill, sat alone on their link, timed.',
-                ],
-              ] as [SessionMode, string, string][]
-            ).map(([value, label, hint]) => (
-              <button
-                key={value}
-                type="button"
-                className={`mode-opt ${kind === value ? 'on' : ''}`}
-                onClick={() => {
-                  setKind(value)
-                  setKindChosen(true)
-                }}
-              >
-                <strong>{label}</strong>
-                <span className="mode-hint">{hint}</span>
-              </button>
-            ))}
-          </div>
-          {kind === 'diagnostic' && mode === 'existing' && hasDiagnostic && (
-            <Notice kind="info">
-              This student has a diagnostic in {subject === 'english' ? 'English' : 'Mathematics'}{' '}
-              already. A second one counts as a session between targeted tests, not as a new
-              baseline.
-            </Notice>
-          )}
-          {targeted && mode === 'new' && (
-            <Notice kind="info">
-              A targeted test is built from what the student has already seen, so it is for a
-              student on the roster. Book their diagnostic first.
-            </Notice>
-          )}
-          {targeted && mode === 'existing' && studentId && (
-            <TargetedBuilder
-              studentId={studentId}
-              subject={subject}
-              draft={draft}
-              onChange={setDraft}
-              progress={progress}
+          {/* What the baseline is, said where it matters: on a diagnostic when
+              they have one, on a targeted test when they have none. */}
+          {mode === 'existing' && studentId && progress && (
+            <BaselineNote
+              targeted={targeted}
+              subject={subjectName}
+              first={firstDiagnostic?.at ?? null}
             />
           )}
-          {targetedProblem && studentId && mode === 'existing' && (
-            <p className="field-hint">{targetedProblem}</p>
-          )}
         </div>
 
+        {targeted && (
+          <div className="card card-pad">
+            <div className="section-title">The test</div>
+            {studentId ? (
+              <TargetedBuilder
+                studentId={studentId}
+                subject={subject}
+                draft={draft}
+                onChange={setDraft}
+                progress={progress}
+              />
+            ) : (
+              <p className="field-hint">
+                Choose the student first: the set is built from the questions they have not seen
+                yet.
+              </p>
+            )}
+            {targetedProblem && studentId && <p className="field-hint">{targetedProblem}</p>}
+          </div>
+        )}
+
         <div className="card card-pad">
-          <div className="section-title">When and where</div>
+          <div className="section-title">{targeted ? 'When' : 'When and where'}</div>
 
           <div className="grid-2">
-            <Field label="Date and time (UTC)" required>
+            <Field label={targeted ? 'Open from (UTC)' : 'Date and time (UTC)'} required>
               <Input
                 type="datetime-local"
                 value={scheduledAt}
@@ -551,9 +556,9 @@ export function SessionNew() {
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
-            {busy ? 'Creating…' : 'Create the session'}
+            {busy ? 'Booking…' : targeted ? 'Book the targeted test' : 'Book the diagnostic'}
           </button>
-          <Link className="btn btn-ghost" to="/sessions">
+          <Link className="btn btn-ghost" to={sessionsTab(kind)}>
             Cancel
           </Link>
         </div>
@@ -576,7 +581,7 @@ function Created({ session }: { session: Session }) {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Session created</h1>
+        <h1>{session.mode === 'targeted' ? 'Targeted test booked' : 'Diagnostic booked'}</h1>
       </div>
 
       <div className="card card-pad next-step">
@@ -595,6 +600,43 @@ function Created({ session }: { session: Session }) {
       </div>
     </div>
   )
+}
+
+/**
+ * Where this student's baseline in the subject comes from, said only when it
+ * changes what the teacher is booking: a diagnostic for a student who already
+ * has one is not a new baseline, and a targeted test for one who has none
+ * becomes it.
+ */
+function BaselineNote({
+  targeted,
+  subject,
+  first,
+}: {
+  targeted: boolean
+  subject: string
+  /** When their first diagnostic in the subject was, or null for none. */
+  first: string | null
+}) {
+  if (!targeted && first) {
+    return (
+      <Notice kind="info">
+        This student’s {subject} diagnostic{' '}
+        {new Date(first) > new Date() ? 'is booked for' : 'was on'} {formatUtc(first)}, and that
+        stays their baseline. This one is a follow-up: it counts as a session between their targeted
+        tests.
+      </Notice>
+    )
+  }
+  if (targeted && !first) {
+    return (
+      <Notice kind="info">
+        This student has no {subject} diagnostic yet, so this test becomes their baseline on the
+        skill. Book their diagnostic first if you want it to be the starting point.
+      </Notice>
+    )
+  }
+  return null
 }
 
 /**

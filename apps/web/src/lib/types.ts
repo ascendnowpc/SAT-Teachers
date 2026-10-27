@@ -10,10 +10,12 @@ export type OptionLabel = 'A' | 'B' | 'C' | 'D'
 export type Subject = 'english' | 'mathematics'
 export type SessionStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 /**
- * What a session is for (0059). live: a lesson, the teacher showing every
- * question. diagnostic: the same flow, marked — a student's baseline on a skill
- * is computed from it. targeted: a short set on one skill the student sits
- * alone on their link, against the clock (0061, 0062).
+ * What a session is for (0059). diagnostic: the teacher showing every
+ * question — a student's baseline on a skill is computed from their first one.
+ * targeted: a short set on one skill the student sits alone on their link,
+ * against the clock (0061, 0062). live: the same flow as a diagnostic, from
+ * before sessions said what they were for; nothing books one now, and every
+ * screen files it with the diagnostics.
  */
 export type SessionMode = 'live' | 'diagnostic' | 'targeted'
 /**
@@ -137,6 +139,21 @@ export interface Session {
   created_at: string
   teacher?: Pick<Profile, 'id' | 'full_name' | 'display_id'> | null
   student?: (Pick<Profile, 'id' | 'full_name' | 'display_id'> & { pc?: string | null; pc_id?: string | null }) | null
+  /**
+   * A targeted test's skill and size, when the list embeds targeted_tests.
+   * Staff and the student's PC read it (0061); null for anybody else and for
+   * a session that is not a targeted test. PostgREST hands a one-to-one embed
+   * back as an object, older versions as an array — read it through
+   * targetedOf.
+   */
+  targeted?: TargetedSummary | TargetedSummary[] | null
+}
+
+export interface TargetedSummary {
+  section: string
+  /** Null: the whole section. */
+  skill: string | null
+  set_size: number
 }
 
 export interface Assessment {

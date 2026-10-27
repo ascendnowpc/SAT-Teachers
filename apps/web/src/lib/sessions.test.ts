@@ -3,11 +3,16 @@ import {
   DEFAULT_SORT,
   NO_FILTERS,
   filterSessions,
+  kindOf,
   levelsLabel,
   levelsOf,
+  sessionTitle,
+  sessionsTab,
   sortSessions,
   studentLink,
   studentOptions,
+  targetedLabel,
+  targetedOf,
   teacherOptions,
 } from './sessions'
 import type { Session, SessionLevel, SessionStatus } from './types'
@@ -161,7 +166,6 @@ describe('studentLink', () => {
   })
 })
 
-
 describe('the teacher filter', () => {
   // An admin's list spans the school, so the teacher is a real axis on it.
   const mine = session('a', 's1', '2026-06-01T09:00:00Z')
@@ -239,5 +243,54 @@ describe('the tests a session covered', () => {
   it('sorts on the hardest test reached', () => {
     const sorted = sortSessions([moved, easyOnly], { key: 'level', dir: 'asc' })
     expect(sorted.map((s) => s.id)).toEqual(['e', 'm'])
+  })
+})
+
+describe('the two kinds', () => {
+  it('files a lesson from before 0059 with the diagnostics', () => {
+    expect(kindOf({ mode: 'diagnostic' })).toBe('diagnostic')
+    expect(kindOf({ mode: 'live' })).toBe('diagnostic')
+    expect(kindOf({})).toBe('diagnostic')
+    expect(kindOf({ mode: 'targeted' })).toBe('targeted')
+  })
+
+  it('opens the list on the right tab', () => {
+    expect(sessionsTab('diagnostic')).toBe('/sessions')
+    expect(sessionsTab('targeted')).toBe('/sessions?tab=targeted')
+  })
+
+  it('names an untitled session by what it is', () => {
+    expect(sessionTitle({ title: null, subject: 'english', mode: 'live' })).toBe(
+      'English diagnostic',
+    )
+    expect(sessionTitle({ title: null, subject: 'mathematics', mode: 'targeted' })).toBe(
+      'Mathematics targeted test',
+    )
+    expect(sessionTitle({ title: 'Week 3', subject: 'english', mode: 'targeted' })).toBe('Week 3')
+  })
+
+  it('reads the embedded test in either shape', () => {
+    const t = { section: 'information_and_ideas', skill: null, set_size: 5 }
+    expect(targetedOf({ targeted: t })).toEqual(t)
+    expect(targetedOf({ targeted: [t] })).toEqual(t)
+    expect(targetedOf({ targeted: [] })).toBeNull()
+    expect(targetedOf({ targeted: null })).toBeNull()
+    expect(targetedOf({})).toBeNull()
+  })
+
+  it('labels a whole-section test as one', () => {
+    expect(targetedLabel(null)).toBeNull()
+    expect(targetedLabel({ section: 'information_and_ideas', skill: null, set_size: 5 })).toMatch(
+      /whole section$/,
+    )
+  })
+
+  it('finds a targeted test by its skill', () => {
+    const t = session('t', 's1', '2026-03-04T10:00:00Z', 'scheduled', {
+      mode: 'targeted',
+      targeted: { section: 'information_and_ideas', skill: null, set_size: 5 },
+    })
+    const other = session('o', 's1', '2026-03-05T10:00:00Z')
+    expect(filterSessions([t, other], { ...NO_FILTERS, query: 'whole section' })).toEqual([t])
   })
 })

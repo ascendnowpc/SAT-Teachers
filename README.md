@@ -43,7 +43,7 @@ npm run dev                                    # http://localhost:5173
 | **Transcript** | Drop in the Fathom recording; it lines up against the questions and is read back as findings |
 | **Loaded bank** | 60 items with passages, keys, sections and difficulty, and every one of them in a test |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
-| **What a session is for** | Diagnostic, lesson or targeted test (`0059`). A student's first session in a subject is their diagnostic, and their baseline on every skill is read from it |
+| **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
@@ -782,10 +782,17 @@ long — and the platform computes what the answers say. Nothing books a test on
 more mocks are pushed. The decisions behind it are in
 [`docs/reference/targeted-tests-handoff.md`](docs/reference/targeted-tests-handoff.md).
 
-**A session says what it is for** (`0059`): `live` (a lesson), `diagnostic` (the same flow,
-marked) or `targeted`. Every student's earliest completed session in a subject was marked their
-diagnostic when it ran. The New session form offers all three, with Diagnostic chosen until the
-student has one — read across every teacher.
+**A session says what it is for** (`0059`): `diagnostic` or `targeted`. Every student's earliest
+completed session in a subject was marked their diagnostic when it ran. The two are kept apart
+for staff: Sessions has a **Diagnostics** tab and a **Targeted tests** tab, each with its own
+columns (the levels sat; the skill and the set size) and its own New button, and each New button
+opens its own form — `/sessions/new` for a diagnostic (time, length, meeting link) and
+`/sessions/new/targeted` for a targeted test (a roster student, the skill and the set). A student
+sees both in one list. The diagnostic form says when the student already has one — read across
+every teacher — since only the first is the baseline; a later one counts as a session between
+targeted tests. `live` is what sessions were before `0059` — a "lesson", the diagnostic's flow
+under another name, counted the same way between tests. Nothing books one now, and every screen
+files those rows with the diagnostics.
 
 **Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
 section), a size (5 by default, an admin's setting), the clocks, and whether a question the
@@ -833,10 +840,13 @@ teacher's wording and summary once shared. A targeted report is never emailed on
 **Send to PC** on the report is the teacher's or an admin's, and `notify_pc_report` keys each
 send by when it went. The lesson report and its PDF carry a Progress section too.
 
-**Settings.** An admin's page (`/admin/settings`) holds, per subject, the score mapping (default
-(0,20) (5,30) (8,40), the last slope carrying on above it), the verdict thresholds (±5), what a
-long question is (English 75 words, Maths 40), the default set size and the long-question flag's
-gates. Nothing stored depends on them: a change re-reads every test.
+**Settings.** An admin's page (`/admin/settings`), one tab per subject, reads as four questions:
+how a score out of 10 becomes a level score (a table of points, default (0,20) (5,30) (8,40), the
+last slope carrying on above it, with what every score from 0 to 10 comes to underneath); when a
+change counts as Improved or Declined (±5, with what one question is worth on a test of the
+default size); how many questions a new test starts at; and what makes a question long (English
+75 words, Maths 40) and how sure the long-question flag has to be (4 of each, short right 40
+percentage points more often). Nothing stored depends on them: a change re-reads every test.
 
 **The practice pool** (`0060`) is a set per subject, listed in the bank with the three tests. A
 question written into it says its own difficulty and must have a skill; no lesson control can

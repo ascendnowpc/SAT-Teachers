@@ -108,6 +108,13 @@ lobby, leave and end-screen copy: answered / ran out of time / not reached), and
   `student_progress` (every teacher). Targeted is for a roster student only (the builder needs
   their history); `components/TargetedBuilder.tsx` builds and swaps the set and books through
   `create_targeted_session`. Lessons and diagnostics insert with `mode`.
+- **Since: two kinds, kept apart.** The product owner wants diagnostics and targeted tests only,
+  and separate. Lesson is gone from booking (a later diagnostic counts between tests exactly as a
+  lesson did); Sessions has a Diagnostics tab and a Targeted tests tab (`?tab=targeted`), each
+  with its own columns and New button; `/sessions/new` books a diagnostic and
+  `/sessions/new/targeted` a targeted test, each its own form (`SessionNew kind=…`). Old `live`
+  rows are filed with the diagnostics (`lib/sessions.ts` `kindOf`). The list embeds
+  `targeted_tests(section, skill, set_size)` for the skill column. No migration.
 - Targeted console, once over: analysis, the line on the skill (with the long pattern), the
   override panel (against the point before), and the private note + PC summary
   (`components/ProgressPanels.tsx`).
