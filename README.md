@@ -817,7 +817,10 @@ student's results lay that out as OnePrep does — the key's reason, then one ro
 choice — and show OnePrep's accuracy and timing as figures under "Why easy". An explanation in
 any other shape is shown as written, its line breaks kept.
 
-**Sitting it** (`0062`). The student opens their link and presses Start. The server puts question
+**Sitting it** (`0062`). The student opens their link and presses Start — from the time it was
+booked for, or before it if their teacher or an admin presses **Let them start now** on the
+console (`0025`'s waiver: the scheduled time stays what was arranged, and Undo early access puts
+it back until they start; their waiting screen sees it within seconds). The server puts question
 1 up, stamps when it did, and fixes its clock (the test's seconds a question, or the question's
 own target). They answer or the clock runs out; either way the next question comes up. There is
 no skipping and no going back, the screen says "Question 2 of 5", and both clocks count down in

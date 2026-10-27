@@ -30,7 +30,10 @@ import { StatusBadge } from './Sessions'
  * no Choose a question, no level buttons, no answering for them and no
  * starting it from here. What the teacher has is the watch: where the student
  * is in the set, each answer as it lands, the clock on the question on screen;
- * and two buttons — End test, and Publish results once it is over.
+ * and the buttons around it — Let them start now before its time (0025's
+ * waiver, which the targeted start goes through like a lesson's: the student
+ * still presses Start, and the scheduled time stays what was arranged), End
+ * test, and Publish results once it is over.
  *
  * While it runs the console asks the server to expire anything overdue
  * (targeted_tick) as it reloads, so a student who walked away does not leave
@@ -99,6 +102,11 @@ export function TargetedConsole({
 
   const live = session.status === 'live'
   const over = session.status === 'completed' || session.status === 'cancelled'
+  const notStarted = session.status === 'scheduled'
+  // Open: its time has come, or a teacher or admin let the student in early.
+  const due = new Date(session.scheduled_at).getTime() <= Date.now()
+  const isOpen = due || session.opened_early_at !== null
+  const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
 
   // What it says, once it is over: the analysis, and the line on this skill
   // across every teacher's sessions with the student.
@@ -132,10 +140,10 @@ export function TargetedConsole({
     return () => clearInterval(t)
   }, [live, session.id, reload])
 
-  async function call(fn: string) {
+  async function call(fn: string, args: Record<string, unknown> = {}) {
     setActionError(null)
     setBusy(true)
-    const { error } = await supabase.rpc(fn, { p_session: session.id })
+    const { error } = await supabase.rpc(fn, { p_session: session.id, ...args })
     if (error) setActionError(error.message)
     await reload()
     setBusy(false)
@@ -202,6 +210,28 @@ export function TargetedConsole({
         <span className="badge badge-sky">Targeted test</span>
         <StatusBadge status={session.status} />
         <div className="actions">
+          {notStarted && !isOpen && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy}
+              title={`Let ${first} start the test now instead of waiting for the scheduled time.`}
+              onClick={() => void call('set_session_open_early', { p_open: true })}
+            >
+              Let them start now
+            </button>
+          )}
+          {notStarted && session.opened_early_at !== null && !due && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={busy}
+              title="Put the scheduled time back."
+              onClick={() => void call('set_session_open_early', { p_open: false })}
+            >
+              Undo early access
+            </button>
+          )}
           {over && reached > 0 && (
             <button
               type="button"
@@ -245,10 +275,14 @@ export function TargetedConsole({
             · {Math.round(test.overall_seconds / 60)} minutes in all
             {test.allow_repeats && ' · repeats allowed'}
           </p>
-          {session.status === 'scheduled' && (
+          {notStarted && (
             <p className="muted">
-              The student starts it from their link. Nothing is shown before they do, and the set
-              cannot change once they have.
+              {isOpen
+                ? session.opened_early_at !== null && !due
+                  ? `Opened early — ${first} can start it from their link now.`
+                  : `Open — ${first} can start it from their link now.`
+                : `${first} can start it from their link from ${formatUtc(session.scheduled_at)}, or now if you let them start early.`}{' '}
+              Nothing is shown before they press Start, and the set cannot change once they have.
             </p>
           )}
           {live && onScreen >= 0 && (
