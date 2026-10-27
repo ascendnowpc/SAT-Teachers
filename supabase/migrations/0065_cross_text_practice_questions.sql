@@ -17,8 +17,11 @@
 --  WHAT GOES WHERE.
 --    * passage      Text 1 and Text 2 under their own headings, the way
 --                   paper.ts prints a paired item (0009 does the same).
---    * underline    the eight questions that ask about an underlined part
---                   carry it, matched against the passage it sits in.
+--    * underline    the nine questions that ask about an underlined part
+--                   carry it, matched against the passage it sits in. Q34's
+--                   was not legible in the recording; its explanation quotes
+--                   "investigating a potentially niche problem", so the
+--                   sentence holding that phrase is the one underlined.
 --    * difficulty   OnePrep's own label — the pool takes the difficulty a
 --                   question says, since there is no test to take it from.
 --    * rationale    OnePrep's figures for the question: how many of its users
@@ -762,11 +765,11 @@ D: The text links climate change to marine species in general, not specifically 
 perform seed_bank_item(
   'ENG-PRACTICE-CTC-Q34', 'craft_and_structure',
   'Text 1
-Engineer Lilian Hsiao and colleagues arrived at a broad scientific principle while investigating a potentially niche problem—how a robotic arm can lift a wet object without dropping it. At the core of the solution is elastohydrodynamic lubrication (or EHL) friction. The presence of a film of fluid between two solid objects introduces EHL forces, and heightening such friction—a goal achieved by patterning solid surfaces—correspondingly makes a robotic claw less likely to lose its grip on a moist object''s surface. (The question refers to an underlined sentence; the underline isn''t legible in the recording, but the explanation quotes "investigating a potentially niche problem.")
+Engineer Lilian Hsiao and colleagues arrived at a broad scientific principle while investigating a potentially niche problem—how a robotic arm can lift a wet object without dropping it. At the core of the solution is elastohydrodynamic lubrication (or EHL) friction. The presence of a film of fluid between two solid objects introduces EHL forces, and heightening such friction—a goal achieved by patterning solid surfaces—correspondingly makes a robotic claw less likely to lose its grip on a moist object''s surface.
 
 Text 2
 Recent research led by Lilian Hsiao, who has investigated a seemingly obscure physical force known as elastohydrodynamic lubrication (EHL) friction, opens a series of broader implications in biomedicine and bio-inspired design. For one, robotic arms that depend on EHL friction can, with the new understanding achieved by Hsiao and colleagues, be refined to perform more efficient surgeries; for another, biological structures including human fingerprints offer templates for the patterned surfaces essential for generating EHL friction in all its forms.',
-  null,
+  'Engineer Lilian Hsiao and colleagues arrived at a broad scientific principle while investigating a potentially niche problem—how a robotic arm can lift a wet object without dropping it.',
   'Based on the texts, how would the author of Text 2 respond to the characterization of Hsiao and colleagues'' research in the underlined sentence in Text 1?',
   'hard', 'OnePrep rates this hard: 69% of its users answer it correctly, in 1:18 on average; the middle half of correct answers take 48s to 1:58.',
   '[
