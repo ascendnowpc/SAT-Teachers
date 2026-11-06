@@ -154,11 +154,11 @@ begin
 
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
   values (t_id, roster.id, 'english', now() - interval '5 minutes')
-  returning id, access_token into sess, tok;
+  returning id, entry_key into sess, tok;
 
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
   values (t_id, a_id, 'english', now() - interval '5 minutes')
-  returning id, access_token into other, tok2;
+  returning id, entry_key into other, tok2;
   execute 'reset role';
 
   return query select '2 token'::text,'a session gets one'::text,'64 chars'::text,coalesce(length(tok),0)::text,
@@ -440,7 +440,8 @@ begin
     (case when to_regprocedure('public.set_level_by_token(text,text)') is null
           then 'PASS' else 'FAIL' end)::text;
 
-  for txt in select unnest(array['session_by_token(text)',
+  for txt in select unnest(array['enter_by_token(text,text)',
+                                 'session_by_token(text)',
                                  'start_session_by_token(text)',
                                  'mark_viewed_by_token(text,uuid)',
                                  'mark_decided_by_token(text,uuid)',

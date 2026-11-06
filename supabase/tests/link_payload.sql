@@ -69,7 +69,7 @@ begin
 
   insert into sessions (teacher_id, student_id, subject, scheduled_at, teacher_notes)
   values (t_id, stu.id, 'english', now() - interval '1 minute', 'PRIVATE-NOTES')
-  returning id, access_token into lesson, tok;
+  returning id, entry_key into lesson, tok;
 
   perform __as(null, 'postgres');
   update sessions set status = 'live', started_at = now(), level = 'hard', levels_sat = '{easy,hard}' where id = lesson;
@@ -115,7 +115,7 @@ begin
 
   -- ============ 2. what is not in it ============
   for txt in select unnest(array['"level"', 'levels_sat', 'level_size', 'teacher_notes', 'PRIVATE-NOTES',
-                                 'access_token', '"correct_option"', 'is_correct', 'difficulty',
+                                 'access_token', 'entry_key', '"correct_option"', 'is_correct', 'difficulty',
                                  'RATIONALE-TEXT', 'SOURCE-REF-LP', 'source_ref', '"section"', '"skill"',
                                  'target_seconds', 'created_by', 'student_reasoning', 'teacher_id', 'student_id',
                                  'EXPLANATION-ONE', 'STAGED-STEM'])
@@ -154,7 +154,7 @@ begin
   tgt := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
            now() - interval '1 minute', 'Transitions', 1, array[q2], true, 60, 600);
   perform __as(null, 'postgres');
-  select access_token into ttok from sessions where id = tgt;
+  select entry_key into ttok from sessions where id = tgt;
   perform __as(null, 'anon');
   j := session_by_token(ttok);
   return query select '4 door'::text, 'a targeted test still gets its own payload'::text,

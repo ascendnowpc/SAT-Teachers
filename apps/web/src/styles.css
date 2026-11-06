@@ -1774,6 +1774,8 @@ td .cell-sub { display: block; margin-top: 2px; }
 /* ------------------------------------------------------- the link ------- */
 .link-card { border-color: rgba(59, 164, 222, .45); box-shadow: 0 0 0 4px rgba(59, 164, 222, .08), var(--shadow); }
 .link-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
+.link-note { margin: 0; color: var(--muted); font-size: 13.5px; }
+.link-note strong { color: var(--ink); }
 .link-box {
   flex: 1 1 320px; min-width: 0; overflow-x: auto; white-space: nowrap;
   padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm);

@@ -4,7 +4,7 @@ import { AdminRecording } from '../components/AdminRecording'
 import { StageBadge, Stat } from '../components/AdminUi'
 import { PcDelivery } from '../components/PcDelivery'
 import { IconBack, IconCheck, IconCross } from '../components/icons'
-import { CopyButton, Notice } from '../components/ui'
+import { CopyButton, Notice, StudentIdNote } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
 import { reportStage, STAGE_LABELS } from '../lib/admin'
@@ -165,7 +165,7 @@ export function AdminSession() {
           </Link>
         </div>
         {isAdmin ? (
-          <LinkCard token={session.access_token ?? null} />
+          <LinkCard token={session.access_token ?? null} studentId={session.student?.display_id} />
         ) : (
           <ReportCard sessionId={session.id} stage={stage} />
         )}
@@ -429,14 +429,15 @@ function FormView({
 }
 
 /** The student's way in, for the admin to send again. */
-function LinkCard({ token }: { token: string | null }) {
+function LinkCard({ token, studentId }: { token: string | null; studentId?: string | null }) {
   return (
     <div className="card card-pad">
       <div className="section-title">The student's link</div>
       {token ? (
         <>
-          <div className="cell-sub">Opens this session and nothing else, with no account.</div>
+          <div className="cell-sub">Opens this session and nothing else, once the student gives their ID.</div>
           <CopyButton value={studentLink(token)} label="Copy the link" />
+          <StudentIdNote id={studentId} />
         </>
       ) : (
         <div className="cell-sub">Not issued.</div>

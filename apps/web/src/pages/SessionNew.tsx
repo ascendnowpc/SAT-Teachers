@@ -9,7 +9,8 @@ import {
   emptyDraft,
   type TargetedDraft,
 } from '../components/TargetedBuilder'
-import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
+import { CopyButton, Field, Input, Notice, Select, StudentIdNote } from '../components/ui'
+import { SESSION_SELECT } from '../hooks/useLiveSession'
 import { useAuth } from '../context/AuthContext'
 import { LEVELS, SUBJECTS } from '../lib/constants'
 import { loadPcs } from '../lib/pcApi'
@@ -296,7 +297,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
         if (err) throw new Error(err.message)
         const { data: made, error: readErr } = await supabase
           .from('sessions')
-          .select('*')
+          .select(SESSION_SELECT)
           .eq('id', data as string)
           .single()
         if (readErr) throw new Error(readErr.message)
@@ -325,8 +326,9 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           // only the first is the baseline (lib/progress).
           mode: 'diagnostic',
         })
-        // The token comes back with it: it is the next thing the teacher needs.
-        .select('*')
+        // The token comes back with it, and the student's ID the link will ask
+        // for: they are the next thing the teacher needs.
+        .select(SESSION_SELECT)
         .single()
 
       if (err) throw new Error(err.message)
@@ -588,10 +590,13 @@ function Created({ session }: { session: Session }) {
       <div className="card card-pad next-step">
         <div className="section-title">Student link</div>
         {link ? (
-          <div className="link-row">
-            <code className="link-box">{link}</code>
-            <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
-          </div>
+          <>
+            <div className="link-row">
+              <code className="link-box">{link}</code>
+              <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
+            </div>
+            <StudentIdNote id={session.student?.display_id} />
+          </>
         ) : (
           <Notice kind="error">
             The session was created but its link did not come back. Open it from the sessions list
