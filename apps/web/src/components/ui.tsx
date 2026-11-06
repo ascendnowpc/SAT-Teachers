@@ -70,6 +70,19 @@ export function DifficultyBadge({ level }: { level: Difficulty }) {
 }
 
 /**
+ * What opening a student's link asks for (0066), said wherever the link is
+ * copied: a teacher who sends the link has to be able to say the ID too.
+ */
+export function StudentIdNote({ id }: { id?: string | null }) {
+  if (!id) return null
+  return (
+    <p className="link-note">
+      Opening the link asks for their student ID: <strong className="num">{id}</strong>
+    </p>
+  )
+}
+
+/**
  * Copies a string and says so for a moment.
  *
  * The clipboard API needs a secure context and a user gesture, and refuses on

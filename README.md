@@ -31,7 +31,7 @@ npm run dev                                    # http://localhost:5173
 | **Sessions** | Schedule with a student and a time. That is all — nothing to build beforehand |
 | **The roster** | Add a student from the New session form: first name, last name, and their PC, chosen from the list. No sign-up |
 | **PCs** | Accounts an admin adds, emailed a link to choose their password. A student's PC is chosen at their first booking and cannot be skipped; the PC reads that student's sessions and reports, and is emailed every report as a PDF with a link to the session |
-| **The link** | Every session carries one. Send it and the student is in — no account, no login |
+| **The link** | Every session carries one. Opening it asks for the student's ID, and that is the student's login — no password, no sign-up (`0066`) |
 | **The list** | One table, searched and filtered: student, PC, id, title, status, level, subject |
 | **The level** | The session starts on easy and the teacher moves it. The student is never told which test they are on |
 | **Choosing the question** | The console names the question coming next, and the teacher can put any question from any of the three tests up instead — now, or after the one on screen |
@@ -212,7 +212,18 @@ session's student could already do; the payload is built server-side and never c
 key, the token itself, or a question that is still staged. Since `0064` it is a fixed list of
 fields — the ones the student's screen reads — rather than whole rows, so the session's level, the
 teacher's notes and a question's difficulty, rationale, source and skill never reach the browser,
-and a column added later stays off the link until somebody names it (`link_payload.sql`). Students who already have an account
+and a column added later stays off the link until somebody names it (`link_payload.sql`).
+
+**The link asks for the student ID** (`0066`). The link is the address and the ID is the login:
+opening `/s/<token>` asks *Enter your student ID*, and `enter_by_token` hands back the session's
+`entry_key` only for the right one (spaces and lower case forgiven). Every `*_by_token` function
+takes that key, not the link's token — `session_for_token` reads `entry_key` — so the link alone
+opens nothing and the check cannot be stepped round by calling the functions directly. The ID is
+no secret by itself (`BATO26-1` is built from a name), which is why it is the second half of the
+check and never the first. The tab keeps the key, so a refresh mid-test does not ask again and a
+new tab does. Wherever a teacher copies the link — the booking screen, the console, the admin's
+session page — the student's ID is printed under it, since they will have to say it too
+(`student_entry.sql`). Students who already have an account
 still sign in and still open their sessions at `/exam/:id`; the link is a second door, not a
 replacement for the first.
 
@@ -911,6 +922,7 @@ psql "$DATABASE_URL" -f supabase/tests/targeted.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted_link.sql
 psql "$DATABASE_URL" -f supabase/tests/student_progress.sql
 psql "$DATABASE_URL" -f supabase/tests/link_payload.sql
+psql "$DATABASE_URL" -f supabase/tests/student_entry.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1100,6 +1112,11 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0066`.** Apply it together with the app that asks for the student ID, not ahead of
+it: the old app sends the link's token to the `*_by_token` functions, which take the entry key
+from `0066` on, so a student on the old app would be told the link is not valid. The links
+themselves do not change — every link already sent keeps working, and asks for the ID.
 
 **Gemini reads the recording**, and `apps/web/src/lib/gemini.ts` is the only file that knows it —
 the guard, the prompt, the schema and the report are written against a shape, not a vendor. The

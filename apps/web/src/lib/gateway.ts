@@ -1,3 +1,4 @@
+import { normaliseStudentId, readableEntryError } from './studentEntry'
 import { row, rows, supabase } from './supabase'
 import { fromTargeted, type TargetedPayload } from './targetedPayload'
 import type { OptionLabel, Session, SessionItem, TargetedInfo } from './types'
@@ -142,12 +143,30 @@ export function accountGateway(sessionId: string): SessionGateway {
 }
 
 /**
- * The student holding a link.
+ * The link and the student ID, exchanged for the session's entry key (0066).
  *
- * Reading is one call rather than two, because there is no RLS to read
- * through: the server takes the token, finds the one session it names, and
- * builds the whole screen — which is also what keeps the answer key out of it,
- * since the key is simply never joined.
+ * The link on its own opens nothing any more; it is the address, and the ID
+ * is the login. What comes back is what linkGateway takes.
+ */
+export async function enterByLink(link: string, studentId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('enter_by_token', {
+    p_token: link,
+    p_student: normaliseStudentId(studentId),
+  })
+  if (error) throw new Error(readableEntryError(error.message))
+  if (typeof data !== 'string' || !data) throw new Error('Could not open the test. Try again.')
+  return data
+}
+
+/**
+ * The student holding a link, once they have given their student ID.
+ *
+ * `token` is the session's entry key (0066), not the link's own token: every
+ * call below goes through session_for_token, which reads the key. Reading is
+ * one call rather than two, because there is no RLS to read through: the
+ * server takes the key, finds the one session it names, and builds the whole
+ * screen — which is also what keeps the answer key out of it, since the key
+ * is simply never joined.
  */
 export function linkGateway(token: string): SessionGateway {
   return {

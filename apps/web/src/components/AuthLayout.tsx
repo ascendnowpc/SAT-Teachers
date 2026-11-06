@@ -6,11 +6,16 @@ export function AuthLayout({
   subtitle,
   children,
   footer,
+  headline = 'Every question, every answer, on the record.',
+  tagline = 'Build the question bank, run the session, keep the proof.',
 }: {
   title: string
   subtitle: string
   children: ReactNode
   footer?: ReactNode
+  /** The brand panel's words. Staff by default; a student's link has its own. */
+  headline?: string
+  tagline?: string
 }) {
   return (
     <div className="auth">
@@ -20,8 +25,8 @@ export function AuthLayout({
         <span className="blob b3" aria-hidden="true" />
         <div className="auth-brand-inner">
           <Logo onDark />
-          <h1>Every question, every answer, on the record.</h1>
-          <p>Build the question bank, run the session, keep the proof.</p>
+          <h1>{headline}</h1>
+          <p>{tagline}</p>
         </div>
       </aside>
 

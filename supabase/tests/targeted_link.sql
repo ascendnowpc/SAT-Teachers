@@ -112,7 +112,7 @@ begin
   tgt := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
            now() + interval '1 day', 'Transitions', 4, array[q1, q2, q3, q4], false, 60, 600);
   perform __as(null, 'postgres');
-  select access_token into tok from sessions where id = tgt;
+  select entry_key into tok from sessions where id = tgt;
 
   -- ============ 1. starting ============
   perform __as(null, 'anon');
@@ -187,7 +187,7 @@ begin
     __verdict(txt = 'id,image_url,options,passage,passage_underline,stem,subject');
 
   ok := position('difficulty' in j::text) = 0 and position('source_ref' in j::text) = 0
-        and position('access_token' in j::text) = 0 and position('Because one' in j::text) = 0
+        and position('access_token' in j::text) = 0 and position('entry_key' in j::text) = 0 and position('Because one' in j::text) = 0
         and position('"level"' in j::text) = 0 and position('is_correct' in j::text) = 0;
   return query select '2 payload'::text, 'and none of them appear anywhere in it'::text,
     'true'::text, ok::text, __verdict(ok);
@@ -258,7 +258,7 @@ begin
   tgt2 := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
             now() - interval '1 minute', 'Transitions again', 3, array[q1, q2, q3], true, 60, 600);
   perform __as(null, 'postgres');
-  select access_token into tok2 from sessions where id = tgt2;
+  select entry_key into tok2 from sessions where id = tgt2;
 
   perform __as(null, 'anon');
   perform start_session_by_token(tok2);
@@ -306,7 +306,7 @@ begin
   tgt3 := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
             now() - interval '1 minute', 'Transitions, ended', 3, array[q1, q2, q3], true, 60, 600);
   perform __as(null, 'postgres');
-  select access_token into tok3 from sessions where id = tgt3;
+  select entry_key into tok3 from sessions where id = tgt3;
   perform __as(null, 'anon');
   perform start_session_by_token(tok3);
   perform __as(null, 'postgres');
@@ -361,7 +361,7 @@ begin
   tgt3 := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
             now() - interval '1 minute', 'Transitions, left', 2, array[q1, q2], true, 60, 600);
   perform __as(null, 'postgres');
-  select access_token into tok3 from sessions where id = tgt3;
+  select entry_key into tok3 from sessions where id = tgt3;
   perform __as(null, 'anon');
   perform start_session_by_token(tok3);
   perform finish_by_token(tok3);
@@ -383,7 +383,7 @@ begin
     'refused'::text, txt, __verdict(txt = 'refused');
 
   perform __as(null, 'postgres');
-  select access_token into tok3 from sessions where id = tgt3;
+  select entry_key into tok3 from sessions where id = tgt3;
   perform __as(null, 'anon');
   perform start_session_by_token(tok3);
   perform __as(null, 'postgres');
@@ -395,7 +395,7 @@ begin
 
   perform __as(t_id);
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
-  values (t_id, stu.id, 'english', now() - interval '1 minute') returning id, access_token into lesson, ltok;
+  values (t_id, stu.id, 'english', now() - interval '1 minute') returning id, entry_key into lesson, ltok;
   perform __as(null, 'anon');
   perform start_session_by_token(ltok);
   perform __as(null, 'postgres');
