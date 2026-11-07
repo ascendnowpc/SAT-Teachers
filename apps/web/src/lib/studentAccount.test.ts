@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest'
+import {
+  cleanPin,
+  signInMessage,
+  splitTests,
+  standingOf,
+  storeStudentKey,
+  storedStudentKey,
+  type StudentTest,
+} from './studentAccount'
+
+const NOW = Date.parse('2026-11-07T10:00:00Z')
+
+function test(over: Partial<StudentTest>): StudentTest {
+  return {
+    id: 'x',
+    title: null,
+    subject: 'english',
+    mode: 'targeted',
+    status: 'scheduled',
+    scheduled_at: '2026-11-07T12:00:00Z',
+    opened_early_at: null,
+    link: 'link',
+    entry_key: 'key',
+    section: 'craft_and_structure',
+    skill: 'words_in_context',
+    set_size: 10,
+    revealed: 0,
+    right: 0,
+    ...over,
+  }
+}
+
+describe('signInMessage', () => {
+  it('does not say which half was wrong', () => {
+    expect(signInMessage({ ok: false, reason: 'wrong' })).toMatch(/ID and PIN do not match/)
+  })
+
+  it('says how long a lock has left', () => {
+    const until = new Date(NOW + 14 * 60_000 + 5_000).toISOString()
+    expect(signInMessage({ ok: false, reason: 'locked', until }, NOW)).toMatch(/in 15 minutes/)
+    const later = new Date(NOW + 90 * 60_000).toISOString()
+    expect(signInMessage({ ok: false, reason: 'locked', until: later }, NOW)).toMatch(/in 2 hours/)
+  })
+
+  it('sends a closed account to the teacher', () => {
+    expect(signInMessage({ ok: false, reason: 'closed' })).toMatch(/Ask your teacher/)
+  })
+})
+
+describe('cleanPin', () => {
+  it('keeps four digits and nothing else', () => {
+    expect(cleanPin(' 4 8-2 1 9')).toBe('4821')
+    expect(cleanPin('ab12')).toBe('12')
+  })
+})
+
+describe('standingOf', () => {
+  it('a test still to come opens once its time has come, or early when let in', () => {
+    expect(standingOf(test({}), NOW).kind).toBe('upcoming')
+    expect(standingOf(test({ scheduled_at: '2026-11-07T09:00:00Z' }), NOW).kind).toBe('open')
+    expect(standingOf(test({ opened_early_at: '2026-11-07T09:59:00Z' }), NOW).kind).toBe('open')
+  })
+
+  it('a running test is live', () => {
+    expect(standingOf(test({ status: 'live' }), NOW).kind).toBe('live')
+  })
+
+  it('a finished test shows its result only once it is shared', () => {
+    expect(standingOf(test({ status: 'completed' }), NOW).kind).toBe('waiting')
+    expect(standingOf(test({ status: 'completed', revealed: 10, right: 6 }), NOW)).toEqual({
+      kind: 'results',
+      right: 6,
+      of: 10,
+    })
+  })
+})
+
+describe('splitTests', () => {
+  it('puts what is ahead first, soonest first, and what is done after, newest first', () => {
+    const { ahead, done } = splitTests([
+      test({ id: 'later', scheduled_at: '2026-11-09T10:00:00Z' }),
+      test({ id: 'old', status: 'completed', scheduled_at: '2026-10-01T10:00:00Z' }),
+      test({ id: 'soon', status: 'live', scheduled_at: '2026-11-07T09:00:00Z' }),
+      test({ id: 'recent', status: 'completed', scheduled_at: '2026-11-01T10:00:00Z' }),
+    ])
+    expect(ahead.map((t) => t.id)).toEqual(['soon', 'later'])
+    expect(done.map((t) => t.id)).toEqual(['recent', 'old'])
+  })
+})
+
+describe('the key on the device', () => {
+  it('is kept, read and forgotten', () => {
+    const data = new Map<string, string>()
+    const store = {
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => void data.set(k, v),
+      removeItem: (k: string) => void data.delete(k),
+    }
+    storeStudentKey('abc', store)
+    expect(storedStudentKey(store)).toBe('abc')
+    storeStudentKey(null, store)
+    expect(storedStudentKey(store)).toBeNull()
+  })
+
+  it('is simply absent without storage', () => {
+    storeStudentKey('abc', null)
+    expect(storedStudentKey(null)).toBeNull()
+  })
+})

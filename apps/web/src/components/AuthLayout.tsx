@@ -8,6 +8,7 @@ export function AuthLayout({
   footer,
   headline = 'Every question, every answer, on the record.',
   tagline = 'Build the question bank, run the session, keep the proof.',
+  tabs,
 }: {
   title: string
   subtitle: string
@@ -16,6 +17,8 @@ export function AuthLayout({
   /** The brand panel's words. Staff by default; a student's link has its own. */
   headline?: string
   tagline?: string
+  /** Above the heading: the sign-in page's Staff and Student. */
+  tabs?: ReactNode
 }) {
   return (
     <div className="auth">
@@ -35,6 +38,7 @@ export function AuthLayout({
           <div className="auth-mobile-logo">
             <Logo />
           </div>
+          {tabs}
           <div className="card-head">
             <h2>{title}</h2>
             <p className="sub">{subtitle}</p>

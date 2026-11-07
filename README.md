@@ -19,7 +19,7 @@ npm run dev                                    # http://localhost:5173
 | --- | --- |
 | **About the SAT** | A page in the app, before any test: the day, how the adaptive modules work, and what English and Math each ask — for a student new to the SAT, ahead of their diagnostic |
 | **Signup** | Teachers only, and a new teacher is in at once — nobody approves it; the admins are emailed and see it on their dashboard |
-| **Login** | Email + password, for teachers |
+| **Login** | Two tabs. **Staff** — teachers, admins and PCs — sign in with email + password. **Student** signs in with their student ID and a 4-digit PIN, and lands on their own page of tests (`0067`) |
 | **The admin portal** | One seat that sees every teacher, every session, every form and every report — and can do to any session what its teacher can: run it, write it up, generate the report and publish it |
 | **Suspend** | An admin closes an account, or reopens it — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
@@ -223,7 +223,18 @@ no secret by itself (`BATO26-1` is built from a name), which is why it is the se
 check and never the first. The tab keeps the key, so a refresh mid-test does not ask again and a
 new tab does. Wherever a teacher copies the link — the booking screen, the console, the admin's
 session page — the student's ID is printed under it, since they will have to say it too
-(`student_entry.sql`). Students who already have an account
+(`student_entry.sql`).
+
+**A student signs in with their ID and a PIN** (`0067`). The sign-in page has a **Student** tab:
+student ID and a 4-digit PIN, and the student lands on `/student` — every test they have, the ones
+still to sit first, their score on each once the results are published, and **Start** on the one
+that is open, which goes to its link with the entry key already in hand. Every student gets a PIN
+when they are made (`student_pins`); staff and the student's own PC read it, and wherever a teacher
+copies a link the ID and PIN are printed under it with **New PIN**, which also signs the student
+out everywhere. The ID is guessable, so guessing the PIN is made slow: five wrong in a row lock it
+for 15 minutes, every five after that double the lock up to a day, and a wrong ID and a wrong PIN
+say the same thing. What the browser keeps is a key the server stores only as its SHA-256, good
+for seven days or until *Sign out* (`student_sign_in.sql`). Students who already have an account
 still sign in and still open their sessions at `/exam/:id`; the link is a second door, not a
 replacement for the first.
 
@@ -923,6 +934,7 @@ psql "$DATABASE_URL" -f supabase/tests/targeted_link.sql
 psql "$DATABASE_URL" -f supabase/tests/student_progress.sql
 psql "$DATABASE_URL" -f supabase/tests/link_payload.sql
 psql "$DATABASE_URL" -f supabase/tests/student_entry.sql
+psql "$DATABASE_URL" -f supabase/tests/student_sign_in.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1113,8 +1125,8 @@ the Progress section), then merge. The Supabase MCP tool's `apply_migration` wai
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
 
-**Order, for `0066`.** Apply it together with the app that asks for the student ID, not ahead of
-it: the old app sends the link's token to the `*_by_token` functions, which take the entry key
+**Order, for `0066` and `0067`.** `0067` is safe at any time on its own. Apply `0066` together with
+the app that asks for the student ID, not ahead of it: the old app sends the link's token to the `*_by_token` functions, which take the entry key
 from `0066` on, so a student on the old app would be told the link is not valid. The links
 themselves do not change — every link already sent keeps working, and asks for the ID.
 
