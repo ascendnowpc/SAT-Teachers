@@ -11,6 +11,7 @@ import type { SessionGateway } from '../lib/gateway'
 import { clock, openState } from '../lib/countdown'
 import { bindingClock, deadlineAt, outcomeOf, questionEndsAt, secondsLeft } from '../lib/targetedClock'
 import { askNumbers } from '../lib/report'
+import { scoreLine, scoreNote, skillName, skillsToWork, type TargetedResult } from '../lib/targetedResult'
 import { formatUtcLong } from '../lib/time'
 import { OPTION_LABELS, subjectLabel } from '../lib/constants'
 import type { OptionLabel, Session, SessionItem, TargetedInfo } from '../lib/types'
@@ -314,7 +315,7 @@ export function StudentStage({ gateway }: { gateway: SessionGateway }) {
           ) : between ? (
             isTargeted ? <NextComing /> : <WaitingForTeacher first={done.length === 0} />
           ) : finished ? (
-            <Finished items={done} targeted={isTargeted ? targeted : null} />
+            <Finished items={done} targeted={isTargeted ? targeted : null} gateway={gateway} />
           ) : waiting ? (
             <Lobby session={session} gateway={gateway} onStarted={reload} targeted={isTargeted ? targeted : null} />
           ) : (
@@ -495,6 +496,46 @@ function NextComing() {
   )
 }
 
+/* -------------------------------------------------------------- the score --- */
+
+/** A targeted test's score, and the skills with a miss in them (0068). */
+function ScoreCard({ result }: { result: TargetedResult }) {
+  const note = scoreNote(result)
+  const work = skillsToWork(result)
+  const several = result.skills.length > 1
+
+  return (
+    <section className="score-card" aria-label="Your score">
+      <div className="score-main">
+        <div className="score-label">Your score</div>
+        <div className="score-big">{scoreLine(result)}</div>
+        {note && <div className="score-note">{note}</div>}
+      </div>
+      {result.reached > 0 && (
+        <div className="score-skills">
+          {work.length === 0 ? (
+            <p className="score-all">Every question you answered was right.</p>
+          ) : (
+            <>
+              <div className="score-label">{several ? 'Skills to work on' : 'Skill to work on'}</div>
+              <ul>
+                {work.map((s) => (
+                  <li key={`${s.section}:${s.skill}`}>
+                    <span>{skillName(s)}</span>
+                    <span className="num">
+                      {s.right} of {s.of}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /* ------------------------------------------------------------ finished --- */
 
 /**
@@ -508,10 +549,37 @@ function NextComing() {
  * The key is not in the student's reach (question_keys is teacher-only), so it
  * comes from what the reveal copied onto the item itself.
  */
-function Finished({ items, targeted }: { items: SessionItem[]; targeted: TargetedInfo | null }) {
+function Finished({
+  items,
+  targeted,
+  gateway,
+}: {
+  items: SessionItem[]
+  targeted: TargetedInfo | null
+  gateway: SessionGateway
+}) {
   // 1, 2, 3 over the questions they actually worked on — a question the
   // teacher set aside is not one of them and takes no number.
   const numbers = useMemo(() => askNumbers(items), [items])
+
+  // A targeted test's score comes at once (0068); the answers wait for the
+  // teacher's Publish results, as before.
+  const [result, setResult] = useState<TargetedResult | null>(null)
+  useEffect(() => {
+    if (!targeted) return
+    let active = true
+    gateway
+      .result()
+      .then((r) => {
+        if (active) setResult(r)
+      })
+      .catch(() => {
+        // The score is a courtesy here; the questions below still show.
+      })
+    return () => {
+      active = false
+    }
+  }, [gateway, targeted])
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
@@ -526,15 +594,25 @@ function Finished({ items, targeted }: { items: SessionItem[]; targeted: Targete
             put on is the teacher's decision about them, and reading it back at
             the end tells them nothing they can do anything with. */}
         <h2>Test submitted</h2>
-        <p>
-          {items.length - ranOut} answered.{' '}
-          {ranOut > 0 && `${ranOut} ran out of time. `}
-          {notReached > 0 && `${notReached} not reached. `}
-          {out === 0
-            ? 'Your teacher will go through it with you — your results appear here when they do.'
-            : `You got ${right} of ${out} right.`}
-        </p>
+        {result ? (
+          <p>
+            {out === 0
+              ? 'Your teacher will go through the answers with you — they appear here when they do.'
+              : 'Your answers and the explanations are below.'}
+          </p>
+        ) : (
+          <p>
+            {items.length - ranOut} answered.{' '}
+            {ranOut > 0 && `${ranOut} ran out of time. `}
+            {notReached > 0 && `${notReached} not reached. `}
+            {out === 0
+              ? 'Your teacher will go through it with you — your results appear here when they do.'
+              : `You got ${right} of ${out} right.`}
+          </p>
+        )}
       </div>
+
+      {result && <ScoreCard result={result} />}
 
       {items.map((it) =>
         it.questions ? (

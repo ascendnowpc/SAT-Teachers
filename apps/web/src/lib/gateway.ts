@@ -1,4 +1,5 @@
 import { normaliseStudentId, readableEntryError } from './studentEntry'
+import type { TargetedResult } from './targetedResult'
 import { row, rows, supabase } from './supabase'
 import { fromTargeted, type TargetedPayload } from './targetedPayload'
 import type { OptionLabel, Session, SessionItem, TargetedInfo } from './types'
@@ -57,6 +58,12 @@ export interface SessionGateway {
     confidence: number | null
   }): Promise<void>
   finish(): Promise<void>
+  /**
+   * A targeted test's score once it is over (0068), or null — before it ends,
+   * for a lesson, and on the signed-in door, which does not run targeted
+   * tests.
+   */
+  result(): Promise<TargetedResult | null>
 }
 
 /** Turns a PostgREST error into something worth putting on a screen. */
@@ -138,6 +145,10 @@ export function accountGateway(sessionId: string): SessionGateway {
 
     async finish() {
       fail((await supabase.rpc('finish_session_as_student', { p_session: sessionId })).error)
+    },
+
+    async result() {
+      return null
     },
   }
 }
@@ -231,6 +242,12 @@ export function linkGateway(token: string): SessionGateway {
 
     async finish() {
       fail((await supabase.rpc('finish_by_token', { p_token: token })).error)
+    },
+
+    async result() {
+      const { data, error } = await supabase.rpc('targeted_result_by_token', { p_token: token })
+      fail(error)
+      return (data ?? null) as TargetedResult | null
     },
   }
 }
