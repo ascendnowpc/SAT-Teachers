@@ -2585,3 +2585,77 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .score-skills li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--danger-bg); color: var(--ink); font-size: 14.5px; }
 .score-skills li .num { color: var(--danger); font-weight: 600; white-space: nowrap; }
 .score-all { margin: 6px 0 0; color: var(--ok-fg); font-weight: 500; }
+
+/* ----------------------------------------------- the parent report (0070) */
+:root { --warn: #BF8A00; --warn-bg: #FFF5DD; }
+.student-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.report-main { max-width: 800px; margin: 0 auto; padding: 28px 16px 64px; }
+.report-card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow);
+  padding: clamp(20px, 4vw, 36px);
+}
+.report-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.report-kicker, .report-label, .report-group-label {
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.report-head h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(28px, 4vw, 36px); letter-spacing: -0.02em; margin: 4px 0 2px; }
+.report-meta { color: var(--muted); font-size: 14px; }
+.report-subjects { display: flex; gap: 6px; }
+.report-headline { margin-top: 24px; padding: 20px 22px; border-radius: var(--r-sm); background: var(--page); }
+.report-hero { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+.report-hero-skill { font-size: 18px; font-weight: 600; color: var(--ink); }
+.report-hero-score { font-family: var(--font-ui); font-size: clamp(36px, 6vw, 48px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
+.report-hero-over { color: var(--ink-2); font-size: 15px; margin-top: 2px; }
+.report-section { margin-top: 28px; }
+.report-section h2 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
+.report-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.report-note { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+.rag-legend { display: flex; gap: 6px; flex-wrap: wrap; }
+.rag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 500; color: var(--ink); white-space: nowrap;
+}
+.rag-icon { stroke: currentColor; }
+.rag-green { background: var(--ok-bg); } .rag-green .rag-icon { stroke: var(--ok-fg); }
+.rag-amber { background: var(--warn-bg); } .rag-amber .rag-icon { stroke: var(--warn); }
+.rag-red { background: var(--danger-bg); } .rag-red .rag-icon { stroke: var(--danger); }
+.rag-none { background: var(--input); color: var(--muted); }
+.report-skill-group { margin-top: 14px; }
+.report-skills { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px; }
+.report-skill {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 12px; border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--r-sm);
+  font-size: 14px;
+}
+.rag-row-green { border-left-color: var(--ok-fg); }
+.rag-row-amber { border-left-color: var(--warn); }
+.rag-row-red { border-left-color: var(--danger); }
+.rag-row-none { border-left-color: var(--border-strong); }
+.report-skill-name { color: var(--ink); min-width: 0; }
+.report-skill-state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; flex-shrink: 0; }
+.report-main .muted { color: var(--muted); }
+.report-skill-score { color: var(--ink-2); white-space: nowrap; }
+.report-trends { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.report-trend {
+  display: grid; grid-template-columns: minmax(140px, 1fr) auto minmax(120px, auto); align-items: center; gap: 16px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+.report-trend-name { font-weight: 500; color: var(--ink); font-size: 14.5px; }
+.report-trend-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 14px; color: var(--ink); }
+.report-trend-verdict { color: var(--muted); font-size: 12.5px; }
+.sparkline { display: block; overflow: visible; }
+.sparkline-base { stroke: var(--border); stroke-width: 1; }
+.sparkline-line { fill: none; stroke: var(--sky-dark); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.sparkline-dot { fill: var(--sky-dark); stroke: #fff; stroke-width: 2; }
+.report-foot { margin: 24px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+@media (max-width: 560px) {
+  .report-trend { grid-template-columns: 1fr auto; }
+  .report-trend .sparkline { grid-column: 1 / -1; grid-row: 2; width: 100%; height: auto; }
+  .report-skills { grid-template-columns: 1fr; }
+}
+@media print {
+  .no-print { display: none !important; }
+  .student-home { background: #fff; }
+  .report-main { padding: 0; max-width: none; }
+  .report-card { border: 0; box-shadow: none; padding: 0; }
+}

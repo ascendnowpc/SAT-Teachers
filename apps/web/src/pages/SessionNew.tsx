@@ -7,6 +7,7 @@ import {
   bookedSize,
   draftProblem,
   emptyDraft,
+  overallMinutesOf,
   type TargetedDraft,
 } from '../components/TargetedBuilder'
 import { StudentIdNote } from '../components/StudentAccess'
@@ -293,7 +294,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           p_questions: draft.questions,
           p_allow_repeats: draft.allowRepeats,
           p_question_seconds: draft.questionSeconds,
-          p_overall_seconds: draft.overallMinutes * 60,
+          p_overall_seconds: overallMinutesOf(draft) * 60,
         })
         if (err) throw new Error(err.message)
         const { data: made, error: readErr } = await supabase

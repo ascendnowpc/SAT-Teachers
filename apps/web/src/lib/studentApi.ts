@@ -1,4 +1,5 @@
 import { sectionLabel, skillLabel, subjectLabel } from './constants'
+import type { StudentReport } from './parentReport'
 import type { SignInResult, StudentHome, StudentTest } from './studentAccount'
 import { normaliseStudentId } from './studentEntry'
 import { supabase } from './supabase'
@@ -23,6 +24,13 @@ export async function loadStudentHome(key: string): Promise<StudentHome> {
   const { data, error } = await supabase.rpc('student_home', { p_key: key })
   if (error) throw new Error(error.message)
   return data as StudentHome
+}
+
+/** The parent report's numbers (0070); throws "signed out" for a key that no longer works. */
+export async function loadStudentReport(key: string): Promise<StudentReport> {
+  const { data, error } = await supabase.rpc('student_report', { p_key: key })
+  if (error) throw new Error(error.message)
+  return data as StudentReport
 }
 
 export async function studentSignOut(key: string): Promise<void> {
