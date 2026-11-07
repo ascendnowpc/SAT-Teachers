@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { PracticeList } from '../components/PracticeList'
 import { Notice } from '../components/ui'
 import { subjectLabel } from '../lib/constants'
 import {
@@ -125,6 +126,13 @@ export function StudentHome() {
                 </ul>
               </section>
             )}
+
+            <section className="student-section">
+              <h2>More practice</h2>
+              <div className="student-practice">
+                <PracticeList />
+              </div>
+            </section>
           </>
         )}
       </main>

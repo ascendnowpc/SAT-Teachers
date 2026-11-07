@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { RetentionSettings } from '../components/RetentionSettings'
 import { Input, Notice } from '../components/ui'
 import { SUBJECTS } from '../lib/constants'
 import {
@@ -34,6 +35,8 @@ import type { Subject } from '../lib/types'
 export function AdminSettings() {
   const [params, setParams] = useSearchParams()
   const subject: Subject = params.get('subject') === 'mathematics' ? 'mathematics' : 'english'
+  // Data clean-up (0071) is the school's, not a subject's: its own tab.
+  const cleanup = params.get('tab') === 'cleanup'
   const label = SUBJECTS.find((s) => s.value === subject)?.label ?? subject
 
   return (
@@ -42,8 +45,9 @@ export function AdminSettings() {
         <div>
           <h1>Settings</h1>
           <p className="sub">
-            How targeted tests are scored and judged, for each subject. A change applies straight
-            away to every test, including ones already sat.
+            {cleanup
+              ? 'When old student data and recordings are deleted. Nothing is deleted while it is off.'
+              : 'How targeted tests are scored and judged, for each subject. A change applies straight away to every test, including ones already sat.'}
           </p>
         </div>
       </div>
@@ -53,7 +57,7 @@ export function AdminSettings() {
           <button
             key={s.value}
             type="button"
-            className={`tab ${subject === s.value ? 'on' : ''}`}
+            className={`tab ${!cleanup && subject === s.value ? 'on' : ''}`}
             onClick={() =>
               setParams(s.value === 'english' ? {} : { subject: s.value }, { replace: true })
             }
@@ -61,9 +65,16 @@ export function AdminSettings() {
             {s.label}
           </button>
         ))}
+        <button
+          type="button"
+          className={`tab ${cleanup ? 'on' : ''}`}
+          onClick={() => setParams({ tab: 'cleanup' }, { replace: true })}
+        >
+          Data clean-up
+        </button>
       </div>
 
-      <SubjectSettings key={subject} subject={subject} label={label} />
+      {cleanup ? <RetentionSettings /> : <SubjectSettings key={subject} subject={subject} label={label} />}
     </div>
   )
 }

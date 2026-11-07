@@ -153,6 +153,33 @@ export const MODULE_TWO = {
   harder: { label: 'Harder Module 2', range: '≈ 450–800' },
 } as const
 
+/**
+ * Where to send a student for more practice than the bank holds — the brief's
+ * list. Links only: nothing is copied from them into the bank by linking.
+ */
+export const PRACTICE_RESOURCES = [
+  {
+    label: 'Khan Academy — Official Digital SAT Prep',
+    note: 'Free. Lessons and practice by skill, made with College Board.',
+    href: 'https://www.khanacademy.org/test-prep/digital-sat',
+  },
+  {
+    label: 'Bluebook — official practice tests',
+    note: 'Free. Full-length practice tests in the app the real SAT uses.',
+    href: 'https://satsuite.collegeboard.org/practice/practice-tests',
+  },
+  {
+    label: 'OnePrep',
+    note: 'Free. Practice questions by skill and difficulty.',
+    href: 'https://www.oneprep.com/',
+  },
+  {
+    label: 'UWorld — Digital SAT',
+    note: 'Paid, with a free trial. A large question bank with explanations.',
+    href: 'https://collegeprep.uworld.com/sat/',
+  },
+] as const
+
 export const SOURCES = [
   { label: 'The SAT — College Board', href: 'https://satsuite.collegeboard.org/sat' },
   { label: 'What’s on the Math test', href: 'https://satsuite.collegeboard.org/sat/whats-on-the-test/math' },

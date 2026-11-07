@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { PracticeList } from '../components/PracticeList'
 import {
   ENGLISH_DOMAINS,
   ENGLISH_SAMPLE_MODULE,
@@ -140,6 +141,11 @@ export function AboutSat() {
             Book the diagnostic
           </Link>
         )}
+      </div>
+
+      <div className="card card-pad practice-card">
+        <h3>More practice</h3>
+        <PracticeList />
       </div>
 
       <p className="sg-sources">
@@ -297,3 +303,4 @@ function MathPart() {
     </>
   )
 }
+

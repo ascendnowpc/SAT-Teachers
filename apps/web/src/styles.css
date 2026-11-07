@@ -2659,3 +2659,23 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
   .report-main { padding: 0; max-width: none; }
   .report-card { border: 0; box-shadow: none; padding: 0; }
 }
+
+/* ------------------------------------------------------- more practice */
+.practice-card { margin-top: 20px; }
+.practice-card h3 { margin: 0 0 8px; }
+.practice-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.practice-list li { display: flex; flex-direction: column; gap: 2px; }
+.practice-list a { font-weight: 600; color: var(--sky-dark); }
+.practice-list span { color: var(--muted); font-size: 13.5px; }
+.student-practice { padding: 16px 18px; background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); }
+
+/* ------------------------------------------------------ data clean-up (0071) */
+.retention-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.retention-last { color: var(--muted); font-size: 13.5px; margin: 12px 0 0; }
+.retention-list + .retention-list { margin-top: 18px; }
+.retention-list h4 { font-size: 14px; margin: 0 0 8px; color: var(--ink); }
+.retention-list .muted { color: var(--muted); font-size: 13.5px; margin: 0; }
+.retention-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.retention-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12.5px; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
+.retention-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
+.retention-table .muted { margin-left: 6px; }
