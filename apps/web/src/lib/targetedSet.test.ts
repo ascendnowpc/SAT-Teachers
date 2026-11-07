@@ -9,6 +9,7 @@ import {
   mixFor,
   printedOrder,
   seededRandom,
+  suggestedMinutes,
   type Candidate,
 } from './targetedSet'
 import type { Difficulty } from './types'
@@ -36,6 +37,11 @@ describe('mixFor', () => {
   it('is 2/1/2 for five and 3/3/4 for ten', () => {
     expect(mixFor(5)).toEqual({ easy: 2, medium: 1, hard: 2 })
     expect(mixFor(10)).toEqual({ easy: 3, medium: 3, hard: 4 })
+  })
+
+  it('balances the brief’s sizes too: 12 and 15', () => {
+    expect(mixFor(12)).toEqual({ easy: 4, medium: 3, hard: 5 })
+    expect(mixFor(15)).toEqual({ easy: 5, medium: 4, hard: 6 })
   })
 
   it('always adds up to the size', () => {
@@ -250,5 +256,21 @@ describe('inLevelOrder and levelCounts', () => {
     const set = [c('h1', 'hard', 1), c('e2', 'easy', 2), c('m1', 'medium', 1), c('e1', 'easy', 1)]
     expect(ids(inLevelOrder(set))).toEqual(['e2', 'e1', 'm1', 'h1'])
     expect(levelCounts(set)).toEqual({ easy: 2, medium: 1, hard: 1 })
+  })
+})
+
+describe('suggestedMinutes', () => {
+  it('is a minute a question, and one to spare', () => {
+    expect(suggestedMinutes(10, 60)).toBe(11)
+    expect(suggestedMinutes(12, 60)).toBe(13)
+    expect(suggestedMinutes(15, 75)).toBe(20)
+  })
+
+  it('counts a question on its own target at 90 s', () => {
+    expect(suggestedMinutes(10, null)).toBe(16)
+  })
+
+  it('is never less than a minute', () => {
+    expect(suggestedMinutes(0, 60)).toBe(1)
   })
 })

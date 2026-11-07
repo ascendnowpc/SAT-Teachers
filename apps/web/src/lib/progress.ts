@@ -41,7 +41,7 @@ export function defaultConfig(subject: Subject): ProgressConfig {
     improved_at: 5,
     declined_at: -5,
     long_words: subject === 'english' ? 75 : 40,
-    default_set_size: 5,
+    default_set_size: 10,
     pattern_min_each: 4,
     pattern_gap: 0.4,
   }

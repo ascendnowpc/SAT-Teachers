@@ -9,6 +9,7 @@ import {
   describeSet,
   levelCounts,
   seededRandom,
+  suggestedMinutes,
   type Candidate,
 } from '../lib/targetedSet'
 import type { Question, Subject } from '../lib/types'
@@ -43,6 +44,8 @@ export interface TargetedDraft {
   /** One clock for every question; null — each question's own target time. */
   questionSeconds: number | null
   overallMinutes: number
+  /** The whole test's clock follows the questions until the teacher sets it. */
+  overallAuto: boolean
   /**
    * Pick for me: whether a question the student has seen may be drawn. A
    * ticked set allows it exactly when a ticked question was seen.
@@ -61,8 +64,10 @@ export function emptyDraft(subject: Subject): TargetedDraft {
     how: null,
     size: 0,
     seed: newSeed(),
-    questionSeconds: null,
-    overallMinutes: 15,
+    // The brief's mini-test: about a minute a question (0069).
+    questionSeconds: 60,
+    overallMinutes: suggestedMinutes(10, 60),
+    overallAuto: true,
     allowRepeats: false,
     questions: [],
   }
@@ -70,7 +75,14 @@ export function emptyDraft(subject: Subject): TargetedDraft {
 
 /** The size the test is booked with: what was asked for, or what was ticked. */
 export function bookedSize(d: TargetedDraft): number {
-  return d.how === 'auto' ? d.size : d.questions.length
+  // What the set holds. Pick for me on a short bank holds fewer than was
+  // asked for, and the test is that many questions, not the number asked.
+  return d.questions.length
+}
+
+/** The whole test's clock: the teacher's, or a minute a question and one to spare. */
+export function overallMinutesOf(d: TargetedDraft): number {
+  return d.overallAuto ? suggestedMinutes(d.questions.length || d.size, d.questionSeconds) : d.overallMinutes
 }
 
 /** What create_targeted_session would refuse, said before it is pressed. Null when it is ready. */
@@ -85,7 +97,8 @@ export function draftProblem(d: TargetedDraft): string | null {
     return `A targeted test is 1 to ${MAX_SET} questions.`
   if (d.questionSeconds !== null && (d.questionSeconds < 10 || d.questionSeconds > 900))
     return 'A question’s clock is 10 to 900 seconds.'
-  if (d.overallMinutes < 1 || d.overallMinutes > 180) return 'The whole test is 1 to 180 minutes.'
+  const overall = overallMinutesOf(d)
+  if (overall < 1 || overall > 180) return 'The whole test is 1 to 180 minutes.'
   return null
 }
 
@@ -311,24 +324,29 @@ export function TargetedBuilder({
 
       <div className="section-title targeted-timing">Timing</div>
       <div className="grid-2">
-        <Field label="The whole test (minutes)">
+        <Field
+          label="The whole test (minutes)"
+          hint={draft.overallAuto ? 'Follows the questions: their clocks, and a minute to spare.' : undefined}
+        >
           <Input
             type="number"
             min={1}
             max={180}
-            value={draft.overallMinutes}
-            onChange={(e) => onChange({ ...draft, overallMinutes: Number(e.target.value) || 0 })}
+            value={overallMinutesOf(draft)}
+            onChange={(e) =>
+              onChange({ ...draft, overallMinutes: Number(e.target.value) || 0, overallAuto: false })
+            }
           />
         </Field>
         <Field label="Each question’s clock">
           <Select
             value={draft.questionSeconds === null ? 'own' : 'fixed'}
             onChange={(e) =>
-              onChange({ ...draft, questionSeconds: e.target.value === 'own' ? null : 75 })
+              onChange({ ...draft, questionSeconds: e.target.value === 'own' ? null : 60 })
             }
           >
-            <option value="own">Each question’s own target time</option>
             <option value="fixed">The same for every question</option>
+            <option value="own">Each question’s own target time</option>
           </Select>
         </Field>
       </div>

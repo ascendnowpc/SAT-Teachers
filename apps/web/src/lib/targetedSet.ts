@@ -44,6 +44,17 @@ const NEIGHBOURS: Record<Difficulty, Difficulty[]> = {
  * rounded by largest remainder so the three always add up to the size, ties
  * going to the easier level.
  */
+/**
+ * The whole test's clock, in minutes, when the teacher has not set it: the
+ * questions' clocks end to end and one minute to spare for moving between
+ * them. A question on its own target time is counted at 90 s, the top of what
+ * the targets run to.
+ */
+export function suggestedMinutes(questions: number, questionSeconds: number | null): number {
+  const each = questionSeconds ?? 90
+  return Math.max(1, Math.ceil((Math.max(0, questions) * each) / 60) + 1)
+}
+
 export function mixFor(size: number): Record<Difficulty, number> {
   const n = Math.max(0, Math.floor(size))
   const exact = LEVEL_ORDER.map((l) => ({ l, x: n * SHARE[l] }))

@@ -13,6 +13,9 @@
 --    * the link's token alone reads nothing; a lesson has no such score
 --    * the student's own page (0067) carries the score of a finished
 --      targeted test, and none on a lesson
+--    * a test the bank could not fill counts what it held (0069): a set of 2
+--      booked as 10 is 2 questions, and none of the 8 it never had is
+--      "not reached"; the student's page says 2 questions too
 --    * the grants are what they say
 --
 --  Every row must read PASS. Cleans up after itself, and is safe to run
@@ -42,10 +45,10 @@ declare
   pool  uuid;
   opts  jsonb := '[{"label":"A","body":"one"},{"label":"B","body":"two"}]';
   q1 uuid; q2 uuid; q3 uuid; q4 uuid;
-  tgt uuid; lesson uuid;
+  tgt uuid; lesson uuid; short_tgt uuid; short_key text; si uuid;
   key text; link text; lkey text;
   i1 uuid; i2 uuid; i3 uuid;
-  r jsonb; home jsonb; txt text; pin text; skey text;
+  r jsonb; home jsonb; txt text; pin text; skey text; n int;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                           email_confirmed_at, created_at, updated_at,
@@ -159,12 +162,41 @@ begin
   return query select '5 page'::text, 'a lesson does not'::text, 'null'::text,
     coalesce(nullif(r::text, 'null'), 'null'), __verdict(r is null or r = 'null'::jsonb);
 
-  -- ============ 6. grants ============
+  -- ============ 6. a short bank (0069) ============
+  perform __as(t_id);
+  short_tgt := create_targeted_session(stu.id, 'english', 'expression_of_ideas', 'transitions',
+                 now() - interval '1 minute', 'Short', 10, array[q1, q2], true, 60, 600);
   perform __as(null, 'postgres');
-  return query select '6 grants'::text, 'targeted_result_by_token(text) — the link'::text, 'anon'::text,
+  select entry_key into short_key from sessions where id = short_tgt;
+  perform __as(null, 'anon');
+  perform start_session_by_token(short_key);
+  for n in 1..2 loop
+    perform __as(null, 'postgres');
+    select id into si from session_items where session_id = short_tgt and status = 'published';
+    perform __as(null, 'anon');
+    perform answer_by_token(short_key, si, 'A', '{}', 2::smallint, null);
+  end loop;
+  r := targeted_result_by_token(short_key);
+  return query select '6 short'::text, 'booked as 10, held 2: nothing it never had is "not reached"'::text,
+    '2 of 2, 0 not reached'::text,
+    coalesce((r->>'right') || ' of ' || (r->>'reached') || ', ' || (r->>'not_reached') || ' not reached', 'null'),
+    __verdict((r->>'right')::int = 2 and (r->>'reached')::int = 2 and (r->>'not_reached')::int = 0);
+  home := student_home(skey);
+  select (e->>'set_size') into txt from jsonb_array_elements(home->'sessions') e where e->>'id' = short_tgt::text;
+  return query select '6 short'::text, 'and the student''s page says 2 questions'::text, '2'::text,
+    coalesce(txt, 'null'), __verdict(txt = '2');
+
+  perform __as(null, 'postgres');
+  select default_set_size::text into txt from progress_config where subject = 'english';
+  return query select '6 short'::text, 'a new test starts at 10 (0069)'::text, '10'::text,
+    coalesce(txt, 'null'), __verdict(txt = '10');
+
+  -- ============ 7. grants ============
+  perform __as(null, 'postgres');
+  return query select '7 grants'::text, 'targeted_result_by_token(text) — the link'::text, 'anon'::text,
     (case when has_function_privilege('anon', 'public.targeted_result_by_token(text)', 'execute') then 'anon' else 'nobody' end),
     __verdict(has_function_privilege('anon', 'public.targeted_result_by_token(text)', 'execute'));
-  return query select '6 grants'::text, 'targeted_result(uuid) — internal'::text, 'nobody'::text,
+  return query select '7 grants'::text, 'targeted_result(uuid) — internal'::text, 'nobody'::text,
     (case when has_function_privilege('anon', 'public.targeted_result(uuid)', 'execute')
             or has_function_privilege('authenticated', 'public.targeted_result(uuid)', 'execute')
           then 'somebody' else 'nobody' end),
@@ -173,7 +205,7 @@ begin
 
   -- Cleanup.
   delete from student_login_keys where student_id = stu.id;
-  delete from sessions where id in (tgt, lesson);
+  delete from sessions where id in (tgt, lesson, short_tgt);
   delete from questions where id in (q1, q2, q3, q4);
   delete from profiles where id in (stu.id, t_id, pc.id);
   delete from auth.users where id = t_id;
