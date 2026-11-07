@@ -9,7 +9,8 @@ import {
   emptyDraft,
   type TargetedDraft,
 } from '../components/TargetedBuilder'
-import { CopyButton, Field, Input, Notice, Select, StudentIdNote } from '../components/ui'
+import { StudentIdNote } from '../components/StudentAccess'
+import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
 import { SESSION_SELECT } from '../hooks/useLiveSession'
 import { useAuth } from '../context/AuthContext'
 import { LEVELS, SUBJECTS } from '../lib/constants'
@@ -595,7 +596,7 @@ function Created({ session }: { session: Session }) {
               <code className="link-box">{link}</code>
               <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
             </div>
-            <StudentIdNote id={session.student?.display_id} />
+            <StudentIdNote studentId={session.student_id} displayId={session.student?.display_id} />
           </>
         ) : (
           <Notice kind="error">

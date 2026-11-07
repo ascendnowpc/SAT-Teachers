@@ -21,6 +21,7 @@ import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
 import { Signup } from './pages/Signup'
+import { StudentHome } from './pages/StudentHome'
 import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
 
@@ -43,6 +44,12 @@ export function App() {
   // A PC's link to choose a password, for the same reason: whoever opens it
   // cannot sign in yet, and choosing the password is what signs them in.
   if (location.pathname === '/join') return <Join />
+
+  // A student's own page (0067). A student has no Supabase account — their ID
+  // and PIN give them a key of their own — so this is matched before the staff
+  // sign-in is asked about, and a teacher signed in on the same browser does
+  // not get their dashboard instead.
+  if (location.pathname === '/student') return <StudentHome />
 
   if (loading) return <div className="center-fill">Loading…</div>
 

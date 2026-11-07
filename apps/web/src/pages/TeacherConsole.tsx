@@ -5,7 +5,8 @@ import { IconBack, IconClock, IconVideo } from '../components/icons'
 import { MathToolButtons, MathToolsPanel, type MathTool } from '../components/MathTools'
 import { MathText } from '../components/MathText'
 import { QuestionView } from '../components/QuestionView'
-import { CopyButton, DifficultyBadge, Notice, Passage, StudentIdNote } from '../components/ui'
+import { StudentIdNote } from '../components/StudentAccess'
+import { CopyButton, DifficultyBadge, Notice, Passage } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLevelTests } from '../hooks/useLevelTests'
 import { useLiveSession } from '../hooks/useLiveSession'
@@ -349,7 +350,7 @@ function StudentLinkCard({ session }: { session: Session }) {
         <code className="link-box">{link}</code>
         <CopyButton value={link} label="Copy link" className="btn btn-primary btn-sm" />
       </div>
-      <StudentIdNote id={session.student?.display_id} />
+      <StudentIdNote studentId={session.student_id} displayId={session.student?.display_id} />
     </div>
   )
 }
