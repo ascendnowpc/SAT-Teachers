@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { Notice } from '../components/ui'
 import { subjectLabel } from '../lib/constants'
@@ -87,8 +87,15 @@ export function StudentHome() {
       </header>
 
       <main className="student-main">
-        <h1>{first ? `Hi, ${first}` : 'Your tests'}</h1>
-        <p className="muted">Your tests, and your results once your teacher shares them. Times are in UTC.</p>
+        <div className="student-head">
+          <div>
+            <h1>{first ? `Hi, ${first}` : 'Your tests'}</h1>
+            <p className="muted">Your tests, and your results once your teacher shares them. Times are in UTC.</p>
+          </div>
+          <Link className="btn btn-primary btn-sm" to="/student/report">
+            Progress report
+          </Link>
+        </div>
 
         {error && <Notice kind="error">{error}</Notice>}
         {!home && !error && <p className="muted">Loading…</p>}

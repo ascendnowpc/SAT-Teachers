@@ -45,6 +45,7 @@ npm run dev                                    # http://localhost:5173
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
+| **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 
@@ -860,6 +861,18 @@ right out of reached and the skills with a miss in them, weakest first —
 was right. Their page shows the same score. Publish results still gives them their questions,
 answers and explanations, as after a lesson; level scores and verdicts stay with staff and the PC.
 
+**The parent report** (`0070`, `/student/report`). Inside the student's account — a parent opens it
+with the student's ID and PIN, and needs no login of their own — **Progress report** on the
+student's page opens one card, made to be screenshotted: the headline ("Transitions 1/3 → 5/10,
+over 5 sessions": first score to latest on the skill most recently tested, counting every lesson
+and test after the first), a red / amber / green map of every skill in the subject by the latest
+session that asked it, and the trend on each skill with a targeted test. Every colour carries its
+word and its "3 of 5" too. The cut-offs (green 70%+, amber 40–69%, red below) are suggested and live
+in one place, `RAG_CUTOFFS` in `lib/parentReport.ts`. It is drawn by `lib/progress.ts` from the
+same numbers as the staff's progress page: `student_progress`'s body moved into `progress_payload`
+(internal), and `student_report(key)` returns it cut down to what the card reads — no question id,
+difficulty, timing, teacher or shared wording (`student_report.sql`).
+
 **Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
 test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
 out of 10 *and* mapped to a level score, always side by side; accuracy by difficulty; time
@@ -942,6 +955,7 @@ psql "$DATABASE_URL" -f supabase/tests/link_payload.sql
 psql "$DATABASE_URL" -f supabase/tests/student_entry.sql
 psql "$DATABASE_URL" -f supabase/tests/student_sign_in.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted_result.sql
+psql "$DATABASE_URL" -f supabase/tests/student_report.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every

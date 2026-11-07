@@ -21,6 +21,7 @@ import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
 import { Signup } from './pages/Signup'
+import { ParentReport } from './pages/ParentReport'
 import { StudentHome } from './pages/StudentHome'
 import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
@@ -50,6 +51,8 @@ export function App() {
   // sign-in is asked about, and a teacher signed in on the same browser does
   // not get their dashboard instead.
   if (location.pathname === '/student') return <StudentHome />
+  // The parent report, from the same account (0070).
+  if (location.pathname === '/student/report') return <ParentReport />
 
   if (loading) return <div className="center-fill">Loading…</div>
 
