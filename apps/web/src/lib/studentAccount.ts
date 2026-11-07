@@ -49,6 +49,8 @@ export interface StudentTest {
   set_size: number | null
   revealed: number
   right: number
+  /** A finished targeted test's score, there at once (0068); null otherwise. */
+  score?: { right: number; reached: number } | null
 }
 
 export interface StudentHome {
@@ -65,13 +67,21 @@ export type TestStanding =
   | { kind: 'upcoming' }
   | { kind: 'open' }
   | { kind: 'live' }
-  | { kind: 'results'; right: number; of: number }
+  /** `answers`: the teacher has published them, so the test shows them too. */
+  | { kind: 'results'; right: number; of: number; answers: boolean }
   | { kind: 'waiting' }
 
 export function standingOf(t: StudentTest, now: number = Date.now()): TestStanding {
   if (t.status === 'live') return { kind: 'live' }
   if (t.status === 'completed') {
-    return t.revealed > 0 ? { kind: 'results', right: t.right, of: t.revealed } : { kind: 'waiting' }
+    // A targeted test's score is the student's as soon as it is over; a
+    // lesson's comes with the teacher's Publish results.
+    if (t.score && t.score.reached > 0) {
+      return { kind: 'results', right: t.score.right, of: t.score.reached, answers: t.revealed > 0 }
+    }
+    return t.revealed > 0
+      ? { kind: 'results', right: t.right, of: t.revealed, answers: true }
+      : { kind: 'waiting' }
   }
   const open = t.opened_early_at !== null || new Date(t.scheduled_at).getTime() <= now
   return open ? { kind: 'open' } : { kind: 'upcoming' }

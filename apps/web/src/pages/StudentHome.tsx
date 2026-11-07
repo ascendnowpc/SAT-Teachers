@@ -169,7 +169,7 @@ function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
               {standing.right} of {standing.of} right
             </span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={onOpen}>
-              See answers
+              {standing.answers ? 'See answers' : 'See score'}
             </button>
           </>
         )}

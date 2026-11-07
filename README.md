@@ -851,8 +851,11 @@ first. A question whose time ran out is wrong, with no option. When the overall 
 the question on screen is timed out too; End test on the console, or the student leaving, sets
 it aside instead. A question never answered is **not reached**, and not reached is left out of
 the score. What the link sends is a fixed list of fields: no level, difficulty, source, key or
-result. Publish results gives the student their questions, answers and explanations, as after a
-lesson; the scores and verdicts are for staff and the PC.
+result. **The score comes straight after** (`0068`): the moment the test is over the student sees
+right out of reached and the skills with a miss in them, weakest first —
+`targeted_result_by_token`, the same rule as the staff report, and nothing that says which question
+was right. Their page shows the same score. Publish results still gives them their questions,
+answers and explanations, as after a lesson; level scores and verdicts stay with staff and the PC.
 
 **Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
 test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
@@ -935,6 +938,7 @@ psql "$DATABASE_URL" -f supabase/tests/student_progress.sql
 psql "$DATABASE_URL" -f supabase/tests/link_payload.sql
 psql "$DATABASE_URL" -f supabase/tests/student_entry.sql
 psql "$DATABASE_URL" -f supabase/tests/student_sign_in.sql
+psql "$DATABASE_URL" -f supabase/tests/targeted_result.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every

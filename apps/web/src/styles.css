@@ -2568,3 +2568,20 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
   .student-bar { padding: 12px 16px; }
   .student-bar-id { display: none; }
 }
+
+/* ------------------------------------------- the score, straight after (0068) */
+.score-card {
+  display: flex; flex-wrap: wrap; gap: 24px 40px; align-items: flex-start;
+  max-width: 760px; margin: -16px auto 40px; padding: 24px 28px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow);
+  animation: rise .5s .06s var(--ease) both;
+}
+.score-main { flex: 1 1 220px; }
+.score-label { font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.score-big { font-family: var(--font-display); font-weight: 500; font-size: clamp(30px, 4vw, 40px); letter-spacing: -0.02em; margin-top: 6px; color: var(--ink); }
+.score-note { color: var(--muted); font-size: 14px; margin-top: 4px; }
+.score-skills { flex: 1 1 260px; }
+.score-skills ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.score-skills li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--danger-bg); color: var(--ink); font-size: 14.5px; }
+.score-skills li .num { color: var(--danger); font-weight: 600; white-space: nowrap; }
+.score-all { margin: 6px 0 0; color: var(--ok-fg); font-weight: 500; }

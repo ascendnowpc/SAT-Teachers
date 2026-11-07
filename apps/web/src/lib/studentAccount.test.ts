@@ -68,11 +68,25 @@ describe('standingOf', () => {
 
   it('a finished test shows its result only once it is shared', () => {
     expect(standingOf(test({ status: 'completed' }), NOW).kind).toBe('waiting')
-    expect(standingOf(test({ status: 'completed', revealed: 10, right: 6 }), NOW)).toEqual({
+    expect(standingOf(test({ status: 'completed', mode: 'diagnostic', revealed: 10, right: 6 }), NOW)).toEqual({
       kind: 'results',
       right: 6,
       of: 10,
+      answers: true,
     })
+  })
+
+  it('a finished targeted test shows its score at once, its answers once shared', () => {
+    expect(standingOf(test({ status: 'completed', score: { right: 7, reached: 9 } }), NOW)).toEqual({
+      kind: 'results',
+      right: 7,
+      of: 9,
+      answers: false,
+    })
+    expect(
+      standingOf(test({ status: 'completed', score: { right: 7, reached: 9 }, revealed: 9, right: 7 }), NOW),
+    ).toMatchObject({ kind: 'results', answers: true })
+    expect(standingOf(test({ status: 'completed', score: { right: 0, reached: 0 } }), NOW).kind).toBe('waiting')
   })
 })
 
