@@ -46,6 +46,8 @@ npm run dev                                    # http://localhost:5173
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
 | **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
+| **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
+| **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 
@@ -873,6 +875,18 @@ same numbers as the staff's progress page: `student_progress`'s body moved into 
 (internal), and `student_report(key)` returns it cut down to what the card reads — no question id,
 difficulty, timing, teacher or shared wording (`student_report.sql`).
 
+**Data clean-up** (`0071`, Settings → *Data clean-up*). Two windows: a student is deleted with
+everything of theirs — sessions, answers, forms, reports, transcripts, notes, PIN — once nothing
+has been booked for them for 12 months; a session's transcript and the model's reading of it (its
+quotes are the transcript's) are deleted 90 days after the session ended, the session and its
+scores staying. Both are an admin's to change, within bounds (3–60 months, 30–730 days). It is
+**off until an admin turns it on**, because the windows are Ascend Now's to confirm and a deletion
+cannot be undone; the tab lists by name every student due now and in the next 30 days, and the
+count of recordings, whether it is on or off, and turning it on asks first. `run_retention()` runs
+once a day at 03:17 UTC through pg_cron where the project has it (the local rebuild does not), and
+on the admin's *Run now*; a run while it is off deletes nothing, and every run is written onto
+`retention_policy.last_run` (`retention.sql`).
+
 **Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
 test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
 out of 10 *and* mapped to a level score, always side by side; accuracy by difficulty; time
@@ -956,6 +970,7 @@ psql "$DATABASE_URL" -f supabase/tests/student_entry.sql
 psql "$DATABASE_URL" -f supabase/tests/student_sign_in.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted_result.sql
 psql "$DATABASE_URL" -f supabase/tests/student_report.sql
+psql "$DATABASE_URL" -f supabase/tests/retention.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
