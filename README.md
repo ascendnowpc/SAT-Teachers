@@ -52,6 +52,7 @@ npm run dev                                    # http://localhost:5173
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
 | **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`) |
+| **Bluebook scores** | A student's Bluebook practice tests — total, Reading and Writing, Math — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`) |
 
 ## English is three tests
 
@@ -1059,6 +1060,35 @@ number, so a student who writes `1/2` where the key says `.5` is right. It is de
 fuzzier than that: a tolerance wide enough to catch an unusual spelling is wide enough to mark a
 wrong answer right.
 
+## Bluebook scores
+
+Students sit College Board's full practice tests in Bluebook on their own, and the score report is
+what tells a parent where they are on the scale colleges read. A teacher records it (`0088`) on the
+student's progress page (`/students/:id/progress`), under **Bluebook practice tests**, above the
+subjects because it is the whole SAT: **Add a score**, then the report's PDF, or its text pasted,
+or the scores typed.
+
+**Reading the report** is done in the browser and nothing of it is kept but the scores — the file
+carries the student's name and more. The PDF's text layer comes out through pdf.js (`lib/pdfText.ts`,
+loaded only then), put back into lines by baseline, and `lib/bluebook.ts` reads it: each score from
+beside its label — *Total Score*, *Reading and Writing*, *Math* — on the label's line or the next
+few, never the printed scale (`400–1600`, `200–800`) or a score range, and never *Advanced Math*.
+College Board's scale settles the rest: a section is 200 to 800 in tens and **the total is the two
+sections added**, so where a label has more than one number near it, the three that add up are the
+three read, and three that do not are shown as read and flagged rather than corrected. What is not
+found is left empty to type, never worked out from the others — a misread total would make a
+worked-out section look right. The test (*Practice Test 4*) and the day it was sat are read too, and
+a PSAT report, on another scale, is refused. The teacher sees every value, with a line saying what
+was and was not found, and nothing is saved until **Save the score**; changing a score it read
+makes it a typed one.
+
+`save_bluebook_score` checks the scale again, refuses a day still to come and the same test twice
+on one day, and is staff's — any teacher, any student, as with progress. The teacher who recorded a
+score or an admin deletes it. The PC reads their own students' and changes nothing; the parent card
+leads with the latest total and the line from the first ("1180 → 1290 over 3 practice tests"), with
+nothing about who recorded them. A student the clean-up deletes takes their scores with them
+(`bluebook.sql`).
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -1097,6 +1127,7 @@ psql "$DATABASE_URL" -f supabase/tests/skipping.sql
 psql "$DATABASE_URL" -f supabase/tests/typed_answer.sql
 psql "$DATABASE_URL" -f supabase/tests/several_skills.sql
 psql "$DATABASE_URL" -f supabase/tests/report_archive.sql
+psql "$DATABASE_URL" -f supabase/tests/bluebook.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1287,6 +1318,9 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0088`.** Safe at any time: a table, two functions and `student_report` with one more
+field, which the app from before ignores.
 
 **Order, for `0087`.** Deploy `archive_reports` (and `notify_pc_report`, which now draws its PDF
 through the same `_shared/reportDocs.ts`) before applying it, and set `app_config.functions_url`

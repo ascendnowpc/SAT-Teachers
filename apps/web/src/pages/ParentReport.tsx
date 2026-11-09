@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { Notice } from '../components/ui'
+import { bluebookHeadline, byDay, dayLabel, type BluebookRow } from '../lib/bluebook'
 import { skillLabel, subjectLabel } from '../lib/constants'
 import {
   buildParentReport,
@@ -107,7 +108,16 @@ export function ParentReport() {
               )}
             </div>
 
-            {subjects.length === 0 && <p className="muted">No tests yet. The report fills in after the first one.</p>}
+            {/* The whole SAT, on its own scale: above the subjects (0088). */}
+            {report.bluebook && report.bluebook.length > 0 && <BluebookSection rows={report.bluebook} />}
+
+            {subjects.length === 0 && (
+              <p className="muted">
+                {report.bluebook && report.bluebook.length > 0
+                  ? 'The skill map fills in after their first session.'
+                  : 'No tests yet. The report fills in after the first one.'}
+              </p>
+            )}
 
             {built && subject && (
               <>
@@ -175,6 +185,36 @@ export function ParentReport() {
         )}
       </main>
     </div>
+  )
+}
+
+/** Their Bluebook practice tests: the latest total, the line from the first, and each one. */
+function BluebookSection({ rows }: { rows: BluebookRow[] }) {
+  const sorted = byDay(rows)
+  const last = sorted[sorted.length - 1]
+  return (
+    <section className="report-headline report-bluebook">
+      <div className="report-label">Bluebook practice tests · the SAT’s own scale</div>
+      <div className="report-hero">
+        <span className="report-hero-skill">Latest total</span>
+        <span className="report-hero-score num">{last.total}</span>
+        <span className="report-hero-over">of 1600</span>
+      </div>
+      <div className="report-hero-over">
+        {bluebookHeadline(rows)} · Reading and Writing {last.reading_writing}, Math {last.math}
+      </div>
+      {sorted.length > 1 && (
+        <ul className="report-bluebook-list">
+          {sorted.map((r) => (
+            <li key={`${r.taken_on}/${r.test_name}`}>
+              <span>{dayLabel(r.taken_on)}</span>
+              <span className="muted">{r.test_name}</span>
+              <span className="num">{r.total}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

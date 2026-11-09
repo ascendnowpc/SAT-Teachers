@@ -2635,6 +2635,18 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .report-hero-skill { font-size: 18px; font-weight: 600; color: var(--ink); }
 .report-hero-score { font-family: var(--font-ui); font-size: clamp(36px, 6vw, 48px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
 .report-hero-over { color: var(--ink-2); font-size: 15px; margin-top: 2px; }
+/* Bluebook practice tests on the parent card (0088): one line a test under the hero. */
+.report-bluebook-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.report-bluebook-list li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; gap: 10px; color: var(--ink-2); }
+.report-bluebook-list .num { font-weight: 600; color: var(--ink); }
+
+/* The staff's Bluebook card (0088): the list, and the form that adds to it. */
+.bluebook-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.bluebook-head .spring { flex: 1; }
+.bluebook-head .muted { margin: 2px 0 10px; }
+.bluebook-add { border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; margin: 4px 0 14px; background: #fff; }
+.bluebook-add > .grid-2 .btn { margin-top: 6px; }
+.bluebook-form { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 10px; }
 .report-section { margin-top: 28px; }
 .report-section h2 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
 .report-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }

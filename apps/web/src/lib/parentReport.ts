@@ -14,6 +14,7 @@ import {
   type ProgressLine,
   type StudentProgress,
 } from './progress'
+import type { BluebookRow } from './bluebook'
 import type { SessionMode, SessionStatus, Subject } from './types'
 
 /**
@@ -68,6 +69,8 @@ export interface StudentReport {
   student: { full_name: string; display_id: string }
   at: string
   subjects: Partial<Record<Subject, ReportSubject>>
+  /** Bluebook practice test scores, oldest first (0088). */
+  bluebook?: BluebookRow[]
 }
 
 /**
