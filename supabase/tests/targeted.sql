@@ -402,7 +402,7 @@ begin
 
   -- ============ 8. grants ============
   perform __as(null, 'postgres');
-  for txt in select unnest(array['targeted_question_fits(uuid,text,text,text)',
+  for txt in select unnest(array['targeted_question_fits(uuid,text,text,text[])',
                                  'student_has_seen(uuid,uuid)',
                                  'write_targeted_set(uuid,uuid[],boolean)',
                                  'assert_staff_on_student(uuid,text)',
@@ -416,15 +416,15 @@ begin
                 and not has_function_privilege('authenticated', 'public.'||txt, 'execute'));
   end loop;
 
-  for txt in select unnest(array['targeted_candidates(uuid,text,text,text)',
-                                 'create_targeted_session(uuid,text,text,text,timestamptz,text,int,uuid[],boolean,int,int)',
+  for txt in select unnest(array['targeted_candidates(uuid,text,text,text,text[])',
+                                 'create_targeted_session(uuid,text,text,text,timestamptz,text,int,uuid[],boolean,int,int,text[])',
                                  'save_targeted_set(uuid,int,uuid[],boolean,int,int)',
                                  'set_progress_config(text,jsonb)',
                                  'save_skill_note(uuid,text,text,text,text)',
                                  'save_skill_summary(uuid,text,text,text,text)',
                                  'share_skill_summary(uuid,text,text,text,boolean)',
-                                 'save_verdict_override(uuid,uuid,text,text)',
-                                 'share_verdict_override(uuid,boolean)'])
+                                 'save_verdict_override(uuid,uuid,text,text,text)',
+                                 'share_verdict_override(uuid,boolean,text)'])
   loop
     return query select '8 grants'::text, txt || ' — signed in only', 'authenticated'::text,
       (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon too!'

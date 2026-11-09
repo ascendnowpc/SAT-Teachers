@@ -25,9 +25,15 @@ export interface Candidate {
   set_position: number
   /** Put in front of this student before, in any session, by any teacher. */
   seen: boolean
+  /** Its section and skill (0086): what a set on several skills is balanced across. */
+  section?: string | null
+  skill?: string | null
 }
 
 export const LEVEL_ORDER: Difficulty[] = ['easy', 'medium', 'hard']
+
+/** The most a set can hold (write_targeted_set). */
+export const MAX_SET = 20
 
 /** Share of a set at each level. 5 → 2/1/2, 10 → 3/3/4. */
 const SHARE: Record<Difficulty, number> = { easy: 0.3, medium: 0.3, hard: 0.4 }
@@ -300,5 +306,150 @@ export function chosenSet(ticked: Iterable<string>, candidates: Candidate[]): Ca
 export function levelCounts(set: Pick<Candidate, 'difficulty'>[]): Record<Difficulty, number> {
   const out = { easy: 0, medium: 0, hard: 0 } as Record<Difficulty, number>
   for (const c of set) out[c.difficulty] += 1
+  return out
+}
+
+/* ------------------------------------------------------- several skills --- */
+
+/**
+ * `n` over `k` parts as evenly as it goes, the earlier parts taking what is
+ * left over: 12 over 3 → 4/4/4, 10 over 3 → 4/3/3, 10 over 4 → 3/3/2/2.
+ */
+export function splitEvenly(n: number, k: number): number[] {
+  if (k <= 0) return []
+  const whole = Math.max(0, Math.floor(n))
+  const base = Math.floor(whole / k)
+  return Array.from({ length: k }, (_, i) => base + (i < whole % k ? 1 : 0))
+}
+
+/** One skill's share of a set on several (0086). */
+export interface SkillPart {
+  skill: string
+  /** What an even split asks of it. */
+  asked: number
+  /** What it gives: fewer when it has too few to ask, more when it covers another's. */
+  given: number
+  /** Its questions the set may use: unseen, and seen when repeats are allowed. */
+  available: number
+  /** Its share, balanced across the levels as a set on one skill is. */
+  built: BuiltSet
+}
+
+export interface BuiltSkillsSet {
+  /** The set as it is sat: easy → medium → hard, the skills taking turns within a level. */
+  questions: Candidate[]
+  size: number
+  parts: SkillPart[]
+  available: number
+  /** size − the set's length: what no skill could supply. */
+  missing: number
+}
+
+/** The lists merged by taking one from each in turn: [a1 a2] [b1] → a1 b1 a2. */
+function inTurn<T>(lists: T[][]): T[] {
+  const out: T[] = []
+  for (let i = 0; lists.some((l) => i < l.length); i++)
+    for (const l of lists) if (i < l.length) out.push(l[i])
+  return out
+}
+
+/**
+ * A balanced set on several skills (0086): the size split evenly between the
+ * skills, and each skill's share balanced across the levels by buildSet.
+ *
+ * A skill with too few questions to ask its share gives what it has, and the
+ * others take the difference in turn, in the order the skills were chosen,
+ * while they have questions to spare — a short skill shortens nobody's test.
+ * Each skill draws from its own seed, taken from the draw's, so one skill's
+ * share does not move another's questions.
+ *
+ * The set is sat easy → medium → hard, as every set is; within a level the
+ * skills take turns, so it does not read as two tests one after the other.
+ */
+export function buildSkillsSet(
+  candidates: Candidate[],
+  skills: string[],
+  size: number,
+  o: BuildOptions,
+): BuiltSkillsSet {
+  const all = dedupe(candidates)
+  const n = Math.max(0, Math.floor(size))
+  const asked = splitEvenly(n, skills.length)
+  const available = skills.map((k) => all.filter((c) => c.skill === k && usable(c, o)).length)
+  const given = asked.map((a, i) => Math.min(a, available[i]))
+
+  let short = asked.reduce((s, a, i) => s + a - given[i], 0)
+  while (short > 0) {
+    let moved = false
+    for (let i = 0; i < skills.length && short > 0; i++) {
+      if (given[i] < available[i]) {
+        given[i] += 1
+        short -= 1
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+
+  const seeds = skills.map(() => (o.random ? Math.floor(o.random() * 2 ** 31) : 0))
+  const parts: SkillPart[] = skills.map((skill, i) => ({
+    skill,
+    asked: asked[i],
+    given: given[i],
+    available: available[i],
+    built: buildSet(
+      all.filter((c) => c.skill === skill),
+      given[i],
+      { allowRepeats: o.allowRepeats, random: o.random ? seededRandom(seeds[i]) : undefined },
+    ),
+  }))
+
+  const questions = LEVEL_ORDER.flatMap((l) =>
+    inTurn(parts.map((p) => p.built.questions.filter((c) => c.difficulty === l))),
+  )
+  return {
+    questions,
+    size: n,
+    parts,
+    available: available.reduce((s, x) => s + x, 0),
+    missing: Math.max(0, n - questions.length),
+  }
+}
+
+/**
+ * What the builder says about a set on several skills it could not split
+ * evenly or balance, one line per thing worth knowing:
+ *
+ *   Boundaries: 1 to ask — an even share is 4
+ *   Transitions: 7, covering for another skill
+ *   Transitions: a balanced set needs 2 hard; 1 unseen — 1 short; borrowed 1 from medium
+ *   10 of 12 available
+ */
+export function describeSkillsSet(b: BuiltSkillsSet, label: (skill: string) => string): string[] {
+  const lines: string[] = []
+  for (const p of b.parts) {
+    const name = label(p.skill)
+    if (p.given < p.asked)
+      lines.push(
+        p.available === 0
+          ? `${name}: nothing to ask — an even share is ${p.asked}`
+          : `${name}: ${p.available} to ask — an even share is ${p.asked}`,
+      )
+    else if (p.given > p.asked) lines.push(`${name}: ${p.given}, covering for another skill`)
+    // A skill that gives every question it has had no balance to strike.
+    if (p.given >= p.available) continue
+    for (const s of describeSet(p.built)) {
+      // A part's own "4 of 5 available" is said by the line above.
+      if (!/ available$/.test(s)) lines.push(`${name}: ${s}`)
+    }
+  }
+  if (b.missing > 0) lines.push(`${b.questions.length} of ${b.size} available`)
+  return lines
+}
+
+/** The skills a set asks, in the order given — what checks every chosen skill has a question. */
+export function skillsAsked(set: Pick<Candidate, 'skill'>[]): string[] {
+  const out: string[] = []
+  for (const c of set) if (c.skill && !out.includes(c.skill)) out.push(c.skill)
   return out
 }

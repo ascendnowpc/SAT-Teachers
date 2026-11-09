@@ -33,7 +33,7 @@ import type { Session } from '../lib/types'
 const SESSION_SELECT =
   '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
   ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc),' +
-  ' targeted:targeted_tests(section,skill,set_size)'
+  ' targeted:targeted_tests(section,skill,skills,set_size)'
 
 /**
  * Every session, in one table.
@@ -143,8 +143,8 @@ export function Sessions() {
               ? 'Your tutoring sessions. Open one once its time has come.'
               : tab === 'targeted'
                 ? isPc
-                  ? 'Short timed tests on one skill, which your students sat alone. Each has its own report.'
-                  : 'Short timed tests on one skill. The student sits them alone on their link; each has its own report and adds a point to their progress on that skill.'
+                  ? 'Short timed tests on one skill or a few, which your students sat alone. Each has its own report.'
+                  : 'Short timed tests on one skill or a few. The student sits them alone on their link; each has its own report and adds a point to their progress on each skill it asks.'
                 : isPc
                   ? 'Sessions your students had live with their teacher, each written up in a report.'
                   : 'Sessions you run live with the student: you put each question up and write it up after. A student’s first in a subject is their baseline.'}

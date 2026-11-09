@@ -9,13 +9,16 @@ import {
 import { TestsSummary } from '../components/TestsSummary'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
-import { subjectLabel } from '../lib/constants'
+import { skillLabel, subjectLabel } from '../lib/constants'
 import { loadReportEmail, sendReportAgain } from '../lib/pcApi'
 import { deliveryLine } from '../lib/pcs'
 import {
+  linesOf,
   progressLine,
   VERDICT_LABELS,
   type ProgressConfig,
+  type ProgressLine,
+  type ProgressPoint,
   type StudentProgress,
 } from '../lib/progress'
 import { loadConfig, loadProgress } from '../lib/progressApi'
@@ -24,6 +27,7 @@ import {
   analyseTargetedItems,
   skillName,
   targetedRows,
+  testName,
   type TargetedRow,
 } from '../lib/targetedReport'
 import { formatUtc } from '../lib/time'
@@ -84,20 +88,23 @@ export function TargetedReport({
 
   // The set's size is in student_progress for everyone who may read this
   // page; the set itself is the teacher's alone (0061).
-  const setCount =
-    progress?.targeted.find((t) => t.session_id === session.id)?.set_count ?? items.length
+  const row = progress?.targeted.find((t) => t.session_id === session.id) ?? null
+  const setCount = row?.set_count ?? items.length
   const analysis = useMemo(
     () => (cfg ? analyseTargetedItems(items, setCount, cfg) : null),
     [items, setCount, cfg],
   )
-  const line = useMemo(
-    () => (progress && test ? progressLine(progress, test.section, test.skill) : null),
-    [progress, test],
+  // The line on each skill the test asks: one, or one per skill (0086).
+  const steps = useMemo(
+    () =>
+      progress && row
+        ? linesOf(progress, row).map((on) => stepOn(progressLine(progress, on.section, on.skill), session.id))
+        : [],
+    [progress, row, session.id],
   )
-  const pattern = useLongPattern(progress, line, cfg)
+  const several = steps.length > 1
   const rows = targetedRows(items)
-  const point = line?.points.find((p) => p.sessionId === session.id) ?? null
-  const before = line && point ? line.points[line.points.indexOf(point) - 1] : undefined
+  const name = test ? testName(test) : row ? testName(row) : 'this test'
 
   const mine = session.teacher_id === profile?.id || isAdmin
   const over = session.status === 'completed'
@@ -114,8 +121,7 @@ export function TargetedReport({
         <div className="page-head">
           <div>
             <h1>
-              {session.student?.full_name || 'Student'} —{' '}
-              {test ? skillName(test.section, test.skill) : 'targeted test'}
+              {session.student?.full_name || 'Student'} — {test ? name : 'targeted test'}
             </h1>
             <p className="sub">
               {subjectLabel(session.subject)} · targeted test ·{' '}
@@ -146,25 +152,33 @@ export function TargetedReport({
             <strong>
               {analysis.correct} of {analysis.reached} right
             </strong>{' '}
-            on {test ? skillName(test.section, test.skill) : 'this skill'} —{' '}
-            {analysis.raw!.toFixed(1)} out of 10, level score {Math.round(analysis.level!)}.
+            on {test ? name : 'this skill'} — {analysis.raw!.toFixed(1)} out of 10, level score{' '}
+            {Math.round(analysis.level!)}.
           </p>
-          {point?.step && before && (
-            <p>
-              <span className={`badge verdict-${point.step.verdict}`}>
-                {VERDICT_LABELS[point.step.verdict]}
-              </span>{' '}
-              {point.step.delta >= 0 ? 'Up' : 'Down'} {Math.abs(Math.round(point.step.delta))} level
-              points from {Math.round(before.level)} at the{' '}
-              {before.isBaseline ? 'baseline' : 'last test'} ({before.correct} of {before.reached}{' '}
-              right, {formatUtc(before.at)}). <span className="muted">{point.step.caveat}</span>
-            </p>
-          )}
-          {point && point.isBaseline && (
+          {!several && steps[0] && <StepSentence point={steps[0].point} before={steps[0].before} />}
+          {!several && steps[0]?.point?.isBaseline && (
             <p className="muted">
               The first point on this skill: there is no diagnostic with answers on it, so this test
               is the baseline the next ones are measured from.
             </p>
+          )}
+          {/* A test of several skills is a point on each one's line, made of
+              that skill's questions alone (0086). */}
+          {several && (
+            <ul className="result-skills">
+              {steps.map(({ line, point, before }) => (
+                <li key={line.skill ?? line.section}>
+                  <strong>{skillName(line.section, line.skill)}</strong>:{' '}
+                  {point
+                    ? `${point.correct} of ${point.reached} right — ${point.raw.toFixed(1)} out of 10, level score ${Math.round(point.level)}.`
+                    : 'none of its questions reached.'}
+                  <StepSentence point={point} before={before} inline />
+                  {point?.isBaseline && (
+                    <span className="muted"> The first point on this skill: the baseline.</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
@@ -184,13 +198,16 @@ export function TargetedReport({
         </div>
       )}
 
-      {line && test && (
-        <div className="card card-pad">
-          <div className="section-title">Progress on {skillName(test.section, test.skill)}</div>
-          <ProgressLineView line={line} highlight={session.id} />
-          {pattern && <p className="muted">{pattern.text}</p>}
-        </div>
-      )}
+      {test &&
+        steps.map(({ line }) => (
+          <LineCard
+            key={`${line.section}/${line.skill ?? ''}`}
+            line={line}
+            progress={progress}
+            cfg={cfg}
+            highlight={session.id}
+          />
+        ))}
 
       <div className="board">
         <div className="board-scroll">
@@ -198,6 +215,7 @@ export function TargetedReport({
             <thead>
               <tr>
                 <th className="num">#</th>
+                {several && <th>Skill</th>}
                 <th>Level</th>
                 <th>Outcome</th>
                 <th>Answer</th>
@@ -209,6 +227,7 @@ export function TargetedReport({
               {rows.map((r) => (
                 <tr key={r.number}>
                   <td className="num">{r.number}</td>
+                  {several && <td>{skillLabel(r.skill) ?? '—'}</td>}
                   <td>{r.level && <DifficultyBadge level={r.level} />}</td>
                   <td>
                     <OutcomeBadge outcome={r.outcome} />
@@ -230,6 +249,63 @@ export function TargetedReport({
           reached, left out of the score.
         </p>
       )}
+    </div>
+  )
+}
+
+/** A line, and this test's point on it with the one before. */
+function stepOn(
+  line: ProgressLine,
+  sessionId: string,
+): { line: ProgressLine; point: ProgressPoint | null; before: ProgressPoint | undefined } {
+  const point = line.points.find((p) => p.sessionId === sessionId) ?? null
+  const before = point ? line.points[line.points.indexOf(point) - 1] : undefined
+  return { line, point, before }
+}
+
+/** "Improved — up 6 level points from 31 at the baseline (2 of 5 right, …)". */
+function StepSentence({
+  point,
+  before,
+  inline = false,
+}: {
+  point: ProgressPoint | null
+  before: ProgressPoint | undefined
+  inline?: boolean
+}) {
+  if (!point?.step || !before) return null
+  const body = (
+    <>
+      <span className={`badge verdict-${point.step.verdict}`}>
+        {VERDICT_LABELS[point.step.verdict]}
+      </span>{' '}
+      {point.step.delta >= 0 ? 'Up' : 'Down'} {Math.abs(Math.round(point.step.delta))} level points
+      from {Math.round(before.level)} at the {before.isBaseline ? 'baseline' : 'last test'} (
+      {before.correct} of {before.reached} right, {formatUtc(before.at)}).{' '}
+      <span className="muted">{point.step.caveat}</span>
+    </>
+  )
+  return inline ? <> {body}</> : <p>{body}</p>
+}
+
+/** One line's card: the table and, pooled over its tests, the long-question pattern. */
+function LineCard({
+  line,
+  progress,
+  cfg,
+  highlight,
+}: {
+  line: ProgressLine
+  progress: StudentProgress | null
+  cfg: ProgressConfig | null
+  highlight: string
+}) {
+  const pattern = useLongPattern(progress, line, cfg)
+  return (
+    <div className="card card-pad">
+      <div className="section-title">Progress on {skillName(line.section, line.skill)}</div>
+      <ProgressLineView line={line} highlight={highlight} />
+      {pattern && <p className="muted">{pattern.text}</p>}
     </div>
   )
 }

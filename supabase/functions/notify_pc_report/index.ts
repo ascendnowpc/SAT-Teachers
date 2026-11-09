@@ -5,7 +5,13 @@ import type { Extraction } from '../../../apps/web/src/lib/extraction.ts'
 import { transportFrom } from '../../../apps/web/src/lib/mail.ts'
 import { appBase, reportEmail } from '../../../apps/web/src/lib/pcMail.ts'
 import { readingStaleness } from '../../../apps/web/src/lib/recording.ts'
-import { progressLine, progressLines, type ProgressConfig, type StudentProgress } from '../../../apps/web/src/lib/progress.ts'
+import {
+  linesOf,
+  progressLine,
+  progressLines,
+  type ProgressConfig,
+  type StudentProgress,
+} from '../../../apps/web/src/lib/progress.ts'
 import { reportPdfDoc, type ReportPdfDoc } from '../../../apps/web/src/lib/reportPdf.ts'
 import { longPattern, type AnalysedQuestion } from '../../../apps/web/src/lib/targetedAnalytics.ts'
 import { targetedPdfDoc } from '../../../apps/web/src/lib/targetedReport.ts'
@@ -293,8 +299,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 })
 
 /**
- * A targeted test's PDF: its answers, its set's size, and the line on its
- * skill — read on the service role, from the same rows the report page reads.
+ * A targeted test's PDF: its answers, its set's size, and the line on each of
+ * its skills (0086) — read on the service role, from the same rows the report
+ * page reads.
  */
 // deno-lint-ignore no-explicit-any
 async function targetedDoc(db: any, session: SessionRow): Promise<ReportPdfDoc> {
@@ -313,23 +320,29 @@ async function targetedDoc(db: any, session: SessionRow): Promise<ReportPdfDoc> 
   const progress = (progressRes.data ?? null) as StudentProgress | null
   const config = (progress?.config ?? null) as ProgressConfig | null
   if (!config) throw new Error('no progress_config for this subject')
-  const line = progress ? progressLine(progress, test.section, test.skill) : null
+  const row = progress?.targeted.find((t) => t.session_id === session.id) ?? null
+  const lines = progress && row ? linesOf(progress, row).map((on) => progressLine(progress, on.section, on.skill)) : []
 
-  // The long-question pattern, pooled over every test on the line.
-  let pattern = null
-  if (progress && line) {
+  // The long-question pattern on each line, pooled over every test on it —
+  // a test of several skills counting only that skill's questions.
+  const pooledOf = (line: (typeof lines)[number]) => {
     const tests = new Set(line.points.filter((p) => p.kind === 'test').map((p) => p.sessionId))
-    const pooled = progress.items.filter((i) => tests.has(i.session_id))
-    const ids = [...new Set(pooled.map((i) => i.question_id))]
-    const { data: qs } = ids.length
-      ? await db
-          .from('questions')
-          .select('id, difficulty, passage, passage_underline, stem, image_url, target_seconds')
-          .in('id', ids)
-      : { data: [] }
-    const byId = new Map(((qs ?? []) as (AnalysedQuestion & { id: string })[]).map((q) => [q.id, q]))
-    pattern = longPattern(
-      pooled.map((i) => ({
+    return (progress?.items ?? []).filter(
+      (i) => tests.has(i.session_id) && (line.skill === null || i.skill === line.skill),
+    )
+  }
+  const ids = [...new Set(lines.flatMap(pooledOf).map((i) => i.question_id))]
+  const { data: qs } = ids.length
+    ? await db
+        .from('questions')
+        .select('id, difficulty, passage, passage_underline, stem, image_url, target_seconds')
+        .in('id', ids)
+    : { data: [] }
+  const byId = new Map(((qs ?? []) as (AnalysedQuestion & { id: string })[]).map((q) => [q.id, q]))
+  const withPatterns = lines.map((line) => ({
+    line,
+    pattern: longPattern(
+      pooledOf(line).map((i) => ({
         status: i.status,
         is_correct: i.is_correct,
         timed_out: i.timed_out,
@@ -338,8 +351,8 @@ async function targetedDoc(db: any, session: SessionRow): Promise<ReportPdfDoc> 
         question: byId.get(i.question_id) ?? null,
       })),
       config,
-    )
-  }
+    ),
+  }))
 
   return targetedPdfDoc({
     session: {
@@ -352,9 +365,9 @@ async function targetedDoc(db: any, session: SessionRow): Promise<ReportPdfDoc> 
     },
     test,
     setCount: setRes.count ?? 0,
+    setBySkill: row?.set_by_skill ?? null,
     items: (itemsRes.data ?? []) as SessionItem[],
     config,
-    line,
-    pattern,
+    lines: withPatterns,
   })
 }

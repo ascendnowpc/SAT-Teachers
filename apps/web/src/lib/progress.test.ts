@@ -358,3 +358,112 @@ describe('settingsProblem', () => {
     expect(settingsProblem({ ...ok, pattern_gap: 1 })).toBeNull()
   })
 })
+
+/* ------------------------------------------------ several skills (0086) --- */
+
+describe('a test on several skills', () => {
+  const B = 'standard_english_conventions'
+  const KB = 'boundaries'
+  const several: ProgressTargeted = {
+    ...test('t1', 6, null),
+    section: null,
+    skill: null,
+    skills: [K, KB],
+    set_by_skill: { [K]: 3, [KB]: 3 },
+  }
+  const p = progress({
+    sessions: [
+      session('diag', 'diagnostic', 1),
+      session('l1', 'live', 3),
+      session('t1', 'targeted', 7),
+      session('w', 'targeted', 9),
+    ],
+    targeted: [several, test('w', 3, null)],
+    items: [
+      item('diag', true),
+      item('diag', false),
+      item('diag', false, { section: B, skill: KB }),
+      // Transitions: 2 of 3, all reached. Boundaries: 1 of 2, one not reached.
+      item('t1', true),
+      item('t1', true),
+      item('t1', false),
+      item('t1', true, { section: B, skill: KB }),
+      item('t1', false, { section: B, skill: KB }),
+      // A whole-section test on Expression of Ideas.
+      item('w', true),
+      item('w', true, { skill: 'rhetorical_synthesis' }),
+    ],
+    overrides: [
+      {
+        session_id: 't1',
+        skill: KB,
+        previous_session_id: 'diag',
+        shared_wording: 'Commas are sticking.',
+        shared_context: null,
+        shared_at: '2026-10-08T10:00:00Z',
+      },
+      {
+        session_id: 't1',
+        skill: '',
+        previous_session_id: 'diag',
+        shared_wording: 'Written for the test as a whole.',
+        shared_context: null,
+        shared_at: '2026-10-08T10:00:00Z',
+      },
+    ],
+  })
+
+  it('is a point on each skill’s line, and on no section’s', () => {
+    const lines = progressLines(p)
+    expect(lines.map((l) => `${l.section}/${l.skill ?? ''}`).sort()).toEqual([
+      `${S}/`,
+      `${S}/${K}`,
+      `${B}/${KB}`,
+    ])
+    expect(progressLine(p, S, null).points.map((x) => x.sessionId)).toEqual(['diag', 'w'])
+  })
+
+  it('makes each point of that skill’s questions alone, against that skill’s share of the set', () => {
+    const tr = progressLine(p, S, K).points.find((x) => x.sessionId === 't1')
+    expect(tr).toMatchObject({ correct: 2, reached: 3, notReached: 0, ofSkills: 2 })
+    const bo = progressLine(p, B, KB).points.find((x) => x.sessionId === 't1')
+    expect(bo).toMatchObject({ correct: 1, reached: 2, notReached: 1, ofSkills: 2 })
+  })
+
+  it('steps each line from its own baseline', () => {
+    const bo = progressLine(p, B, KB)
+    // The diagnostic had 0 of 1 on Boundaries: 0/10 → 20; then 5/10 → 30.
+    expect(bo.points.map((x) => x.sessionId)).toEqual(['diag', 't1'])
+    expect(bo.points[1].step?.delta).toBeCloseTo(10)
+  })
+
+  it('takes the wording written for this line’s skill, and not the test’s', () => {
+    expect(progressLine(p, B, KB).points[1].override?.shared_wording).toBe('Commas are sticking.')
+    expect(progressLine(p, S, K).points[1].override).toBeNull()
+  })
+
+  it('says so in the PDF’s sentences', () => {
+    expect(describeLine(progressLine(p, B, KB))[1]).toContain(
+      'targeted test on 2 skills: 1 of 2 right (1 not reached)',
+    )
+  })
+
+  it('leaves a test on one skill as it was: every question, no share', () => {
+    const one = progress({
+      sessions: [session('t', 'targeted', 7)],
+      targeted: [{ ...test('t', 3), skills: [K] }],
+      items: [item('t', true), item('t', false)],
+    })
+    expect(progressLine(one, S, K).points[0]).toMatchObject({ reached: 2, notReached: 1, ofSkills: null })
+  })
+
+  it('plots nothing on a skill none of whose questions were reached', () => {
+    const q = progress({
+      sessions: [session('t1', 'targeted', 7)],
+      targeted: [several],
+      items: [item('t1', true), item('t1', false)],
+    })
+    expect(progressLine(q, B, KB).points).toEqual([])
+    expect(progressLines(q).map((l) => l.skill)).toEqual([K])
+  })
+})

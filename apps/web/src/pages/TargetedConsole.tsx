@@ -4,9 +4,9 @@ import { IconBack, IconClock } from '../components/icons'
 import { OverridePanel, SkillNotesPanel } from '../components/ProgressPanels'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
-import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import { sectionLabel, skillLabel, skillList, skillsOn, subjectLabel } from '../lib/constants'
 import { clock } from '../lib/countdown'
-import { progressLine, type StudentProgress } from '../lib/progress'
+import { linesOf, progressLine, type StudentProgress } from '../lib/progress'
 import { loadProgress } from '../lib/progressApi'
 import { questionEndsAt, secondsLeft } from '../lib/targetedClock'
 import { supabase } from '../lib/supabase'
@@ -42,6 +42,7 @@ interface SetRow {
     stem: string
     difficulty: Difficulty
     target_seconds: number | null
+    skill: string | null
   } | null
 }
 
@@ -81,7 +82,7 @@ export function TargetedConsole({
       supabase.from('targeted_tests').select('*').eq('session_id', session.id).maybeSingle(),
       supabase
         .from('targeted_set_items')
-        .select('position, question_id, questions(id, stem, difficulty, target_seconds)')
+        .select('position, question_id, questions(id, stem, difficulty, target_seconds, skill)')
         .eq('session_id', session.id)
         .order('position'),
     ])
@@ -102,8 +103,9 @@ export function TargetedConsole({
   const isOpen = due || session.opened_early_at !== null
   const first = session.student?.full_name?.split(' ')[0] ?? 'the student'
 
-  // The line on this skill, once it is over: the override panel writes
-  // against the point before this one. Everything else it says is the report's.
+  // The line on each skill, once it is over: each override panel writes
+  // against the point before this one on its line. Everything else they say
+  // is the report's.
   const [progress, setProgress] = useState<StudentProgress | null>(null)
   useEffect(() => {
     if (!over) return
@@ -154,12 +156,18 @@ export function TargetedConsole({
   const unrevealed = items.filter((i) => i.status === 'answered').length
   const onScreen = rows.findIndex((r) => standingOf(r.item, over) === 'on_screen')
 
-  const line = useMemo(
-    () => (progress && test ? progressLine(progress, test.section, test.skill) : null),
-    [progress, test],
-  )
-  const here = line?.points.findIndex((p) => p.sessionId === session.id) ?? -1
-  const previous = line && here > 0 ? line.points[here - 1].sessionId : null
+  // One line, or one per skill on a test of several (0086).
+  const lines = useMemo(() => {
+    const row = progress?.targeted.find((t) => t.session_id === session.id)
+    if (!progress || !row) return []
+    return linesOf(progress, row).map((on) => {
+      const line = progressLine(progress, on.section, on.skill)
+      const here = line.points.findIndex((p) => p.sessionId === session.id)
+      return { line, here, previous: here > 0 ? line.points[here - 1].sessionId : null }
+    })
+  }, [progress, session.id])
+  const skills = test ? skillsOn(test) : null
+  const several = (skills?.length ?? 0) > 1
 
   return (
     <div className="page page-wide targeted-console">
@@ -240,8 +248,12 @@ export function TargetedConsole({
         <div className="card card-pad">
           <div className="section-title">The test</div>
           <p>
-            {sectionLabel(test.section)}
-            {test.skill && <> — {skillLabel(test.skill)}</>} · {set.length} of {test.set_size}{' '}
+            {several
+              ? skillList(skills!)
+              : skills
+                ? `${sectionLabel(test.section)} — ${skillLabel(skills[0])}`
+                : `${sectionLabel(test.section)} — whole section`}{' '}
+            · {set.length} of {test.set_size}{' '}
             question{test.set_size === 1 ? '' : 's'} ·{' '}
             {test.question_seconds
               ? `${test.question_seconds} s a question`
@@ -278,17 +290,28 @@ export function TargetedConsole({
           is scored, the line on the skill, the summary, every question. */}
       {over && reached > 0 && <TargetedReport session={session} items={items} embedded />}
 
-      {over && test && line && here > 0 && (
-        <OverridePanel sessionId={session.id} previousSessionId={previous} />
-      )}
-      {over && test && (
-        <SkillNotesPanel
-          studentId={session.student_id}
-          subject={session.subject}
-          section={test.section}
-          skill={test.skill}
-        />
-      )}
+      {over &&
+        test &&
+        lines.map(({ line, here, previous }) => (
+          <div key={`${line.section}/${line.skill ?? ''}`}>
+            {here > 0 && (
+              <OverridePanel
+                sessionId={session.id}
+                previousSessionId={previous}
+                skill={several ? (line.skill ?? '') : ''}
+                title={
+                  several ? `Your wording for the step on ${skillLabel(line.skill)}` : undefined
+                }
+              />
+            )}
+            <SkillNotesPanel
+              studentId={session.student_id}
+              subject={session.subject}
+              section={line.section}
+              skill={line.skill}
+            />
+          </div>
+        ))}
 
       {/* While it runs, the watch; once it is over the report above has every question. */}
       {!(over && reached > 0) && (
@@ -309,7 +332,12 @@ export function TargetedConsole({
                 {rows.map((r, i) => (
                   <tr key={r.position}>
                     <td className="num">{i + 1}</td>
-                    <td className="clip">{r.questions?.stem ?? '—'}</td>
+                    <td className="clip">
+                      {r.questions?.stem ?? '—'}
+                      {several && r.questions?.skill && (
+                        <div className="muted">{skillLabel(r.questions.skill)}</div>
+                      )}
+                    </td>
                     <td>{r.questions && <DifficultyBadge level={r.questions.difficulty} />}</td>
                     <td>
                       <StandingBadge standing={standings[i]} item={r.item} />

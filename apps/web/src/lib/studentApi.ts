@@ -1,4 +1,4 @@
-import { sectionLabel, skillLabel, subjectLabel } from './constants'
+import { sectionLabel, skillList, skillsOn, subjectLabel } from './constants'
 import type { StudentReport } from './parentReport'
 import type { SignInResult, StudentHome, StudentTest } from './studentAccount'
 import { normaliseStudentId } from './studentEntry'
@@ -39,11 +39,15 @@ export async function studentSignOut(key: string): Promise<void> {
   await supabase.rpc('student_sign_out', { p_key: key })
 }
 
-/** "Words in Context", "English diagnostic" — what the student calls a test. */
+/**
+ * "Words in Context", "Transitions and Boundaries", "English diagnostic" —
+ * what the student calls a test.
+ */
 export function studentTestTitle(t: StudentTest): string {
   if (t.title) return t.title
   if (t.mode === 'targeted') {
-    return (t.skill ? skillLabel(t.skill) : sectionLabel(t.section)) ?? `${subjectLabel(t.subject)} practice test`
+    const skills = skillsOn(t)
+    return (skills ? skillList(skills, 3) : sectionLabel(t.section)) ?? `${subjectLabel(t.subject)} practice test`
   }
   return `${subjectLabel(t.subject)} diagnostic`
 }

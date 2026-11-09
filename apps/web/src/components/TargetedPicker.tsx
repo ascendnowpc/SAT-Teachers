@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { byLevel, chosenSet, LEVEL_ORDER, levelCounts, type Candidate } from '../lib/targetedSet'
+import { skillLabel, skillList } from '../lib/constants'
+import { byLevel, chosenSet, LEVEL_ORDER, levelCounts, MAX_SET, type Candidate } from '../lib/targetedSet'
 import type { Difficulty, Question } from '../lib/types'
 import { MathText } from './MathText'
 import { QuestionView } from './QuestionView'
@@ -7,16 +8,18 @@ import { DifficultyBadge } from './ui'
 
 const LEVEL_LABEL: Record<Difficulty, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' }
 
-/** The most a set can hold (write_targeted_set). */
-export const MAX_SET = 20
-
-/** Where a question comes from, and whether this student has met it. */
-export function whereFrom(c: Candidate): string {
+/**
+ * Where a question comes from, and whether this student has met it — and,
+ * for a test on several skills, which of them it is on.
+ */
+export function whereFrom(c: Candidate, withSkill = false): string {
   const from =
     c.source === 'practice'
       ? 'Practice pool'
       : `${LEVEL_LABEL[c.set_level ?? c.difficulty]} test, #${c.set_position}`
-  return c.seen ? `${from} · seen before` : from
+  const parts = [withSkill && c.skill ? (skillLabel(c.skill) ?? c.skill) : null, from]
+  if (c.seen) parts.push('seen before')
+  return parts.filter(Boolean).join(' · ')
 }
 
 /**
@@ -36,6 +39,7 @@ export function TargetedPicker({
   questions,
   initial,
   title,
+  skills = [],
   onUse,
   onClose,
 }: {
@@ -44,12 +48,21 @@ export function TargetedPicker({
   questions: Map<string, Question>
   /** What is ticked when it opens. */
   initial: string[]
-  /** The skill, or the section, the test is on. */
+  /** The skills, or the section, the test is on. */
   title: string
+  /** The skills it is on (0086): with more than one, the list can be narrowed to one. */
+  skills?: string[]
   onUse: (ids: string[]) => void
   onClose: () => void
 }) {
-  const levels = useMemo(() => byLevel(candidates), [candidates])
+  const several = skills.length > 1
+  // On several skills, the list can show one of them at a time; '' is all.
+  const [only, setOnly] = useState('')
+  const shown = useMemo(
+    () => (only ? candidates.filter((c) => c.skill === only) : candidates),
+    [candidates, only],
+  )
+  const levels = useMemo(() => byLevel(shown), [shown])
   const [ticked, setTicked] = useState(() => new Set(initial))
   const [tab, setTab] = useState<Difficulty>(
     () => LEVEL_ORDER.find((l) => levels[l].length > 0) ?? 'easy',
@@ -66,10 +79,22 @@ export function TargetedPicker({
 
   const chosen = chosenSet(ticked, candidates)
   const counts = levelCounts(chosen)
+  // The level tabs count what the list shows: one skill's, when narrowed to it.
+  const shownCounts = levelCounts(only ? chosen.filter((c) => c.skill === only) : chosen)
   const full = ticked.size >= MAX_SET
   const list = levels[tab]
   const focused = focus ? (questions.get(focus) ?? null) : null
   const focusedCandidate = list.find((c) => c.question_id === focus) ?? null
+  const perSkill = skills.map((k) => [k, chosen.filter((c) => c.skill === k).length] as const)
+  const bare = several ? perSkill.filter(([, n]) => n === 0).map(([k]) => k) : []
+
+  function narrow(skill: string) {
+    setOnly(skill)
+    const next = byLevel(skill ? candidates.filter((c) => c.skill === skill) : candidates)
+    const level = next[tab].length > 0 ? tab : (LEVEL_ORDER.find((l) => next[l].length > 0) ?? tab)
+    setTab(level)
+    setFocus(next[level][0]?.question_id ?? null)
+  }
 
   function toggle(id: string) {
     setTicked((prev) => {
@@ -113,6 +138,26 @@ export function TargetedPicker({
           </button>
         </div>
 
+        {several && (
+          <div className="chips tpick-skills" role="group" aria-label="Skill">
+            {['', ...skills].map((k) => (
+              <button
+                key={k || 'all'}
+                type="button"
+                className={`chip-btn ${only === k ? 'on' : ''}`}
+                aria-pressed={only === k}
+                onClick={() => narrow(k)}
+              >
+                {k ? (skillLabel(k) ?? k) : 'Every skill'}{' '}
+                <span className="picker-left">
+                  {k ? chosen.filter((c) => c.skill === k).length : chosen.length}/
+                  {k ? candidates.filter((c) => c.skill === k).length : candidates.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="picker-tabs tpick-tabs">
           <div className="level-btns" role="tablist" aria-label="Level">
             {LEVEL_ORDER.map((l) => (
@@ -130,7 +175,7 @@ export function TargetedPicker({
               >
                 {LEVEL_LABEL[l]}{' '}
                 <span className="picker-left">
-                  {counts[l]}/{levels[l].length}
+                  {shownCounts[l]}/{levels[l].length}
                 </span>
               </button>
             ))}
@@ -177,7 +222,7 @@ export function TargetedPicker({
                       <span className="tpick-num">{i + 1}.</span>{' '}
                       <MathText text={q?.stem ?? '—'} math={q?.subject === 'mathematics'} />
                     </span>
-                    <span className="picker-skill">{whereFrom(c)}</span>
+                    <span className="picker-skill">{whereFrom(c, several)}</span>
                   </button>
                 </li>
               )
@@ -202,7 +247,7 @@ export function TargetedPicker({
                 tags={
                   <>
                     <DifficultyBadge level={focused.difficulty} />
-                    <span className="badge badge-neutral">{whereFrom(focusedCandidate)}</span>
+                    <span className="badge badge-neutral">{whereFrom(focusedCandidate, several)}</span>
                   </>
                 }
               />
@@ -219,8 +264,17 @@ export function TargetedPicker({
             </strong>
             {chosen.length > 0 &&
               ` · ${counts.easy} easy, ${counts.medium} medium, ${counts.hard} hard`}
+            {several &&
+              chosen.length > 0 &&
+              ` · ${perSkill.map(([k, n]) => `${n} ${skillLabel(k) ?? k}`).join(', ')}`}
             {full && ` · ${MAX_SET} is the most a test can hold`}
             {chosen.some((c) => c.seen) && ' · includes questions they have seen'}
+            {bare.length > 0 && chosen.length > 0 && (
+              <>
+                {' '}
+                · <strong>nothing on {skillList(bare)} yet</strong>
+              </>
+            )}
           </p>
           <button type="button" className="btn" onClick={onClose}>
             Cancel

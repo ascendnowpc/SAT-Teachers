@@ -143,3 +143,41 @@ describe('parseSummary', () => {
     expect(SUMMARY_SCHEMA.properties.points.maxItems).toBe(4)
   })
 })
+
+describe('a test on several skills (0086)', () => {
+  const B = 'standard_english_conventions'
+  const q: StudentProgress = {
+    ...p,
+    sessions: [session('d', 'diagnostic', 1), session('t2', 'targeted', 8)],
+    targeted: [
+      {
+        ...target('t2', 4),
+        section: null,
+        skill: null,
+        skills: [K, 'boundaries'],
+        set_by_skill: { [K]: 2, boundaries: 2 },
+      },
+    ],
+    items: [
+      item('d', true),
+      item('t2', true),
+      item('t2', false),
+      item('t2', true, { section: B, skill: 'boundaries' }),
+      item('t2', true, { section: B, skill: 'boundaries' }),
+    ],
+  }
+  const facts = summaryFacts(q, new Map(), 'Amara Okonkwo', 'english')
+
+  it('counts it as one test, though it is a point on two lines', () => {
+    expect(facts.skills).toHaveLength(2)
+    expect(facts.tests).toBe(1)
+  })
+
+  it('reads each skill’s point from that skill’s questions, and says it is a share', () => {
+    const bo = facts.skills.find((s) => s.skill.startsWith('Boundaries'))!
+    expect(bo.points[0]).toMatchObject({ right: '2 of 2', of_skills: 2 })
+    expect(bo.note).toBe('Some points are this skill’s share of a test on several skills.')
+    const ct = facts.skills.find((s) => s.skill.startsWith('Cross-Text'))!
+    expect(ct.points.find((x) => x.what !== 'baseline diagnostic')).toMatchObject({ right: '1 of 2' })
+  })
+})

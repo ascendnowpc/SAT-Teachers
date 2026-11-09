@@ -1,4 +1,4 @@
-import { LEVELS, levelLabel, sectionLabel, skillLabel, subjectLabel } from './constants'
+import { LEVELS, levelLabel, sectionLabel, skillLabel, skillList, skillsOn, subjectLabel } from './constants'
 import type { Session, SessionLevel, SessionStatus, Subject, TargetedSummary } from './types'
 
 /**
@@ -59,10 +59,14 @@ export function sessionTitle(s: Pick<Session, 'title' | 'subject' | 'mode'>): st
   return `${subjectLabel(s.subject)} ${kindOf(s) === 'targeted' ? 'targeted test' : 'diagnostic'}`
 }
 
-/** "Inferences", or "Craft and Structure — whole section". */
+/**
+ * "Inferences", "Transitions and Boundaries", "Transitions, Boundaries and 2
+ * more" (0086), or "Craft and Structure — whole section".
+ */
 export function targetedLabel(t: TargetedSummary | null): string | null {
   if (!t) return null
-  return t.skill ? skillLabel(t.skill) : `${sectionLabel(t.section)} — whole section`
+  const skills = skillsOn(t)
+  return skills ? skillList(skills, 3) : `${sectionLabel(t.section)} — whole section`
 }
 
 export interface SessionFilters {
@@ -132,6 +136,8 @@ function haystack(s: Session): string {
   return [
     s.title,
     targetedLabel(t),
+    // Every skill by name, past the ones the label has room for.
+    ...(t ? (skillsOn(t) ?? []).map((k) => skillLabel(k)) : []),
     t && sectionLabel(t.section),
     s.student?.full_name,
     s.student?.display_id,

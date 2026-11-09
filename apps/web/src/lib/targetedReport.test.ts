@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig } from './progress'
-import { targetedPdfDoc, targetedRows, type TargetedReportInput } from './targetedReport'
+import {
+  resultBySkill,
+  targetedPdfDoc,
+  targetedRows,
+  testName,
+  type TargetedReportInput,
+} from './targetedReport'
 import type { Difficulty, ItemStatus, SessionItem } from './types'
 
 function item(
@@ -95,8 +101,7 @@ const input: TargetedReportInput = {
   setCount: 5,
   items,
   config: defaultConfig('english'),
-  line: null,
-  pattern: null,
+  lines: [],
 }
 
 describe('targetedRows', () => {
@@ -139,5 +144,81 @@ describe('targetedPdfDoc', () => {
   it('prints no source reference and no key', () => {
     const text = JSON.stringify(doc)
     expect(text).not.toContain('SECRET-REF')
+  })
+})
+
+/* ------------------------------------------------ several skills (0086) --- */
+
+describe('a test on several skills', () => {
+  const on = (skill: string, seq: number, correct: boolean | null) => {
+    const i = item(seq, correct === null ? 'voided' : 'revealed', { correct: correct ?? false })
+    return { ...i, questions: { ...i.questions!, skill } }
+  }
+  const sat = [
+    on('transitions', 1, true),
+    on('boundaries', 2, false),
+    on('transitions', 3, true),
+    on('boundaries', 4, null),
+  ]
+  const several = {
+    ...input,
+    test: { ...input.test, section: null, skill: null, skills: ['transitions', 'boundaries'] },
+    setCount: 4,
+    setBySkill: { transitions: 2, boundaries: 2 },
+    items: sat,
+  }
+
+  it('is named by its skills', () => {
+    expect(testName(several.test)).toBe('Transitions and Boundaries')
+    expect(testName({ section: 'craft_and_structure', skill: null, skills: null })).toBe(
+      'Craft and Structure (the whole section)',
+    )
+  })
+
+  it('is read skill by skill, against each skill’s share of the set', () => {
+    expect(resultBySkill(several.test, sat, several.setBySkill)).toEqual([
+      { skill: 'transitions', correct: 2, reached: 2, notReached: 0 },
+      { skill: 'boundaries', correct: 0, reached: 1, notReached: 1 },
+    ])
+    expect(resultBySkill(input.test, items, null)).toEqual([])
+  })
+
+  it('prints a section skill by skill, and each question’s own skill', () => {
+    const doc = targetedPdfDoc(several)
+    expect(doc.title).toBe('Tia Targeted — Transitions and Boundaries')
+    expect(doc.extra?.[0]).toEqual({
+      heading: 'Skill by skill',
+      lines: ['Transitions: 2 of 2 right.', 'Boundaries: 0 of 1 right, 1 not reached.'],
+    })
+    expect(doc.questions.map((x) => x.skill)).toEqual([
+      'Transitions',
+      'Boundaries',
+      'Transitions',
+      'Boundaries',
+    ])
+  })
+
+  it('prints the line on each skill under its own heading', () => {
+    const line = (skill: string) => ({
+      section: 'expression_of_ideas',
+      skill,
+      points: [],
+      sinceLast: 0,
+      hint: null,
+      summary: null,
+    })
+    const doc = targetedPdfDoc({
+      ...several,
+      lines: [
+        { line: line('transitions'), pattern: null },
+        { line: line('boundaries'), pattern: null },
+      ],
+    })
+    expect(doc.extra?.map((e) => e.heading)).toEqual([
+      'Skill by skill',
+      'What the answers say',
+      'Progress on Transitions',
+      'Progress on Boundaries',
+    ])
   })
 })

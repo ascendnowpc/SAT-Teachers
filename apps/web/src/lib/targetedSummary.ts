@@ -2,6 +2,7 @@ import { sectionLabel, skillLabel, subjectLabel } from './constants.ts'
 import {
   defaultConfig,
   onePointWorth,
+  onSeveral,
   progressLines,
   VERDICT_LABELS,
   type ProgressConfig,
@@ -40,6 +41,8 @@ export interface FactPoint {
   level_score: number
   timed_out: number
   not_reached: number
+  /** On a test of several skills (0086): how many — the point is this skill's share. */
+  of_skills?: number
   /** From the point before: "Improved (+6)". Null on the baseline. */
   change: string | null
   sessions_between: number | null
@@ -55,6 +58,7 @@ export interface FactPoint {
 
 export interface SkillFacts {
   skill: string
+  note?: string
   points: FactPoint[]
   long_question_pattern: string | null
   sessions_since_last: number
@@ -80,9 +84,13 @@ function itemsOf(
   p: StudentProgress,
   sessionId: string,
   questions: Map<string, AnalysedQuestion>,
+  skill: string | null = null,
 ): AnalysedItem[] {
+  // On a skill's line, a test of several skills (0086) counts that skill's
+  // questions; every other test's are all on it already.
+  const several = onSeveral(p.targeted.find((t) => t.session_id === sessionId) ?? { section: null, skill: null })
   return p.items
-    .filter((i) => i.session_id === sessionId)
+    .filter((i) => i.session_id === sessionId && (!several || skill === null || i.skill === skill))
     .map((i) => ({
       status: i.status,
       is_correct: i.is_correct,
@@ -108,15 +116,17 @@ export function summaryFacts(
 ): SummaryFacts {
   const cfg: ProgressConfig = p.config ?? defaultConfig(subject)
   const lines = progressLines(p)
-  let tests = 0
+  // A test of several skills is a point on each of their lines, and one test.
+  const tested = new Set<string>()
 
   const skills = lines.map((line) => {
     const points = line.points.map((pt): FactPoint => {
-      if (pt.kind === 'test') tests += 1
-      const setCount = p.targeted.find((t) => t.session_id === pt.sessionId)?.set_count ?? 0
+      if (pt.kind === 'test') tested.add(pt.sessionId)
+      // What this point was asked from: the set, or this skill's share of it.
+      const setCount = pt.reached + pt.notReached
       const a =
         pt.kind === 'test'
-          ? analyseTargeted(itemsOf(p, pt.sessionId, questions), setCount, cfg)
+          ? analyseTargeted(itemsOf(p, pt.sessionId, questions, line.skill), setCount, cfg)
           : null
       return {
         date: pt.at.slice(0, 10),
@@ -130,6 +140,7 @@ export function summaryFacts(
         level_score: Math.round(pt.level),
         timed_out: pt.timedOut,
         not_reached: pt.notReached,
+        ...(pt.ofSkills ? { of_skills: pt.ofSkills } : {}),
         change: pt.step
           ? `${VERDICT_LABELS[pt.step.verdict]} (${pt.step.delta >= 0 ? '+' : ''}${Math.round(pt.step.delta)})`
           : null,
@@ -154,12 +165,17 @@ export function summaryFacts(
     })
     const testItems = line.points
       .filter((x) => x.kind === 'test')
-      .flatMap((x) => itemsOf(p, x.sessionId, questions))
+      .flatMap((x) => itemsOf(p, x.sessionId, questions, line.skill))
     const pattern = testItems.length ? longPattern(testItems, cfg) : null
     return {
       skill: line.skill
         ? `${skillLabel(line.skill)} (${sectionLabel(line.section)})`
         : `${sectionLabel(line.section)}, the whole section`,
+      // Said so the model does not read a skill's share of a longer test as
+      // the whole of it.
+      ...(points.some((x) => x.of_skills)
+        ? { note: 'Some points are this skill’s share of a test on several skills.' }
+        : {}),
       points,
       long_question_pattern: pattern?.text ?? null,
       sessions_since_last: line.sinceLast,
@@ -171,7 +187,7 @@ export function summaryFacts(
   return {
     student,
     subject: subjectLabel(subject),
-    tests,
+    tests: tested.size,
     scale: `The score out of 10 is right answers over questions reached, times 10; the level score maps it onto the school's scale through ${pts.map(([r, l]) => `${r}→${l}`).join(', ')}. On a ${cfg.default_set_size}-question test one question is worth about ${worth} level points.`,
     thresholds: `Improved is a rise of ${cfg.improved_at} or more level points from the point before; Declined a fall of ${-cfg.declined_at} or more; anything between is Minimal change.`,
     skills,

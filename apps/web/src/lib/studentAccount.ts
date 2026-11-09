@@ -46,6 +46,8 @@ export interface StudentTest {
   entry_key: string
   section: string | null
   skill: string | null
+  /** A targeted test's skills, in the order chosen; null for a whole section (0086). */
+  skills?: string[] | null
   set_size: number | null
   revealed: number
   right: number

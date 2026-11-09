@@ -94,3 +94,48 @@ describe('the parent report', () => {
     expect(headline([])).toBeNull()
   })
 })
+
+describe('a test on several skills (0086)', () => {
+  const several: ReportSubject = {
+    ...english,
+    targeted: [
+      ...english.targeted,
+      {
+        session_id: 't3',
+        section: null,
+        skill: null,
+        skills: ['transitions', 'boundaries'],
+        set_size: 4,
+        set_count: 4,
+        set_by_skill: { transitions: 2, boundaries: 2 },
+      },
+    ],
+    sessions: [
+      ...english.sessions,
+      { id: 't3', mode: 'targeted', status: 'completed', at: '2026-10-25T10:00:00Z' },
+    ],
+    items: [
+      ...english.items,
+      item('t3', 'transitions', true),
+      item('t3', 'transitions', true),
+      item('t3', 'boundaries', false, 'standard_english_conventions'),
+      item('t3', 'boundaries', true, 'standard_english_conventions'),
+    ],
+  }
+  const r = buildParentReport('english', several)
+
+  it('adds a point to each skill’s trend, from that skill’s questions', () => {
+    const tr = r.lines.find((l) => l.skill === 'transitions')!
+    expect(tr.points[tr.points.length - 1]).toMatchObject({ sessionId: 't3', correct: 2, reached: 2 })
+    const bo = r.lines.find((l) => l.skill === 'boundaries')!
+    expect(bo.points.map((x) => [x.sessionId, x.correct, x.reached])).toEqual([['t3', 1, 2]])
+  })
+
+  it('colours each skill by its own share of the latest test', () => {
+    const cells = r.map.flatMap((s) => s.skills)
+    expect(cells.find((c) => c.skill === 'boundaries')).toMatchObject({
+      latest: { right: 1, of: 2, at: '2026-10-25T10:00:00Z' },
+      rag: 'amber',
+    })
+  })
+})

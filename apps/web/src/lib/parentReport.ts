@@ -43,7 +43,16 @@ export function ragFor(right: number, of: number): Rag | null {
 /** One subject of student_report: student_progress's numbers, cut down. */
 export interface ReportSubject {
   sessions: { id: string; mode: SessionMode; status: SessionStatus; at: string }[]
-  targeted: { session_id: string; section: string; skill: string | null; set_size: number; set_count: number }[]
+  targeted: {
+    session_id: string
+    /** Null when the test's skills cross sections (0086). */
+    section: string | null
+    skill: string | null
+    skills?: string[] | null
+    set_size: number
+    set_count: number
+    set_by_skill?: Record<string, number> | null
+  }[]
   items: {
     session_id: string
     section: string | null

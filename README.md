@@ -44,7 +44,7 @@ npm run dev                                    # http://localhost:5173
 | **Loaded bank** | 60 items with passages, keys, sections and difficulty, and every one of them in a test |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
-| **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
+| **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
 | **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
 | **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`) |
@@ -821,9 +821,11 @@ targeted tests. `live` is what sessions were before `0059` — a "lesson", the d
 under another name, counted the same way between tests. Nothing books one now, and every screen
 files those rows with the diagnostics.
 
-**Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
-section), then how the questions are chosen, then the clocks. **Choose them myself** opens a
-pop-up (`components/TargetedPicker.tsx`) on every question on the skill from
+**Booking a targeted test** (`0061`). The teacher picks what it is on, then how the questions are
+chosen, then the clocks. What it is on is every section of the subject with its skills: tick one
+skill, tick several — from any section, in the order ticked — or press a section's **Whole
+section** (`0086`). **Choose them myself** opens a
+pop-up (`components/TargetedPicker.tsx`) on every question on the skills from
 `targeted_candidates`: the levels as tabs, a box to tick on each question, "seen before" on any
 the student has met, and the question clicked shown whole on the right the way the student will
 see it — a skill's stems are often word for word the same. "Use these" brings the ticks back;
@@ -839,6 +841,26 @@ level, and Edit reopens the pop-up on it. `create_targeted_session` books the se
 set in one transaction and checks every question again; a ticked set allows repeats exactly
 when a ticked question was seen. The set is the teacher's and an admin's to read: it is what the
 student has not seen.
+
+**A test on several skills** (`0086`). The skills a diagnostic finds weak are seldom one and
+seldom in one section, and a teacher who wanted Transitions and Boundaries tested used to book two
+tests. `targeted_tests.skills` holds the list (null for a whole section, a list of one for one
+skill; `section` is null when the skills cross sections, and `skill` is kept in step for what read
+it before). Pick for me splits the size evenly between the skills (`splitEvenly`: 12 over 3 is
+4/4/4, 10 over 3 is 4/3/3) and balances each share across the levels as a one-skill set is; a skill
+with too few to ask gives what it has and the others cover the difference, and the form says so
+("Boundaries: 2 to ask — an even share is 4"). The set is sat easy → medium → hard, the skills
+taking turns within a level. The pop-up can be narrowed to one skill and counts each. **Every skill
+on the test has to be asked at least once** — the form will not book one that is not, and
+`write_targeted_set` refuses it — because a test that says it is on Boundaries and asks nothing on
+it would put a point on a line it never measured. Reading it, each skill is a point on its own line,
+made of that skill's questions in the test against that skill's share of the set
+(`progress_payload`'s `set_by_skill`, counts and never ids), the way the baseline diagnostic is
+read; the report and its PDF give the result skill by skill with each one's step, and the line
+marks such a point *on 3 skills*. The teacher's wording for a step is one per skill on such a test
+(`verdict_overrides.skill`), since each skill steps from its own point before. Every RPC kept its
+arguments and gained an optional one (`p_skills`, `p_skill`), so the app from before books and
+reads as it did (`several_skills.sql`).
 
 **Explanations** are drawn in the shape they were written in (`lib/explanation.ts`,
 `components/Explanation.tsx`). The OnePrep items (`0065`) say why the key is right and why each
@@ -1054,6 +1076,7 @@ psql "$DATABASE_URL" -f supabase/tests/student_report.sql
 psql "$DATABASE_URL" -f supabase/tests/retention.sql
 psql "$DATABASE_URL" -f supabase/tests/skipping.sql
 psql "$DATABASE_URL" -f supabase/tests/typed_answer.sql
+psql "$DATABASE_URL" -f supabase/tests/several_skills.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1243,6 +1266,12 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0086`.** Safe for the app being served: no RPC loses an argument, and a test on one
+skill is booked, read and written about as before. It holds `drop function` (the signatures gain
+an optional argument), so it goes through the SQL editor. Apply it, redeploy `notify_pc_report`
+(its targeted PDF prints a line per skill), then merge — only the new app books a test on several
+skills, so nothing older meets one.
 
 **Order, for `0066` and `0067`.** `0067` is safe at any time on its own. Apply `0066` together with
 the app that asks for the student ID, not ahead of it: the old app sends the link's token to the `*_by_token` functions, which take the entry key

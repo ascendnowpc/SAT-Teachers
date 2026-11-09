@@ -174,6 +174,46 @@ export function sectionLabel(value: string | null): string | null {
   return ALL_SECTIONS.find((s) => s.value === value)?.label ?? value
 }
 
+/** The section a skill is in — every skill is in exactly one — or null for one this list does not name. */
+export function sectionOfSkill(skill: string | null): string | null {
+  if (!skill) return null
+  for (const [section, skills] of Object.entries(SKILLS)) {
+    if (skills.some((s) => s.value === skill)) return section
+  }
+  return null
+}
+
+/**
+ * What a targeted test is on, as its row says it (0061, 0086): a section, and
+ * the skills — or, on a row read before 0086, the one skill.
+ */
+export interface TestOn {
+  section: string | null
+  skill?: string | null
+  skills?: string[] | null
+}
+
+/** The skills a test is on, in the order chosen; null for a test on a whole section. */
+export function skillsOn(t: TestOn): string[] | null {
+  if (t.skills && t.skills.length > 0) return t.skills
+  return t.skill ? [t.skill] : null
+}
+
+/**
+ * Skills as a phrase: "Transitions", "Transitions and Boundaries",
+ * "Transitions, Boundaries and Inferences" — and past `max`, "Transitions,
+ * Boundaries and 2 more", for a cell with a line to fill.
+ */
+export function skillList(skills: string[], max = Infinity): string {
+  const names = skills.map((s) => skillLabel(s) ?? s)
+  if (names.length <= 1) return names[0] ?? ''
+  if (names.length > max) {
+    const shown = names.slice(0, Math.max(1, max - 1))
+    return `${shown.join(', ')} and ${names.length - shown.length} more`
+  }
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 export function subjectLabel(value: Subject): string {
   return SUBJECTS.find((s) => s.value === value)?.label ?? value
 }
