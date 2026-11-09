@@ -165,3 +165,32 @@ describe('longPattern', () => {
     expect(longPattern(items, cfg).flagged).toBe(false)
   })
 })
+
+describe('skipped questions (0072)', () => {
+  const skip = (passage: string) => it_(false, 12, { skipped: true }, { passage })
+
+  it('are counted apart from time-outs, wrong, and never as rushed', () => {
+    const a = analyseTargeted([skip('Short.'), it_(true, 40), it_(false, 60, { timed_out: true })], 3, cfg)
+    expect(a.skipped).toBe(1)
+    expect(a.timedOut).toBe(1)
+    expect(a.correct).toBe(1)
+    expect(a.reached).toBe(3)
+    expect(a.rushed).toBe(0)
+    expect(a.findings).toContain('1 question skipped — counted as wrong.')
+  })
+
+  it('flag skipping the long ones as the brief’s warning sign', () => {
+    const a = analyseTargeted(
+      [skip(long), skip(long), it_(true, 50, {}, { passage: long }), it_(true, 30), it_(true, 30)],
+      5,
+      cfg,
+    )
+    expect(a.skippedLong).toBe(2)
+    expect(a.findings.join(' ')).toMatch(/Skipped 2 of 3 long questions and 0 of 2 short — avoiding long questions/)
+  })
+
+  it('say nothing about length when the skips are short', () => {
+    const a = analyseTargeted([skip('Short.'), it_(true, 50, {}, { passage: long }), it_(true, 30)], 3, cfg)
+    expect(a.findings.join(' ')).not.toMatch(/avoiding long questions/)
+  })
+})

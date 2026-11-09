@@ -57,8 +57,8 @@ export function bindingClock(
   return { endsAt: deadline, which: 'overall' }
 }
 
-/** A targeted item the student met: answered, timed out, or set aside. For the end screen. */
-export type TargetedOutcome = 'answered' | 'timed_out' | 'set_aside'
+/** A targeted item the student met: answered, skipped, timed out, or set aside. For the end screen. */
+export type TargetedOutcome = 'answered' | 'skipped' | 'timed_out' | 'set_aside'
 
 /**
  * How a targeted item ended, from the student's side — which has no
@@ -67,10 +67,13 @@ export type TargetedOutcome = 'answered' | 'timed_out' | 'set_aside'
 export function outcomeOf(item: {
   status: string
   selected_option: string | null
+  skipped?: boolean
 }): TargetedOutcome | null {
   if (item.status === 'voided') return 'set_aside'
   if (item.status === 'answered' || item.status === 'revealed') {
-    return item.selected_option === null ? 'timed_out' : 'answered'
+    if (item.selected_option !== null) return 'answered'
+    // No option: the student skipped it (0072), or its time ran out.
+    return item.skipped ? 'skipped' : 'timed_out'
   }
   return null
 }

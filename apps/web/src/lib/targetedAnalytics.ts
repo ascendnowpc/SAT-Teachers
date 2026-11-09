@@ -29,6 +29,8 @@ export interface AnalysedItem {
   status: 'staged' | 'published' | 'answered' | 'revealed' | 'voided'
   is_correct: boolean | null
   timed_out: boolean
+  /** The student pressed Skip (0072): wrong, no option, not a time-out. */
+  skipped?: boolean
   elapsed_seconds: number | null
   time_limit_seconds: number | null
   question: AnalysedQuestion | null
@@ -90,6 +92,9 @@ export interface TargetedAnalysis {
   reached: number
   correct: number
   timedOut: number
+  /** Skipped by the student (0072), and how many of those were long questions. */
+  skipped: number
+  skippedLong: number
   notReached: number
   /** Out of 10, over what was reached. Null with nothing reached. */
   raw: number | null
@@ -134,6 +139,9 @@ export function analyseTargeted(
   const met = items.filter(isReached)
   const correct = met.filter((i) => i.is_correct).length
   const timedOut = met.filter((i) => i.timed_out).length
+  const skipped = met.filter((i) => i.skipped).length
+  let skippedLong = 0
+  let skippedShort = 0
   const raw = rawOutOf10(correct, met.length)
 
   const byDifficulty: Record<Difficulty, Tally> = { easy: tally(), medium: tally(), hard: tally() }
@@ -153,9 +161,14 @@ export function analyseTargeted(
       d.total += 1
       if (right) d.correct += 1
 
-      const side = isLong(q, cfg.long_words) ? long : short
+      const isLongOne = isLong(q, cfg.long_words)
+      const side = isLongOne ? long : short
       side.total += 1
       if (right) side.correct += 1
+      if (i.skipped) {
+        if (isLongOne) skippedLong += 1
+        else skippedShort += 1
+      }
 
       const f = formatOf(q)
       const t = formats.get(f) ?? tally()
@@ -165,9 +178,10 @@ export function analyseTargeted(
     }
 
     // A timed-out question took its whole clock by definition; it is counted
-    // as timed out, not as slow.
+    // as timed out, not as slow. A skipped one was given up on, not got wrong
+    // at speed: it is counted as skipped, not as rushed.
     const target = targetOf(i)
-    if (i.timed_out || target === null || i.elapsed_seconds === null) continue
+    if (i.timed_out || i.skipped || target === null || i.elapsed_seconds === null) continue
     time.seconds += i.elapsed_seconds
     time.target += target
     time.timed += 1
@@ -205,6 +219,16 @@ export function analyseTargeted(
         ` — ${raw!.toFixed(1)} out of 10, level score ${Math.round(level!)}.`,
     )
     if (timedOut > 0) find(`${plural(timedOut, 'question')} ran out of time — counted as wrong.`)
+    if (skipped > 0) {
+      find(`${plural(skipped, 'question')} skipped — counted as wrong.`)
+      // The brief's warning sign: skipping the long ones is a confidence or
+      // pacing block more often than a gap in what the student knows.
+      if (skippedLong > skippedShort && long.total > 0) {
+        find(
+          `Skipped ${skippedLong} of ${long.total} long ${long.total === 1 ? 'question' : 'questions'} and ${skippedShort} of ${short.total} short — avoiding long questions can be anxiety or pacing rather than a gap in knowledge.`,
+        )
+      }
+    }
 
     const levels = (['easy', 'medium', 'hard'] as Difficulty[]).filter(
       (d) => byDifficulty[d].total > 0,
@@ -246,6 +270,8 @@ export function analyseTargeted(
     reached: met.length,
     correct,
     timedOut,
+    skipped,
+    skippedLong,
     notReached,
     raw,
     level,

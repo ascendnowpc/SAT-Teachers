@@ -121,7 +121,8 @@ describe('targetedPdfDoc', () => {
   })
 
   it('scores over what was reached and counts the rest as not reached', () => {
-    expect(doc.stats.map((s) => s.value)).toEqual(['1/3', '3.3/10', '27', '1', '2'])
+    // Right of reached, raw, level, skipped (0072), timed out, not reached.
+    expect(doc.stats.map((s) => s.value)).toEqual(['1/3', '3.3/10', '27', '0', '1', '2'])
     expect(doc.headline).toBe('1 of 3 right on Transitions — 3.3/10, level score 27')
   })
 

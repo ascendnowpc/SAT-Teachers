@@ -850,9 +850,10 @@ booked for, or before it if their teacher or an admin presses **Let them start n
 console (`0025`'s waiver: the scheduled time stays what was arranged, and Undo early access puts
 it back until they start; their waiting screen sees it within seconds). The server puts question
 1 up, stamps when it did, and fixes its clock (the test's seconds a question, or the question's
-own target). They answer or the clock runs out; either way the next question comes up. There is
-no skipping and no going back, the screen says "Question 2 of 5", and both clocks count down in
-the server's time. There is no cron: every call that touches the test expires whatever is overdue
+own target). They answer or the clock runs out; either way the next question comes up. There is no going back, and **a question can be skipped** (`0072`): Skip closes it as wrong,
+marked skipped rather than timed out, and the next comes up — the brief tracks skips as a warning
+sign, and the analysis counts them and flags when the long questions are the ones skipped. The
+screen says "Question 2 of 10", and both clocks count down in the server's time. There is no cron: every call that touches the test expires whatever is overdue
 first. A question whose time ran out is wrong, with no option. When the overall clock runs out
 the question on screen is timed out too; End test on the console, or the student leaving, sets
 it aside instead. A question never answered is **not reached**, and not reached is left out of
@@ -971,6 +972,7 @@ psql "$DATABASE_URL" -f supabase/tests/student_sign_in.sql
 psql "$DATABASE_URL" -f supabase/tests/targeted_result.sql
 psql "$DATABASE_URL" -f supabase/tests/student_report.sql
 psql "$DATABASE_URL" -f supabase/tests/retention.sql
+psql "$DATABASE_URL" -f supabase/tests/skipping.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
