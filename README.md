@@ -51,7 +51,7 @@ npm run dev                                    # http://localhost:5173
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
-| **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0084`) |
+| **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`) |
 
 ## English is three tests
 
@@ -975,6 +975,14 @@ where the prose itself came out with holes in it, the whole question is the pict
 **82 are left out**, 81 maths and 1 English: College Board's export gives them no
 `Correct Answer:` line at all — the key is only stated inside the rationale prose — and a
 question nobody can be marked against is worse than a question that is not there.
+
+**A picture replaces the words only when the words are gone** (`0085`). 743 of the 1,194 keep
+their real stem beside the figure, because the prose read cleanly and the picture is a chart
+the prose refers to. The other 451 had the whole question cut out precisely because the decoder
+could not read it, so their stem says it is a picture and nothing else — otherwise the wreckage
+the decoder gave up on would be shown beside a perfectly good picture of the question. Those
+rows carry blank option bodies under their A, B, C and D labels for the same reason: the picture
+holds the choices, and the label is what the student clicks.
 
 Running it, given the two exported PDFs:
 

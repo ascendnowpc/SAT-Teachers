@@ -25,9 +25,16 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 BUCKET = "question-images"
+
+# One picture at a time took the better part of an hour for the full bank, and
+# nearly all of that was waiting on the round trip rather than sending bytes.
+# A handful at once is the difference between an hour and a few minutes; more
+# than a handful just invites the storage API to start refusing them.
+WORKERS = 8
 
 
 def put(base: str, key: str, path: Path) -> tuple[bool, str]:
@@ -58,6 +65,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--pictures", type=Path, required=True)
     ap.add_argument("--limit", type=int, default=0, help="stop after N, for a look")
+    ap.add_argument("--workers", type=int, default=WORKERS)
     args = ap.parse_args()
 
     base = os.environ.get("SUPABASE_URL", "").strip()
@@ -73,14 +81,16 @@ def main() -> None:
 
     sent = 0
     failed: list[tuple[str, str]] = []
-    for n, path in enumerate(files, 1):
-        ok, why = put(base, key, path)
-        if ok:
-            sent += 1
-        else:
-            failed.append((path.name, why))
-        if n % 100 == 0:
-            print(f"  {n}/{len(files)}", flush=True)
+    done = 0
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        for path, (ok, why) in zip(files, pool.map(lambda f: put(base, key, f), files)):
+            done += 1
+            if ok:
+                sent += 1
+            else:
+                failed.append((path.name, why))
+            if done % 100 == 0:
+                print(f"  {done}/{len(files)}", flush=True)
 
     print(f"{sent} of {len(files)} uploaded to {BUCKET}")
     for name, why in failed[:10]:

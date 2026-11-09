@@ -37,6 +37,17 @@ from pathlib import Path
 # Written as a dollar-quoted string, so the tag must not appear in the text.
 TAG = "$qb$"
 
+# What a question says when its own words could not be read and the picture is
+# carrying it. Without this the stem the decoder gave up on — a hedge of rules
+# and question marks — is what the student is shown beside a perfectly good
+# picture of the question.
+PICTURE_STEM = "This question is shown as a picture."
+
+
+def is_rubble(stem: str) -> bool:
+    """Whether a stem came out as wreckage rather than words."""
+    return "??" in stem or stem.count("|") > 4
+
 
 def lit(value) -> str:
     """One value as SQL."""
@@ -93,10 +104,17 @@ def call(q: dict, images: str | None) -> str | None:
             return None
         accepted_sql = "array[" + ", ".join(lit(a) for a in answers) + "]::text[]"
 
+    # A picture is only a replacement for the words when the words are gone.
+    # Where the prose survived it is kept, even on a question that also has a
+    # picture — most of those are a chart beside a perfectly readable stem.
+    stem = q["stem"]
+    if image and is_rubble(stem):
+        stem = PICTURE_STEM
+
     return (
         "select seed_pool_question("
         f"{lit(q['source_ref'])}, {lit(q['subject'])}, {lit(q['section'])}, {lit(q['skill'])}, "
-        f"{lit(q['difficulty'])}::difficulty_level, {lit(q.get('passage'))}, {lit(q['stem'])}, "
+        f"{lit(q['difficulty'])}::difficulty_level, {lit(q.get('passage'))}, {lit(stem)}, "
         f"{lit(image)}, {options_sql}, {correct_sql}, {accepted_sql}, {lit(q.get('explanation'))});"
     )
 
