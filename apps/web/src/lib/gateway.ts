@@ -59,6 +59,12 @@ export interface SessionGateway {
     eliminated: OptionLabel[]
     confidence: number | null
   }): Promise<void>
+  /**
+   * A question the student types the answer to (0073). Only a targeted test
+   * has them — they come from the practice pool, which a lesson never shows
+   * (0060) — so only the link door answers one.
+   */
+  submitEntry(args: { itemId: string; entered: string }): Promise<void>
   finish(): Promise<void>
   /**
    * A targeted test's score once it is over (0068), or null — before it ends,
@@ -147,6 +153,12 @@ export function accountGateway(sessionId: string): SessionGateway {
           })
         ).error,
       )
+    },
+
+    async submitEntry() {
+      // A lesson is never set a pool question (0060), and only a pool question
+      // is typed at. Reaching here is a bug, not something a student did.
+      throw new Error('a lesson has no question to type an answer to')
     },
 
     async finish() {
@@ -245,6 +257,18 @@ export function linkGateway(token: string): SessionGateway {
             p_eliminated: eliminated,
             p_confidence: confidence,
             p_reasoning: null,
+          })
+        ).error,
+      )
+    },
+
+    async submitEntry({ itemId, entered }) {
+      fail(
+        (
+          await supabase.rpc('answer_entry_by_token', {
+            p_token: token,
+            p_item: itemId,
+            p_entered: entered,
           })
         ).error,
       )

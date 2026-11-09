@@ -50,6 +50,8 @@ npm run dev                                    # http://localhost:5173
 | **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
+| **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
+| **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0084`) |
 
 ## English is three tests
 
@@ -938,6 +940,76 @@ reach it, since they all look a test up by its level. English's pool holds 48 Cr
 Connections questions (`0065`, `ENG-PRACTICE-CTC-Q01` … `Q53`): 14 easy, 17 medium, 17 hard,
 transcribed from OnePrep with its accuracy and timing figures as each one's difficulty rationale.
 
+## College Board's question bank
+
+The pools hold **3,688 more** (`0074`–`0084`), read out of College Board's SAT Suite Question
+Bank export: 1,844 Reading and Writing and 1,844 Mathematics, each carrying the domain, the
+skill, the difficulty, the answer and College Board's own rationale, under its own id
+(`CB-ac472881`). Its nineteen maths skills are the app's nineteen exactly. Its English ten are
+the app's eleven less one — it does not split Command of Evidence into Textual and
+Quantitative — so `command_of_evidence` is allowed beside the two rather than each of its 277
+questions being guessed at.
+
+**Reading the export** (`tools/questionbank`). The Reading and Writing file is text throughout.
+The maths file is text too, *except that every mathematical character is drawn as a vector path
+rather than written* — so its own text layer reads "In the given equation, and are constants",
+with the glyphs the page shows missing from it. Neither `pdftotext` nor MuPDF gets them out.
+
+They are not handwriting, though: the same renderer draws the same character the same way every
+time, so 203,545 drawn shapes fall into 927 clusters, and the 265 of those that are labelled —
+once, by eye, off contact sheets — account for 98% of them. `glyphs.py` reads a shape by
+rasterising it and taking the nearest cluster; `layout.py` rebuilds the expression from the
+geometry, reading a fraction off the bar that has something close above and below it, and an
+exponent off a glyph set smaller and raised; `extract.py` drops the result back into the prose
+at the position it occupies on the page. The first question of the maths export comes back as
+`(12x+28)/4 - s/13 = r(x - 8)`, which `MathText` already sets as stacked fractions.
+
+**What is not read is not guessed at.** A shape in no labelled cluster, and a result that came
+out as rubble — an option with nothing in it, a hedge of rules, which is a table or a chart —
+sends the question to a picture instead (`pictures.py`), cut from the page at 200 dpi and
+trimmed to its ink. 1,258 of the 3,770 are pictures: a chart, a plotted grid, a table, a drawn
+triangle, or one of the 359 older maths items that were already a bitmap. Where only the figure
+could not be read the figure alone is cut and the question keeps its real stem and options;
+where the prose itself came out with holes in it, the whole question is the picture.
+
+**82 are left out**, 81 maths and 1 English: College Board's export gives them no
+`Correct Answer:` line at all — the key is only stated inside the rationale prose — and a
+question nobody can be marked against is worse than a question that is not there.
+
+Running it, given the two exported PDFs:
+
+```bash
+python3 tools/questionbank/extract.py  questionbank-export.pdf --out bank.json
+python3 tools/questionbank/pictures.py questionbank-export.pdf --manifest bank.json --out ./pictures
+SUPABASE_URL=… SUPABASE_SERVICE_KEY=… python3 tools/questionbank/upload.py --pictures ./pictures
+python3 tools/questionbank/make_migration.py --manifest bank.json --number 75   --title english_questions_from_the_question_bank --heading "…" --images "<bucket URL>" --out supabase/migrations
+```
+
+The pictures go up **before** the migrations, so no question is published pointing at one that
+is not there yet. `seed_pool_question` upserts on `source_ref`, so the import is re-runnable and
+a question already in a pool keeps its place in it.
+
+## A question the student types the answer to
+
+Every question before `0073` was four options with one right answer. A quarter of the SAT's
+maths is not: 464 of the export's 1,925 are student-produced responses — "what is the value of
+*s*?", and the student writes 403.
+
+`questions.answer_kind` is `choice` or `entry`; a key is `question_keys.correct_option` **or**
+`question_keys.accepted`, never both and never neither, and the constraint says so.
+`session_items.entered_answer` is what the student wrote. The student's screen shows one box
+where the four choices would be, the clock stops on the first character the same way it stops on
+the first option picked, and Skip and the overall clock are unchanged.
+
+**What counts as right.** College Board lists the accepted forms itself — `.1764, .1765, 3/17`
+is one key, because a repeating decimal has to be truncated or rounded to fit the grid and
+either is allowed — so the list is taken as given. An entry is matched against it as written,
+after the spellings that are not differences are taken out (spaces, a leading `+`, the nought in
+front of a decimal point, trailing noughts after one, a comma in a thousand), and then as a
+number, so a student who writes `1/2` where the key says `.5` is right. It is deliberately no
+fuzzier than that: a tolerance wide enough to catch an unusual spelling is wide enough to mark a
+wrong answer right.
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -973,6 +1045,7 @@ psql "$DATABASE_URL" -f supabase/tests/targeted_result.sql
 psql "$DATABASE_URL" -f supabase/tests/student_report.sql
 psql "$DATABASE_URL" -f supabase/tests/retention.sql
 psql "$DATABASE_URL" -f supabase/tests/skipping.sql
+psql "$DATABASE_URL" -f supabase/tests/typed_answer.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every

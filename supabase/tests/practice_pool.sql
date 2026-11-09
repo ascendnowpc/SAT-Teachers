@@ -161,7 +161,7 @@ begin
     (case when to_regprocedure('public.'||txt) is null then 'absent' else 'present' end),
     (case when to_regprocedure('public.'||txt) is null then 'PASS' else 'FAIL' end)::text;
 
-  txt := 'create_question_in_set(uuid,text,text,text,text,jsonb,answer_option,text,text,text,text,difficulty_level)';
+  txt := 'create_question_in_set(uuid,text,text,text,text,jsonb,answer_option,text,text,text,text,difficulty_level,text[])';
   return query select '6 grants'::text, txt || ' — signed in only', 'authenticated'::text,
     (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon too!'
           when has_function_privilege('authenticated', 'public.'||txt, 'execute') then 'authenticated'

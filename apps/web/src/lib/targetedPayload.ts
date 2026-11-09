@@ -42,10 +42,16 @@ export interface TargetedPayload {
     > & {
       /** Since 0072; absent from a payload built before it. */
       skipped?: boolean
+      /** Since 0073; what the student typed on a question they answer by writing. */
+      entered_answer?: string | null
+      /** Since 0073; the accepted answer, once the teacher has revealed it. */
+      revealed_answer?: string | null
       question: Pick<
         Question,
         'id' | 'subject' | 'passage' | 'passage_underline' | 'stem' | 'image_url'
       > & {
+        /** Since 0073; absent from a payload built before it, which is 'choice'. */
+        answer_kind?: 'choice' | 'entry'
         options: { label: OptionLabel; body: string }[]
       }
     }
@@ -107,6 +113,8 @@ export function fromTargeted(p: TargetedPayload): {
     revealed_explanation: i.revealed_explanation,
     time_limit_seconds: i.time_limit_seconds,
     skipped: i.skipped ?? false,
+    entered_answer: i.entered_answer ?? null,
+    revealed_answer: i.revealed_answer ?? null,
     questions: {
       id: i.question.id,
       created_by: null,
@@ -118,6 +126,7 @@ export function fromTargeted(p: TargetedPayload): {
       image_url: i.question.image_url,
       source_ref: null,
       stem: i.question.stem,
+      answer_kind: i.question.answer_kind ?? 'choice',
       // Not sent, and not shown: the student is never told a question's level.
       difficulty: 'medium',
       difficulty_rationale: null,

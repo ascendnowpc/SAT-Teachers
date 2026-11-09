@@ -683,6 +683,12 @@ function ItemPane({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // A question the student types the answer to rather than picks one (0073).
+  // A quarter of the SAT's mathematics is written this way.
+  const entry = item.questions?.answer_kind === 'entry'
+  const [typed, setTyped] = useState(item.entered_answer ?? '')
+  const answered = entry ? typed.trim() !== '' : selected !== null
+
   const math = item.questions?.subject === 'mathematics'
   const options = useMemo(
     () =>
@@ -743,10 +749,10 @@ function ItemPane({
   // started again would be one the student could run by clicking around.
   const [stopped, setStopped] = useState(item.decided_at !== null)
   useEffect(() => {
-    if (stopped || selected === null) return
+    if (stopped || !answered) return
     setStopped(true)
     void gateway.markDecided(item.id)
-  }, [stopped, selected, gateway, item.id])
+  }, [stopped, answered, gateway, item.id])
 
   // The time is up: say so, and the server moves on if it agrees. If it does
   // not yet — the browser's clock a moment ahead — the reload after a short
@@ -760,16 +766,20 @@ function ItemPane({
   }, [gateway, item.id, onChanged])
 
   const submit = useCallback(async () => {
-    if (!selected) return
+    if (entry ? typed.trim() === '' : !selected) return
     setBusy(true)
     setErr(null)
     try {
-      await gateway.submit({
-        itemId: item.id,
-        option: selected,
-        eliminated: struck,
-        confidence,
-      })
+      if (entry) {
+        await gateway.submitEntry({ itemId: item.id, entered: typed })
+      } else {
+        await gateway.submit({
+          itemId: item.id,
+          option: selected as OptionLabel,
+          eliminated: struck,
+          confidence,
+        })
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send that answer.')
     }
@@ -777,7 +787,7 @@ function ItemPane({
     // teacher's next question, or that question if it is already up.
     await onChanged()
     setBusy(false)
-  }, [selected, struck, confidence, gateway, item.id, onChanged])
+  }, [entry, typed, selected, struck, confidence, gateway, item.id, onChanged])
 
   // A targeted test's Skip (0072): the question closes as wrong and the next
   // comes up. Forward only, like everything else in the test.
@@ -841,6 +851,32 @@ function ItemPane({
           <MathText text={item.questions?.stem} math={math} />
         </h2>
 
+        {entry ? (
+          /* No options to pick from: the student writes the answer, the way
+             the test's own grid-in does. Plain text, because an answer may be
+             a fraction (3/17) as readily as a decimal, and the server takes
+             either (0073). */
+          <div className="exam-entry">
+            <label className="exam-entry-label" htmlFor={`entry-${item.id}`}>
+              Your answer
+            </label>
+            <input
+              id={`entry-${item.id}`}
+              className="exam-entry-box"
+              type="text"
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={typed}
+              disabled={busy || timeUp}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="e.g. 403 or 3/17"
+            />
+            <p className="exam-entry-hint">
+              Write the number. A fraction like 3/17 or a decimal like .1764 are both fine.
+            </p>
+          </div>
+        ) : (
         <div className="exam-choices">
           {options.map((o) => {
             const isStruck = struck.includes(o.label)
@@ -880,6 +916,7 @@ function ItemPane({
             )
           })}
         </div>
+        )}
 
         <div className="exam-after">
           {/* The confidence is asked about an answer, so it is not on screen
@@ -888,7 +925,7 @@ function ItemPane({
               they were still reading — and a number given before the answer is
               a number about nothing, which is the one thing this column of the
               report cannot afford. */}
-          {selected ? (
+          {answered ? (
             <div className="conf-ask">
               <div className="section-title">How sure are you?</div>
               <div className="confidence">
@@ -905,20 +942,32 @@ function ItemPane({
               </div>
             </div>
           ) : (
-            <p className="conf-wait">Pick an answer, then say how sure you are.</p>
+            <p className="conf-wait">
+              {entry
+                ? 'Write your answer, then say how sure you are.'
+                : 'Pick an answer, then say how sure you are.'}
+            </p>
           )}
 
           <button
             type="button"
             className="btn btn-primary btn-lg btn-block"
             style={{ marginTop: 16 }}
-            disabled={!selected || busy || timeUp}
+            disabled={!answered || busy || timeUp}
             onClick={() => void submit()}
           >
             {/* Submit, not Next: sending an answer does not move the student
                 on. The teacher shows the next question (0057), and ends the
                 test when it is done — how many there are is up to them. */}
-            {timeUp ? 'Time is up' : busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Submit answer'}
+            {timeUp
+              ? 'Time is up'
+              : busy
+                ? 'Sending…'
+                : !answered
+                  ? entry
+                    ? 'Write an answer'
+                    : 'Pick an answer'
+                  : 'Submit answer'}
           </button>
           {countdown && (
             <button

@@ -8,3 +8,4 @@ dist/
 .vercel
 extracted/
 apps/web/tsconfig.tsbuildinfo
+__pycache__/

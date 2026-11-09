@@ -102,7 +102,7 @@ export function targetedRows(items: SessionItem[]): TargetedRow[] {
         number: n + 1,
         level: i.questions?.difficulty ?? null,
         outcome,
-        answer: !reached ? '—' : (i.selected_option ?? '—'),
+        answer: !reached ? '—' : (i.selected_option ?? i.entered_answer ?? '—'),
         seconds: reached ? seconds : null,
         limit: i.time_limit_seconds ?? null,
         pace: reached && !a?.timed_out && !a?.skipped ? paceLabel(seconds, target) : null,

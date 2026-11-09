@@ -85,6 +85,12 @@ export interface Question {
   /** Where the item came from, e.g. ENG-DIAG-INCLASS-Q03. Null for authored questions. */
   source_ref: string | null
   stem: string
+  /**
+   * How the question is answered (0073): 'choice' is four options and one of
+   * them is right, 'entry' is the student typing it. Absent on a payload
+   * built before 0073, which is 'choice'.
+   */
+  answer_kind?: 'choice' | 'entry'
   difficulty: Difficulty
   difficulty_rationale: string | null
   /** What a confident student should need, in seconds. Pace is measured against it. */
@@ -195,6 +201,10 @@ export interface SessionItem {
   time_limit_seconds?: number | null
   /** On the student's own targeted payload: they skipped it (0072). */
   skipped?: boolean
+  /** What the student typed on a question they answer by writing (0073). */
+  entered_answer?: string | null
+  /** The accepted answer, named at reveal time and only then (0073). */
+  revealed_answer?: string | null
   questions?: Question | null
   session_item_assessments?: Assessment | null
 }

@@ -810,7 +810,11 @@ table.board-table tr.live-row { background: var(--sky-wash); }
 .exam-qhead .abc.on { color: var(--ink); background: #fff; border-color: var(--border-strong); }
 .exam-qhead button:disabled { opacity: .45; cursor: default; }
 
-.exam-stem { font-size: 17.5px; font-weight: 500; line-height: 1.55; letter-spacing: -0.012em; margin-bottom: 26px; }
+/* pre-line, because a stem may carry its own lines: College Board's questions
+   set a display equation or a line of a system on a line of its own, and
+   collapsing those runs the equation into the sentence after it (0074). Runs
+   of spaces still collapse, so nothing else changes. */
+.exam-stem { font-size: 17.5px; font-weight: 500; line-height: 1.55; letter-spacing: -0.012em; margin-bottom: 26px; white-space: pre-line; }
 
 .exam-choices { display: flex; flex-direction: column; gap: 12px; }
 .ch { display: flex; align-items: stretch; gap: 8px; }
@@ -1612,7 +1616,7 @@ button.exam-back { background: none; border: 0; padding: 0; cursor: pointer; }
 .qsplit-head .grip { color: var(--faint); display: inline-flex; cursor: grab; }
 .qsplit-head .btn { padding: 3px 8px; min-width: 0; }
 
-.qsplit-stem { font-size: 15.5px; font-weight: 500; line-height: 1.55; margin: 0 0 16px; }
+.qsplit-stem { font-size: 15.5px; font-weight: 500; line-height: 1.55; margin: 0 0 16px; white-space: pre-line; }
 
 .qsplit-choices { display: flex; flex-direction: column; gap: 8px; }
 .qch {
@@ -2682,3 +2686,26 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 
 /* A targeted test's Skip (0072): there, but quieter than Submit. */
 .exam-skip { margin-top: 8px; }
+
+/* A question the student types the answer to (0073). It sits where the four
+   choices would, and is set large and in the middle, because it is the one
+   thing on the screen to do and the answer is a handful of characters rather
+   than a sentence. */
+.exam-entry { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0 4px; }
+.exam-entry-label {
+  align-self: flex-start; font-size: 12.5px; font-weight: 600;
+  letter-spacing: .02em; text-transform: uppercase; color: var(--muted);
+}
+.exam-entry-box {
+  width: 100%; max-width: 320px; padding: 14px 16px; text-align: center;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: #fff; color: var(--ink);
+  font-family: inherit; font-size: 22px; font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 1px rgba(16, 20, 43, .02);
+  transition: border-color var(--t), box-shadow var(--t);
+}
+.exam-entry-box::placeholder { color: var(--faint); font-size: 17px; }
+.exam-entry-box:hover { border-color: var(--navy-200); }
+.exam-entry-box:focus { outline: none; border-color: var(--sky); box-shadow: var(--focus-ring); }
+.exam-entry-box:disabled { background: var(--paper); color: var(--muted); }
+.exam-entry-hint { margin: 0; font-size: 12.5px; color: var(--muted); text-align: center; }

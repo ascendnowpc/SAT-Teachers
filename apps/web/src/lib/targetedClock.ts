@@ -63,16 +63,23 @@ export type TargetedOutcome = 'answered' | 'skipped' | 'timed_out' | 'set_aside'
 /**
  * How a targeted item ended, from the student's side — which has no
  * assessment row: an item answered with no option is one whose time ran out.
+ *
+ * Unless it never had an option to pick. A question the student types the
+ * answer to (0073) leaves selected_option null however well it was answered,
+ * so what it left behind is entered_answer, and reading only the option would
+ * put "Time ran out" under every one of them.
  */
 export function outcomeOf(item: {
   status: string
   selected_option: string | null
+  entered_answer?: string | null
   skipped?: boolean
 }): TargetedOutcome | null {
   if (item.status === 'voided') return 'set_aside'
   if (item.status === 'answered' || item.status === 'revealed') {
     if (item.selected_option !== null) return 'answered'
-    // No option: the student skipped it (0072), or its time ran out.
+    if (item.entered_answer !== null && item.entered_answer !== undefined) return 'answered'
+    // Nothing either way: the student skipped it (0072), or its time ran out.
     return item.skipped ? 'skipped' : 'timed_out'
   }
   return null

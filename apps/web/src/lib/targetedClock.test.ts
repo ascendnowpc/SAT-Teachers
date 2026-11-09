@@ -78,4 +78,27 @@ describe('outcomeOf', () => {
     expect(outcomeOf({ status: 'voided', selected_option: null })).toBe('set_aside')
     expect(outcomeOf({ status: 'published', selected_option: null })).toBeNull()
   })
+
+  it('reads a typed answer as answered, not as a question that ran out', () => {
+    // A question the student writes the answer to (0073) never sets an
+    // option, so reading only the option would put "Time ran out" under every
+    // one of them.
+    expect(outcomeOf({ status: 'answered', selected_option: null, entered_answer: '403' })).toBe(
+      'answered',
+    )
+    expect(outcomeOf({ status: 'revealed', selected_option: null, entered_answer: '3/17' })).toBe(
+      'answered',
+    )
+    // An empty string is still an answer the student sent; nothing sent at all
+    // is null, and that is the one that ran out.
+    expect(outcomeOf({ status: 'answered', selected_option: null, entered_answer: '' })).toBe(
+      'answered',
+    )
+    expect(outcomeOf({ status: 'answered', selected_option: null, entered_answer: null })).toBe(
+      'timed_out',
+    )
+    expect(
+      outcomeOf({ status: 'answered', selected_option: null, entered_answer: null, skipped: true }),
+    ).toBe('skipped')
+  })
 })

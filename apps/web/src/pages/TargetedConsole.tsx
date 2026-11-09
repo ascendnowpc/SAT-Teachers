@@ -314,7 +314,9 @@ export function TargetedConsole({
                     <td>
                       <StandingBadge standing={standings[i]} item={r.item} />
                     </td>
-                    <td>{r.item?.selected_option ?? '—'}</td>
+                    {/* A question the student types the answer to has no
+                        option to show, so what they wrote is the answer (0073). */}
+                    <td>{r.item?.selected_option ?? r.item?.entered_answer ?? '—'}</td>
                     <td className="num">
                       <ItemTime item={r.item} />
                     </td>
