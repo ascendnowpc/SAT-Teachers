@@ -16,6 +16,8 @@ export interface TargetedResult {
   right: number
   reached: number
   timed_out: number
+  /** Since 0072. */
+  skipped?: number
   not_reached: number
   /** Weakest first, as the server orders them. */
   skills: SkillResult[]
@@ -30,6 +32,7 @@ export function scoreLine(r: TargetedResult): string {
 /** "2 ran out of time · 1 not reached", or nothing. */
 export function scoreNote(r: TargetedResult): string | null {
   const parts = [
+    (r.skipped ?? 0) > 0 && `${r.skipped} skipped`,
     r.timed_out > 0 && `${r.timed_out} ran out of time`,
     r.not_reached > 0 && `${r.not_reached} not reached`,
   ].filter(Boolean)

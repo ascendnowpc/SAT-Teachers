@@ -2679,3 +2679,6 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .retention-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12.5px; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
 .retention-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
 .retention-table .muted { margin-left: 6px; }
+
+/* A targeted test's Skip (0072): there, but quieter than Submit. */
+.exam-skip { margin-top: 8px; }

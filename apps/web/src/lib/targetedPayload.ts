@@ -40,6 +40,8 @@ export interface TargetedPayload {
       | 'revealed_correct_option'
       | 'revealed_explanation'
     > & {
+      /** Since 0072; absent from a payload built before it. */
+      skipped?: boolean
       question: Pick<
         Question,
         'id' | 'subject' | 'passage' | 'passage_underline' | 'stem' | 'image_url'
@@ -104,6 +106,7 @@ export function fromTargeted(p: TargetedPayload): {
     revealed_correct_option: i.revealed_correct_option,
     revealed_explanation: i.revealed_explanation,
     time_limit_seconds: i.time_limit_seconds,
+    skipped: i.skipped ?? false,
     questions: {
       id: i.question.id,
       created_by: null,

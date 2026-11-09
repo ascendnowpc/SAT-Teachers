@@ -178,8 +178,8 @@ begin
 
   select string_agg(k, ',' order by k) into txt from jsonb_object_keys(j->'items'->0) k;
   return query select '2 payload'::text, 'an item is a fixed list — no is_correct, no question id outside it'::text,
-    'answered_at,decided_at,eliminated_options,first_viewed_at,id,question,revealed_correct_option,revealed_explanation,revealed_result,selected_option,sequence_no,status,student_confidence,time_limit_seconds'::text, txt,
-    __verdict(txt = 'answered_at,decided_at,eliminated_options,first_viewed_at,id,question,revealed_correct_option,revealed_explanation,revealed_result,selected_option,sequence_no,status,student_confidence,time_limit_seconds');
+    'answered_at,decided_at,eliminated_options,first_viewed_at,id,question,revealed_correct_option,revealed_explanation,revealed_result,selected_option,sequence_no,skipped,status,student_confidence,time_limit_seconds'::text, txt,
+    __verdict(txt = 'answered_at,decided_at,eliminated_options,first_viewed_at,id,question,revealed_correct_option,revealed_explanation,revealed_result,selected_option,sequence_no,skipped,status,student_confidence,time_limit_seconds');
 
   select string_agg(k, ',' order by k) into txt from jsonb_object_keys(j->'items'->0->'question') k;
   return query select '2 payload'::text, 'a question carries no level, difficulty, rationale, source or key'::text,

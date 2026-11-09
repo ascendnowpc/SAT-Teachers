@@ -73,6 +73,8 @@ describe('outcomeOf', () => {
     expect(outcomeOf({ status: 'answered', selected_option: null })).toBe('timed_out')
     expect(outcomeOf({ status: 'revealed', selected_option: null })).toBe('timed_out')
     expect(outcomeOf({ status: 'answered', selected_option: 'B' })).toBe('answered')
+    expect(outcomeOf({ status: 'answered', selected_option: null, skipped: true })).toBe('skipped')
+    expect(outcomeOf({ status: 'revealed', selected_option: null, skipped: false })).toBe('timed_out')
     expect(outcomeOf({ status: 'voided', selected_option: null })).toBe('set_aside')
     expect(outcomeOf({ status: 'published', selected_option: null })).toBeNull()
   })

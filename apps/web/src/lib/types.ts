@@ -164,6 +164,8 @@ export interface Assessment {
   teacher_note: string | null
   /** A targeted test's clock ran out before an answer: recorded as wrong, no option (0061). */
   timed_out?: boolean
+  /** The student pressed Skip: recorded as wrong, no option, not a time-out (0072). */
+  skipped?: boolean
 }
 
 export interface SessionItem {
@@ -191,6 +193,8 @@ export interface SessionItem {
   revealed_explanation: string | null
   /** A targeted question's clock, fixed when it was shown (0061). Null in a lesson, or with no clock. */
   time_limit_seconds?: number | null
+  /** On the student's own targeted payload: they skipped it (0072). */
+  skipped?: boolean
   questions?: Question | null
   session_item_assessments?: Assessment | null
 }

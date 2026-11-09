@@ -428,7 +428,7 @@ function Lobby({
           {targeted.question_count} question{targeted.question_count === 1 ? '' : 's'}, one at a
           time, and {Math.round(targeted.overall_seconds / 60)} minutes for the whole test. Each
           question has its own clock: answer it before the time runs out, or the next one comes up
-          on its own. You cannot skip a question or go back to one.
+          on its own. You can skip a question, but you cannot go back to one.
         </p>
       ) : (
         <p>
@@ -583,7 +583,8 @@ function Finished({
   const revealed = items.filter((i) => i.status === 'revealed')
   const right = items.filter((i) => i.revealed_result === 'correct').length
   const out = revealed.length
-  // A targeted test: what ran out of time, and what was never reached.
+  // A targeted test: what was skipped, what ran out of time, and what was never reached.
+  const skipped = targeted ? items.filter((i) => outcomeOf(i) === 'skipped').length : 0
   const ranOut = targeted ? items.filter((i) => outcomeOf(i) === 'timed_out').length : 0
   const notReached = targeted ? Math.max(0, targeted.question_count - items.length) : 0
 
@@ -602,7 +603,8 @@ function Finished({
           </p>
         ) : (
           <p>
-            {items.length - ranOut} answered.{' '}
+            {items.length - ranOut - skipped} answered.{' '}
+            {skipped > 0 && `${skipped} skipped. `}
             {ranOut > 0 && `${ranOut} ran out of time. `}
             {notReached > 0 && `${notReached} not reached. `}
             {out === 0
@@ -630,6 +632,8 @@ function Finished({
                   >
                     {it.revealed_result === 'correct' ? 'Right' : 'Wrong'}
                   </span>
+                ) : outcomeOf(it) === 'skipped' ? (
+                  <span className="badge badge-neutral">Skipped</span>
                 ) : outcomeOf(it) === 'timed_out' ? (
                   <span className="badge badge-neutral">Time ran out</span>
                 ) : (
@@ -775,6 +779,20 @@ function ItemPane({
     setBusy(false)
   }, [selected, struck, confidence, gateway, item.id, onChanged])
 
+  // A targeted test's Skip (0072): the question closes as wrong and the next
+  // comes up. Forward only, like everything else in the test.
+  const skip = useCallback(async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await gateway.skip(item.id)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not skip that question.')
+    }
+    await onChanged()
+    setBusy(false)
+  }, [gateway, item.id, onChanged])
+
   return (
     <div className="exam-body">
       {/* The figure as well as the passage. Nine of the mathematics questions
@@ -902,7 +920,21 @@ function ItemPane({
                 test when it is done — how many there are is up to them. */}
             {timeUp ? 'Time is up' : busy ? 'Sending…' : !selected ? 'Pick an answer' : 'Submit answer'}
           </button>
-          <p className="exam-lock">You cannot come back to a question once you have submitted it.</p>
+          {countdown && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-block exam-skip"
+              disabled={busy || timeUp}
+              onClick={() => void skip()}
+            >
+              Skip this question
+            </button>
+          )}
+          <p className="exam-lock">
+            {countdown
+              ? 'You cannot come back to a question once you have submitted or skipped it.'
+              : 'You cannot come back to a question once you have submitted it.'}
+          </p>
         </div>
       </section>
     </div>

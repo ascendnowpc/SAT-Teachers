@@ -46,13 +46,14 @@ interface SetRow {
 }
 
 /** Where one question of the set stands, from the teacher's chair. */
-type Standing = 'upcoming' | 'on_screen' | 'answered' | 'timed_out' | 'set_aside' | 'not_reached'
+type Standing = 'upcoming' | 'on_screen' | 'answered' | 'skipped' | 'timed_out' | 'set_aside' | 'not_reached'
 
 function standingOf(item: SessionItem | undefined, over: boolean): Standing {
   if (!item) return over ? 'not_reached' : 'upcoming'
   if (item.status === 'published') return 'on_screen'
   if (item.status === 'voided') return 'set_aside'
   if (item.session_item_assessments?.timed_out) return 'timed_out'
+  if (item.session_item_assessments?.skipped) return 'skipped'
   return 'answered'
 }
 
@@ -145,9 +146,10 @@ export function TargetedConsole({
 
   const rows = set.map((r) => ({ ...r, item: byQuestion.get(r.question_id) }))
   const standings = rows.map((r) => standingOf(r.item, over))
-  const reached = standings.filter((s) => s === 'answered' || s === 'timed_out').length
+  const reached = standings.filter((s) => s === 'answered' || s === 'timed_out' || s === 'skipped').length
   const correct = rows.filter((r) => r.item?.session_item_assessments?.is_correct).length
   const timedOut = standings.filter((s) => s === 'timed_out').length
+  const skippedCount = standings.filter((s) => s === 'skipped').length
   const notReached = standings.filter((s) => s === 'not_reached' || s === 'set_aside').length
   const unrevealed = items.filter((i) => i.status === 'answered').length
   const onScreen = rows.findIndex((r) => standingOf(r.item, over) === 'on_screen')
@@ -264,7 +266,8 @@ export function TargetedConsole({
           )}
           {(live || over) && (
             <p>
-              {correct} of {reached} reached right{timedOut > 0 && ` · ${timedOut} timed out`}
+              {correct} of {reached} reached right{skippedCount > 0 && ` · ${skippedCount} skipped`}
+              {timedOut > 0 && ` · ${timedOut} timed out`}
               {notReached > 0 && ` · ${notReached} not reached`}
             </p>
           )}
@@ -332,6 +335,8 @@ function StandingBadge({ standing, item }: { standing: Standing; item: SessionIt
       return <span className="badge badge-neutral">Not yet</span>
     case 'on_screen':
       return <span className="badge badge-sky">On screen</span>
+    case 'skipped':
+      return <span className="badge badge-bad">Skipped</span>
     case 'timed_out':
       return <span className="badge badge-bad">Timed out</span>
     case 'set_aside':

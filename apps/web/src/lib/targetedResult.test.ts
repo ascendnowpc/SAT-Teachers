@@ -25,6 +25,7 @@ describe('the score', () => {
   it('notes what ran out of time and what was not reached, or nothing', () => {
     expect(scoreNote(result)).toBe('1 ran out of time · 1 not reached')
     expect(scoreNote({ ...result, timed_out: 0, not_reached: 0 })).toBeNull()
+    expect(scoreNote({ ...result, skipped: 2 })).toBe('2 skipped · 1 ran out of time · 1 not reached')
   })
 })
 

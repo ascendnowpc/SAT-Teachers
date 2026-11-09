@@ -54,6 +54,7 @@ export function analyseTargetedItems(
       status: i.status,
       is_correct: i.session_item_assessments?.is_correct ?? null,
       timed_out: i.session_item_assessments?.timed_out ?? false,
+      skipped: i.session_item_assessments?.skipped ?? false,
       elapsed_seconds: i.session_item_assessments?.elapsed_seconds ?? null,
       time_limit_seconds: i.time_limit_seconds ?? null,
       question: i.questions ?? null,
@@ -67,7 +68,7 @@ export function analyseTargetedItems(
 export interface TargetedRow {
   number: number
   level: Difficulty | null
-  outcome: 'right' | 'wrong' | 'timed out' | 'not reached'
+  outcome: 'right' | 'wrong' | 'skipped' | 'timed out' | 'not reached'
   answer: string
   seconds: number | null
   limit: number | null
@@ -90,7 +91,9 @@ export function targetedRows(items: SessionItem[]): TargetedRow[] {
         ? 'not reached'
         : a?.timed_out
           ? 'timed out'
-          : a?.is_correct
+          : a?.skipped
+            ? 'skipped'
+            : a?.is_correct
             ? 'right'
             : 'wrong'
       const seconds = a?.elapsed_seconds ?? null
@@ -102,7 +105,7 @@ export function targetedRows(items: SessionItem[]): TargetedRow[] {
         answer: !reached ? '—' : (i.selected_option ?? '—'),
         seconds: reached ? seconds : null,
         limit: i.time_limit_seconds ?? null,
-        pace: reached && !a?.timed_out ? paceLabel(seconds, target) : null,
+        pace: reached && !a?.timed_out && !a?.skipped ? paceLabel(seconds, target) : null,
       }
     })
 }
@@ -151,6 +154,7 @@ export function targetedPdfDoc(input: TargetedReportInput): ReportPdfDoc {
         label: 'Level score',
         note: 'mapped from the raw score',
       },
+      { value: String(a.skipped), label: 'Skipped', note: 'counted as wrong' },
       { value: String(a.timedOut), label: 'Timed out', note: null },
       { value: String(a.notReached), label: 'Not reached', note: 'left out of the score' },
     ],
@@ -178,7 +182,7 @@ export function targetedPdfDoc(input: TargetedReportInput): ReportPdfDoc {
       sequence: String(r.number),
       skill,
       level: r.level ? difficultyLabel(r.level) : '—',
-      answer: r.outcome === 'timed out' ? 'timed out' : r.answer,
+      answer: r.outcome === 'timed out' || r.outcome === 'skipped' ? r.outcome : r.answer,
       correct: r.outcome === 'right',
       time: r.seconds === null ? '—' : `${r.seconds}s${r.limit ? ` / ${r.limit}s` : ''}`,
       pace: r.pace ?? (r.outcome === 'timed out' ? 'ran out' : '—'),

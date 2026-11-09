@@ -37,6 +37,8 @@ export interface SessionGateway {
    * server moves on only if it agrees; resolves to whether anything moved.
    */
   advance(itemId: string): Promise<boolean>
+  /** A targeted test's Skip on the question on screen (0072): it closes as wrong and the next comes up. */
+  skip(itemId: string): Promise<void>
   // No setLevel. Which test a question comes from is the teacher's decision,
   // made on the console, and the student is not shown it (0047).
   markViewed(itemId: string): Promise<void>
@@ -106,6 +108,10 @@ export function accountGateway(sessionId: string): SessionGateway {
     // refuses one (0062), so there is nothing here to advance.
     async advance() {
       return false
+    },
+
+    async skip() {
+      throw new Error('A targeted test runs on its link.')
     },
 
     async markViewed(itemId) {
@@ -205,6 +211,10 @@ export function linkGateway(token: string): SessionGateway {
       const { data, error } = await supabase.rpc('advance_by_token', { p_token: token, p_item: itemId })
       fail(error)
       return data === true
+    },
+
+    async skip(itemId) {
+      fail((await supabase.rpc('skip_by_token', { p_token: token, p_item: itemId })).error)
     },
 
     async markViewed(itemId) {

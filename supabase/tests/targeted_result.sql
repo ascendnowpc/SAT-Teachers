@@ -125,8 +125,8 @@ begin
   -- ============ 3. nothing more ============
   select string_agg(k, ',' order by k) into txt from jsonb_object_keys(r) k;
   return query select '3 only'::text, 'the result is its numbers'::text,
-    'not_reached,reached,right,skills,timed_out'::text, txt,
-    __verdict(txt = 'not_reached,reached,right,skills,timed_out');
+    'not_reached,reached,right,skills,skipped,timed_out'::text, txt,
+    __verdict(txt = 'not_reached,reached,right,skills,skipped,timed_out');
   select string_agg(k, ',' order by k) into txt from jsonb_object_keys(r->'skills'->0) k;
   return query select '3 only'::text, 'a skill is its name and counts'::text,
     'of,right,section,skill'::text, txt, __verdict(txt = 'of,right,section,skill');
