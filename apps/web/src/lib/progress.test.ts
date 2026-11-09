@@ -467,3 +467,10 @@ describe('a test on several skills', () => {
     expect(progressLines(q).map((l) => l.skill)).toEqual([K])
   })
 })
+
+describe('the default size (0089)', () => {
+  it('is twelve questions, as Ascend Now chose from the brief’s 10 to 15', () => {
+    expect(defaultConfig('english').default_set_size).toBe(12)
+    expect(defaultConfig('mathematics').default_set_size).toBe(12)
+  })
+})

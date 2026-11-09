@@ -76,3 +76,11 @@ describe('every skill asked (0086)', () => {
     expect(draftProblem(d)).toBeNull()
   })
 })
+
+describe('the clocks of a new test (0089)', () => {
+  it('start at a minute a question for twelve, and one to spare', () => {
+    const d = emptyDraft('english')
+    expect(d.questionSeconds).toBe(60)
+    expect(d.overallMinutes).toBe(13)
+  })
+})

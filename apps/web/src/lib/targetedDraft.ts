@@ -43,9 +43,9 @@ export function emptyDraft(_subject: Subject): TargetedDraft {
     how: null,
     size: 0,
     seed: newSeed(),
-    // The brief's mini-test: about a minute a question (0069).
+    // The brief's mini-test: about a minute a question (0069), twelve of them (0089).
     questionSeconds: 60,
-    overallMinutes: suggestedMinutes(10, 60),
+    overallMinutes: suggestedMinutes(12, 60),
     overallAuto: true,
     allowRepeats: false,
     questions: [],

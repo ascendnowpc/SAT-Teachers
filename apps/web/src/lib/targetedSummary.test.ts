@@ -99,7 +99,8 @@ describe('summaryFacts', () => {
 
   it('says how it is scored, from the admin’s settings', () => {
     expect(facts.scale).toContain('0→20, 5→30, 8→40')
-    expect(facts.scale).toContain('On a 10-question test one question is worth about 3 level points')
+    // 12 since 0089: a question is 10/12 of a raw point, about 2 level points around 5/10.
+    expect(facts.scale).toContain('On a 12-question test one question is worth about 2 level points')
     expect(facts.thresholds).toContain('rise of 5 or more')
     expect(facts.thresholds).toContain('fall of 5 or more')
   })

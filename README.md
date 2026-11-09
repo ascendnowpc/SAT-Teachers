@@ -831,7 +831,7 @@ pop-up (`components/TargetedPicker.tsx`) on every question on the skills from
 the student has met, and the question clicked shown whole on the right the way the student will
 see it — a skill's stems are often word for word the same. "Use these" brings the ticks back;
 the set is sat easy → medium → hard. **Pick for me** draws a balanced set at random —
-`lib/targetedSet.ts`: a size (10 by default since `0069`, an admin's setting), easy → medium →
+`lib/targetedSet.ts`: a size (12 by default since `0089`, an admin's setting), easy → medium →
 hard (10 → 3/3/4, 12 → 4/3/5, 15 → 5/4/6), unseen before seen, a seeded draw that Pick again
 replaces. A level the bank cannot fill borrows from its neighbour and the form says so — "a
 balanced set needs 1 medium; 0 unseen — 1 short" — and a set the bank cannot fill is booked as
@@ -1318,6 +1318,9 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0089`.** Safe at any time: a new targeted test starts at 12 questions instead of 10,
+in every subject still on the old default.
 
 **Order, for `0088`.** Safe at any time: a table, two functions and `student_report` with one more
 field, which the app from before ignores.
