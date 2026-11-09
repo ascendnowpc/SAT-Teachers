@@ -47,7 +47,7 @@ npm run dev                                    # http://localhost:5173
 | **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
 | **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
-| **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`) |
+| **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`). **Every report is saved as a PDF first**, and nothing it was drawn from goes until it is (`0087`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
@@ -912,6 +912,25 @@ once a day at 03:17 UTC through pg_cron where the project has it (the local rebu
 on the admin's *Run now*; a run while it is off deletes nothing, and every run is written onto
 `retention_policy.last_run` (`retention.sql`).
 
+**A report is saved before its data goes** (`0087`). The rows go; the reports — the record of what
+was taught and what came of it, the thing the PC was sent — are kept. **Nothing a report was drawn
+from is deleted until the report is saved as a PDF**: a due student is *held* until every report of
+theirs is (a lesson's generated report, and every completed targeted test), and a recording past its
+90 days until its session's report is, since the report quotes the model's reading of the recording
+and deleting the reading first would change the report without a word. A copy counts for the
+generation it was drawn from (`report_archive.made_from`), so a report generated again is saved
+again, beside the first. The database cannot draw a PDF, so a run that holds something back queues
+the `archive_reports` edge function (pg_net, as a report's email is queued), which reads what is
+waiting (`retention_reports_waiting`), draws each with the code that draws the PC's PDF
+(`_shared/reportDocs.ts`), stores it in the private `report-archive` bucket, indexes it in
+`report_archive`, and calls `run_retention` again so what is now saved can go. It asks for itself
+again only when it saved something, so a report that will not draw stops the loop instead of
+spinning it, and stays listed as waiting. The tab says what each run held back and why, how many
+reports each due student has still to save, and lists the **Saved reports** by student: an admin
+opens one (a link good for a minute) or deletes a student's — the files through the bucket, then
+the rows — which is how a family's request to be forgotten is met. Nobody else reads them, and no
+client writes them (`report_archive.sql`).
+
 **Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
 test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
 out of 10 *and* mapped to a level score, always side by side; accuracy by difficulty; time
@@ -1077,6 +1096,7 @@ psql "$DATABASE_URL" -f supabase/tests/retention.sql
 psql "$DATABASE_URL" -f supabase/tests/skipping.sql
 psql "$DATABASE_URL" -f supabase/tests/typed_answer.sql
 psql "$DATABASE_URL" -f supabase/tests/several_skills.sql
+psql "$DATABASE_URL" -f supabase/tests/report_archive.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1243,6 +1263,7 @@ supabase functions deploy notify_new_teacher --no-verify-jwt   # the database ca
 supabase functions deploy notify_pc_report --no-verify-jwt   # the database calls it, with no token
 supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
 supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
+supabase functions deploy archive_reports --no-verify-jwt    # the clean-up calls it, with no token (0087)
 
 # once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
@@ -1266,6 +1287,13 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0087`.** Deploy `archive_reports` (and `notify_pc_report`, which now draws its PDF
+through the same `_shared/reportDocs.ts`) before applying it, and set `app_config.functions_url`
+if the project has not. Applied without the function, nothing is lost: the clean-up holds back
+everything a report was drawn from, and the tab says the reports could not be sent for saving. It
+holds `drop function` (`run_retention` gains an argument), so it goes through the SQL editor; the
+daily schedule calls `run_retention()` by name and needs no change.
 
 **Order, for `0086`.** Safe for the app being served: no RPC loses an argument, and a test on one
 skill is booked, read and written about as before. It holds `drop function` (the signatures gain
