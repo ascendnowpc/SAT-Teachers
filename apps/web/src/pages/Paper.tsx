@@ -1,11 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Explanation, LevelReason } from '../components/Explanation'
+import { PaperFilterBar } from '../components/PaperFilterBar'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { QuestionView } from '../components/QuestionView'
 import { IconBack } from '../components/icons'
-import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
+import { sectionLabel, subjectLabel } from '../lib/constants'
 import { buildPaper, type PaperGroup } from '../lib/paper'
+import {
+  NO_PAPER_FILTERS,
+  countLabel,
+  describeFilters,
+  facetOptions,
+  filtersFromParams,
+  isNarrowed,
+  matches,
+  paramsOf,
+  searchText,
+  skillName,
+  type PaperFilters,
+} from '../lib/paperFilter'
 import { allRows } from '../lib/allRows'
 import { row, supabase } from '../lib/supabase'
 import type { Question, QuestionSet } from '../lib/types'
@@ -74,7 +88,53 @@ export function Paper() {
     void load()
   }, [load])
 
+  // Numbered from the whole test, so a question keeps its number however the
+  // test is narrowed: "question 10" is the same question filtered or not.
   const groups = useMemo(() => buildPaper(questions), [questions])
+
+  // The filters live in the address (lib/paperFilter), so a narrowed test
+  // survives a reload, comes back after Edit, and can be sent to a colleague.
+  const [params, setParams] = useSearchParams()
+  const filters = useMemo(() => filtersFromParams(params), [params])
+  // The list redraws behind the typing rather than holding it up: a pool is
+  // nearly two thousand questions.
+  const deferred = useDeferredValue(filters)
+  const haystacks = useMemo(() => questions.map(searchText), [questions])
+  const haystackOf = useMemo(
+    () => new Map(questions.map((q, i) => [q.id, haystacks[i]])),
+    [questions, haystacks],
+  )
+  const options = useMemo(
+    () => facetOptions(questions, haystacks, deferred),
+    [questions, haystacks, deferred],
+  )
+  const narrowed = isNarrowed(deferred)
+  const shownGroups = useMemo(() => {
+    if (!narrowed) return groups
+    return groups
+      .map((g) => ({
+        ...g,
+        questions: g.questions.filter((pq) =>
+          matches(pq.question, deferred, haystackOf.get(pq.question.id) ?? ''),
+        ),
+      }))
+      .filter((g) => g.questions.length > 0)
+  }, [groups, deferred, narrowed, haystackOf])
+  const shownCount = shownGroups.reduce((n, g) => n + g.questions.length, 0)
+
+  function setFilter<K extends keyof PaperFilters>(key: K, value: PaperFilters[K]) {
+    const next: PaperFilters = { ...filters, [key]: value }
+    // A skill from another section would leave nothing; the section wins.
+    if (key === 'section' && value && next.skill) {
+      const fits = questions.some((q) => q.skill === next.skill && q.section === value)
+      if (!fits) next.skill = ''
+    }
+    setParams(paramsOf(next), { replace: true })
+  }
+
+  function clearFilters() {
+    setParams(paramsOf(NO_PAPER_FILTERS), { replace: true })
+  }
 
   // Only a live level test can be written into (0040), so only a live level
   // test offers it. The deactivated source papers are archives: a button here
@@ -114,7 +174,7 @@ export function Paper() {
         <div>
           <h1>{set.title}</h1>
           <p className="sub">
-            {questions.length} question{questions.length === 1 ? '' : 's'} ·{' '}
+            {countLabel(questions.length)} question{questions.length === 1 ? '' : 's'} ·{' '}
             {subjectLabel(set.subject)}
             {set.level ? ` · ${set.level} level` : ''}
           </p>
@@ -138,9 +198,27 @@ export function Paper() {
         )}
       </div>
 
+      {questions.length > 0 && (
+        <PaperFilterBar
+          filters={filters}
+          options={options}
+          shown={shownCount}
+          total={questions.length}
+          onChange={setFilter}
+          onClear={clearFilters}
+        />
+      )}
+
       <article className="paper">
         <header className="paper-title">
           <h2>{set.title}</h2>
+          {/* On paper the filter row is gone, so the copy says what it was narrowed to. */}
+          {narrowed && (
+            <p className="paper-filtered">
+              {describeFilters(deferred)} — {countLabel(shownCount)} of {countLabel(questions.length)}{' '}
+              questions
+            </p>
+          )}
           {set.instructions && <p className="paper-directions">{set.instructions}</p>}
         </header>
 
@@ -153,8 +231,16 @@ export function Paper() {
               </Link>
             )}
           </div>
+        ) : shownGroups.length === 0 ? (
+          <div className="empty">
+            <h3>No question fits these filters</h3>
+            <p>Widen them, or clear them to see the whole test.</p>
+            <button type="button" className="btn" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </div>
         ) : (
-          groups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)
+          shownGroups.map((g) => <Group key={g.key} group={g} showKey={showKey} />)
         )}
       </article>
     </div>
@@ -171,6 +257,10 @@ export function Paper() {
  * they go through it.
  */
 function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
+  // Where Edit should come back to: this test, narrowed as it is now.
+  const location = useLocation()
+  const back = `${location.pathname}${location.search}`
+
   return (
     <section className="paper-group">
       {group.label && <h3 className="paper-passage-label">{group.label}</h3>}
@@ -182,7 +272,11 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
             number={number}
             showKey={showKey}
             header={
-              <Link className="btn btn-ghost btn-sm" to={`/questions/${question.id}/edit`}>
+              <Link
+                className="btn btn-ghost btn-sm"
+                to={`/questions/${question.id}/edit`}
+                state={{ back }}
+              >
                 Edit
               </Link>
             }
@@ -193,7 +287,7 @@ function Group({ group, showKey }: { group: PaperGroup; showKey: boolean }) {
                   <span className="badge badge-neutral">{sectionLabel(question.section)}</span>
                 )}
                 {question.skill && (
-                  <span className="badge badge-sky">{skillLabel(question.skill)}</span>
+                  <span className="badge badge-sky">{skillName(question.skill)}</span>
                 )}
               </>
             }

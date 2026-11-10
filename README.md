@@ -24,6 +24,7 @@ npm run dev                                    # http://localhost:5173
 | **Suspend** | An admin closes an account, or reopens it — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
+| **Filtering a test** | Above every test and pool: a search, then section, skill, difficulty, answer type, source and picture, each option with the count it would leave, and "Showing 41 of 1,892 questions". The filters are in the address, so a reload or Edit comes back to them, and a printed copy says what it was narrowed to (`lib/paperFilter.ts`) |
 | **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
 | **Where it goes** | A question is written *inside* a test, in one call, and takes that test's subject and level |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
