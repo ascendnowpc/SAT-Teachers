@@ -11,7 +11,7 @@
 --  until then the pictures these rows point at do not exist.
 --
 --  133 questions. Written by tools/questionbank/make_update.py from the
---  bank as 0075–0085 left it; each update is by source_ref and only of a
+--  bank as 0075–0085 left it. Each update is by source_ref and only of a
 --  question whose stem is still the imported one, so a question corrected
 --  by hand since is not touched, and a second run changes nothing.
 -- ============================================================================

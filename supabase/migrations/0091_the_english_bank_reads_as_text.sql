@@ -11,9 +11,8 @@
 --  (tidy_english.sql), so this carries the rules and not the text.
 --
 --  1711 questions. Written by tools/questionbank/make_update.py from the
---  bank as 0075–0085 left it; each update is by source_ref and only of a
---  question whose stem is still the imported one, so a question corrected
---  by hand since is not touched, and a second run changes nothing.
+--  bank as 0075–0085 left it. Only a question not yet given a passage is
+--  changed, so a second run changes nothing.
 -- ============================================================================
 
 -- The rules of tools/questionbank/tidy.py, run on the stems the database holds.

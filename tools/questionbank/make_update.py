@@ -79,9 +79,7 @@ HEADER = """\
 {body}
 --
 --  {count} questions. Written by tools/questionbank/make_update.py from the
---  bank as 0075–0085 left it; each update is by source_ref and only of a
---  question whose stem is still the imported one, so a question corrected
---  by hand since is not touched, and a second run changes nothing.
+--  bank as 0075–0085 left it. {guard}
 -- ============================================================================
 
 """
@@ -138,7 +136,9 @@ def main() -> None:
          "--  says which it is. No word of any question changes. The rules are\n"
          "--  tools/questionbank/tidy.py's, run here on the stems the database holds\n"
          "--  (tidy_english.sql), so this carries the rules and not the text.",
-         text_sql, len(text)),
+         text_sql, len(text),
+         "Only a question not yet given a passage is\n"
+         "--  changed, so a second run changes nothing."),
         (args.number + 1, "an_english_figure_is_only_the_figure",
          "an English figure is only the figure",
          "--  The 133 Reading and Writing questions with a chart or a table went in\n"
@@ -149,12 +149,16 @@ def main() -> None:
          "--\n"
          "--  APPLY AFTER THE APP IS DEPLOYED with that folder in it, never before:\n"
          "--  until then the pictures these rows point at do not exist.",
-         "\n".join(figures) + "\n", len(figures)),
+         "\n".join(figures) + "\n", len(figures),
+         "Each update is by source_ref and only of a\n"
+         "--  question whose stem is still the imported one, so a question corrected\n"
+         "--  by hand since is not touched, and a second run changes nothing."),
     ]
     args.out.mkdir(parents=True, exist_ok=True)
-    for number, name, heading, body, sql, count in files:
+    for number, name, heading, body, sql, count, guard in files:
         path = args.out / f"{number:04d}_{name}.sql"
-        path.write_text(HEADER.format(number=f"{number:04d}", heading=heading, body=body, count=count) + sql)
+        path.write_text(HEADER.format(number=f"{number:04d}", heading=heading, body=body, count=count,
+                                      guard=guard) + sql)
         print(f"  {path.name}  {count} questions  {path.stat().st_size // 1024} KB")
 
 
