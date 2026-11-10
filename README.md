@@ -237,7 +237,8 @@ still to sit first, their score on each once the results are published, and **St
 that is open, which goes to its link with the entry key already in hand. Every student gets a PIN
 when they are made (`student_pins`); staff and the student's own PC read it, and wherever a teacher
 copies a link the ID and PIN are printed under it with **New PIN**, which also signs the student
-out everywhere. The ID is guessable, so guessing the PIN is made slow: five wrong in a row lock it
+out everywhere. The PIN is also beside each student's ID on **Users → Students** and on a PC's
+**Your students**. The ID is guessable, so guessing the PIN is made slow: five wrong in a row lock it
 for 15 minutes, every five after that double the lock up to a day, and a wrong ID and a wrong PIN
 say the same thing. What the browser keeps is a key the server stores only as its SHA-256, good
 for seven days or until *Sign out* (`student_sign_in.sql`). Students who already have an account

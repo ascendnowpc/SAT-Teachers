@@ -7,6 +7,7 @@ import { filterPeople, isSuspended, NEW_TEACHER_DAYS, newTeachers, pcRows, stude
 import { isEmailAddress } from '../lib/mail'
 import { addPc, loadPcInvites, sendPcInvite } from '../lib/pcApi'
 import { choosable, type PcResult } from '../lib/pcs'
+import { loadPins } from '../lib/studentPins'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { PcInvite, Profile } from '../lib/types'
@@ -60,6 +61,19 @@ export function AdminUsers() {
   const reloadPcs = useCallback(async () => {
     await Promise.all([reload(), loadInvites()])
   }, [reload, loadInvites])
+
+  // Each student's sign-in PIN (0067), beside their ID. Only the students tab asks.
+  const [pins, setPins] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (tab !== 'students') return
+    let live = true
+    void loadPins().then((p) => {
+      if (live) setPins(p)
+    })
+    return () => {
+      live = false
+    }
+  }, [tab])
 
   const all = tab === 'teachers' ? teachers : tab === 'students' ? students : pcs
   const shown = useMemo(() => filterPeople(all, query), [all, query])
@@ -178,6 +192,7 @@ export function AdminUsers() {
               ? (p) => <StudentPc student={p} pcs={pcProfiles} onChanged={reload} />
               : undefined
           }
+          pin={tab === 'students' ? (p) => pins.get(p.id) : undefined}
         />
       )}
     </div>

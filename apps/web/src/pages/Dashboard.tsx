@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { newTeachers, newTeacherSince, NEW_TEACHER_DAYS, reportStage } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
 import { NEW_SESSION } from '../lib/sessions'
+import { loadPins } from '../lib/studentPins'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Difficulty, Profile, Session, SessionReportRow, Subject } from '../lib/types'
@@ -235,12 +236,17 @@ interface ReportLine extends Pick<SessionReportRow, 'session_id' | 'status' | 'p
 function PcHome() {
   const navigate = useNavigate()
   const [students, setStudents] = useState<Profile[]>([])
+  const [pins, setPins] = useState<Map<string, string>>(new Map())
   const [reports, setReports] = useState<ReportLine[]>([])
   const [generated, setGenerated] = useState(0)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let active = true
+    // A PC reads their own students' PINs (0067), to hand on when one forgets.
+    void loadPins().then((p) => {
+      if (active) setPins(p)
+    })
     void Promise.all([
       supabase.from('profiles').select('*').eq('role', 'student').order('full_name'),
       supabase
@@ -360,6 +366,11 @@ function PcHome() {
               <li key={s.id}>
                 <span className="cell-strong">{s.full_name}</span>{' '}
                 <span className="cell-sub num">{s.display_id}</span>
+                {pins.has(s.id) && (
+                  <span className="cell-sub">
+                    {' '}· PIN <span className="num">{pins.get(s.id)}</span>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

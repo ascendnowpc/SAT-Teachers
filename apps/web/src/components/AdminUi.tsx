@@ -98,6 +98,7 @@ export function PeopleTable({
   kind,
   href,
   pcCell,
+  pin,
 }: {
   rows: PersonRow[]
   kind: 'teacher' | 'student'
@@ -105,6 +106,8 @@ export function PeopleTable({
   href?: (profile: Profile) => string
   /** Given for students on an admin's page: the PC, and the control that changes it (0055). */
   pcCell?: (profile: Profile) => ReactNode
+  /** Given for students: the PIN they sign in with beside their ID (0067). */
+  pin?: (profile: Profile) => string | undefined
 }) {
   const teachers = kind === 'teacher'
   const navigate = useNavigate()
@@ -138,6 +141,7 @@ export function PeopleTable({
             {rows.map(({ profile, tally, counterparts, lastAt, nextAt }) => {
               const published = rate(tally.published, tally.completed)
               const to = href?.(profile)
+              const signIn = pin?.(profile)
               return (
                 <tr
                   key={profile.id}
@@ -163,6 +167,11 @@ export function PeopleTable({
                     </div>
                     <div className="cell-sub">
                       <span className="num">{profile.display_id}</span>
+                      {signIn && (
+                        <>
+                          {' '}· PIN <span className="num">{signIn}</span>
+                        </>
+                      )}
                       {profile.pc && <> · {profile.pc}</>}
                       {teachers && profile.email && <> · {profile.email}</>}
                     </div>

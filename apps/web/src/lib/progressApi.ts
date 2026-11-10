@@ -1,4 +1,5 @@
 import { defaultConfig, type ProgressConfig, type StudentProgress } from './progress'
+import { allRows } from './allRows'
 import { supabase } from './supabase'
 import type { AnalysedItem, AnalysedQuestion } from './targetedAnalytics'
 import type { Candidate } from './targetedSet'
@@ -42,15 +43,27 @@ export async function loadCandidates(
   section: string | null,
   skills: string[],
 ): Promise<{ candidates: Candidate[]; error: string | null }> {
-  const { data, error } = await supabase.rpc('targeted_candidates', {
-    p_student: studentId,
-    p_subject: subject,
-    p_section: skills.length > 0 ? null : section,
-    p_skill: null,
-    p_skills: skills.length > 0 ? skills : null,
-  })
-  if (error) return { candidates: [], error: error.message }
-  return { candidates: (data ?? []) as Candidate[], error: null }
+  // Paged (allRows): skills from several sections can pass the thousand rows
+  // PostgREST answers with — all of English is 1,892. One row per question, so
+  // question_id orders the pages.
+  const { rows, error } = await allRows<Candidate>((from, to) =>
+    supabase
+      .rpc(
+        'targeted_candidates',
+        {
+          p_student: studentId,
+          p_subject: subject,
+          p_section: skills.length > 0 ? null : section,
+          p_skill: null,
+          p_skills: skills.length > 0 ? skills : null,
+        },
+        { count: 'exact' },
+      )
+      .order('question_id')
+      .range(from, to),
+  )
+  if (error) return { candidates: [], error }
+  return { candidates: rows, error: null }
 }
 
 /**
