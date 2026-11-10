@@ -364,7 +364,11 @@ function QuestionNote({ item }: { item: SessionItem }) {
         {options.map((o) => (
           <li key={o.id}>
             <span className="lab">{o.label}</span>
-            <MathText text={o.body} />
+            {o.image_url ? (
+              <img className="ch-figure" src={o.image_url} alt={`Option ${o.label}`} />
+            ) : (
+              <MathText text={o.body} />
+            )}
           </li>
         ))}
       </ol>
@@ -898,7 +902,11 @@ function ItemPane({
                 >
                   <span className="lab">{o.label}</span>
                   <span className="body">
-                    <MathText text={o.body} math={math} />
+                    {o.image_url ? (
+                      <img className="ch-figure" src={o.image_url} alt={`Option ${o.label}`} />
+                    ) : (
+                      <MathText text={o.body} math={math} />
+                    )}
                   </span>
                 </button>
                 {crossoutOn && (

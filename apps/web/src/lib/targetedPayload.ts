@@ -52,7 +52,8 @@ export interface TargetedPayload {
       > & {
         /** Since 0073; absent from a payload built before it, which is 'choice'. */
         answer_kind?: 'choice' | 'entry'
-        options: { label: OptionLabel; body: string }[]
+        /** `image_url` since 0095: an option that is a figure. */
+        options: { label: OptionLabel; body: string; image_url?: string | null }[]
       }
     }
   >
@@ -138,6 +139,7 @@ export function fromTargeted(p: TargetedPayload): {
         question_id: i.question.id,
         label: o.label,
         body: o.body,
+        image_url: o.image_url ?? null,
       })),
       question_keys: null,
     },

@@ -461,6 +461,9 @@ button { font-family: inherit; letter-spacing: inherit; }
 .q-note .section-title { margin-bottom: 6px; }
 
 .opt-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+/* A row carrying a figure is tall; its label sits at the top of it. */
+.opt-row:has(.opt-figure) { align-items: flex-start; }
+.opt-row:has(.opt-figure) .pick { margin-top: 7px; }
 .opt-row .pick {
   flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 12px; border-radius: var(--r-sm);
@@ -835,6 +838,29 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   transition: background var(--t), border-color var(--t), color var(--t), transform .2s var(--ease);
 }
 .ch-main .body { flex: 1; }
+
+/* An option that is a figure rather than wording (0095): four tables to
+   choose between, four graphs. It is set where the wording would go and keeps
+   its label, so the choice is still made by pressing A, B, C or D.
+
+   multiply because these are black line drawings on white paper: the paper
+   takes whatever tint the choice has — the sky of a selection, the green of
+   the key — instead of sitting on it as a white card. */
+.ch-figure {
+  display: block;
+  max-width: min(100%, 420px);
+  height: auto;
+  margin: 3px 0 1px;
+  mix-blend-mode: multiply;
+}
+@media (max-width: 560px) { .ch-figure { max-width: 100%; } }
+
+/* The same figure in the editor, under the box there is nothing to type in. */
+.opt-field { flex: 1; min-width: 0; }
+.opt-figure {
+  display: block; max-width: min(100%, 320px); height: auto; margin: 8px 0 2px;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: #fff;
+}
 .ch.selected .ch-main { border-color: var(--navy-700); background: #F7F8FC; box-shadow: 0 0 0 1px var(--navy-700); }
 .ch.selected .ch-main .lab { background: var(--navy-700); border-color: var(--navy-700); color: #fff; transform: scale(1.04); }
 .ch.right .ch-main { border-color: var(--easy-fg); background: var(--easy-bg); box-shadow: 0 0 0 1px var(--easy-fg); }

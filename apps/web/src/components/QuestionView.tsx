@@ -110,7 +110,11 @@ export function QuestionView({
               >
                 <span className="lab">{o.label}</span>
                 <span className="body">
-                  <MathText text={o.body} math={math} />
+                  {o.image_url ? (
+                    <img className="ch-figure" src={o.image_url} alt={`Option ${o.label}`} />
+                  ) : (
+                    <MathText text={o.body} math={math} />
+                  )}
                 </span>
                 {isChosen && <span className="pick">You chose this</span>}
                 {isKey && <span className="tick">Correct</span>}

@@ -61,6 +61,12 @@ export interface QuestionOption {
   question_id: string
   label: OptionLabel
   body: string
+  /**
+   * The figure this option is, where the option is a figure rather than
+   * wording (0095) — four tables to choose between, four graphs. The body is
+   * then empty, and the label is still what the student chooses.
+   */
+  image_url?: string | null
 }
 
 export interface QuestionKey {

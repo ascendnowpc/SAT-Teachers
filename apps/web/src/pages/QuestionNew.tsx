@@ -55,6 +55,14 @@ export function QuestionNew() {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [rationale, setRationale] = useState('')
   const [options, setOptions] = useState<Record<OptionLabel, string>>({ A: '', B: '', C: '', D: '' })
+  /**
+   * An option that is a figure rather than wording (0095) — four tables to
+   * choose between. It is shown under the box and carried back unchanged:
+   * there is nothing to type, and an option with a figure and no words is a
+   * whole option.
+   */
+  const [optionFigures, setOptionFigures] =
+    useState<Record<OptionLabel, string>>({ A: '', B: '', C: '', D: '' })
   const [correct, setCorrect] = useState<OptionLabel>('A')
   const [explanation, setExplanation] = useState('')
 
@@ -173,8 +181,13 @@ export function QuestionNew() {
       setExplanation(q.question_keys?.explanation ?? '')
       if (q.question_keys?.correct_option) setCorrect(q.question_keys.correct_option)
       const next: Record<OptionLabel, string> = { A: '', B: '', C: '', D: '' }
-      for (const o of q.question_options) next[o.label] = o.body
+      const figures: Record<OptionLabel, string> = { A: '', B: '', C: '', D: '' }
+      for (const o of q.question_options) {
+        next[o.label] = o.body
+        figures[o.label] = o.image_url ?? ''
+      }
       setOptions(next)
+      setOptionFigures(figures)
     }
     setLoading(false)
   }, [id])
@@ -226,13 +239,16 @@ export function QuestionNew() {
     e.preventDefault()
     setError(null)
 
-    const filled = OPTION_LABELS.filter((l) => options[l].trim().length > 0)
+    // An option counts as given when it has wording or a figure of its own.
+    const filled = OPTION_LABELS.filter(
+      (l) => options[l].trim().length > 0 || optionFigures[l],
+    )
     if (filled.length < 2) {
       setError('Give at least two options.')
       return
     }
     if (!filled.includes(correct)) {
-      setError(`Option ${correct} is marked correct but has no text.`)
+      setError(`Option ${correct} is marked correct but is empty.`)
       return
     }
 
@@ -252,7 +268,11 @@ export function QuestionNew() {
         p_passage: passage,
         p_stem: stem.trim(),
         p_difficulty_rationale: rationale,
-        p_options: filled.map((l) => ({ label: l, body: options[l].trim() })),
+        p_options: filled.map((l) => ({
+          label: l,
+          body: options[l].trim(),
+          ...(optionFigures[l] ? { image_url: optionFigures[l] } : {}),
+        })),
         p_correct: correct,
         p_explanation: explanation,
         p_passage_underline: underline,
@@ -522,12 +542,21 @@ export function QuestionNew() {
                 />
                 {label}
               </label>
-              <Input
-                value={options[label]}
-                onChange={(e) => setOption(label, e.target.value)}
-                placeholder={`Option ${label}`}
-                aria-label={`Option ${label} text`}
-              />
+              <div className="opt-field">
+                <Input
+                  value={options[label]}
+                  onChange={(e) => setOption(label, e.target.value)}
+                  placeholder={optionFigures[label] ? 'This option is the figure below' : `Option ${label}`}
+                  aria-label={`Option ${label} text`}
+                />
+                {optionFigures[label] && (
+                  <img
+                    className="opt-figure"
+                    src={optionFigures[label]}
+                    alt={`The figure option ${label} is`}
+                  />
+                )}
+              </div>
             </div>
           ))}
 
