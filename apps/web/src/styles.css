@@ -2589,33 +2589,150 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .report-embedded { margin-top: 18px; }
 .report-embedded + .card, .report-embedded + section { margin-top: 18px; }
 
-/* ------------------------------------------------- a student's own page (0067) */
+/* ------------------------------------------------- a student's own page (0067)
+   A student opens this to find out what they are meant to be doing, so the
+   page is built around one answer: a single card above the fold carrying the
+   next test and the one button that starts it, in full colour when it can be
+   started and quiet when it cannot. Their standing follows in three figures,
+   then the lists, then somewhere to go when nothing is booked. */
 .auth-tabs { margin-bottom: 26px; }
-.student-home { min-height: 100vh; background: var(--page); }
+.student-home { min-height: 100vh; background: var(--page); display: flex; flex-direction: column; }
 .student-main .muted { color: var(--muted); }
+
 .student-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--border);
+  padding: 12px 24px; background: #fff; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 20;
 }
-.student-bar .logo { height: 30px; width: auto; }
-.student-bar-who { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.student-bar-id { color: var(--ink-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.student-main { max-width: 760px; margin: 0 auto; padding: 36px 16px 64px; }
-.student-main h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(30px, 4vw, 38px); letter-spacing: -0.02em; margin-bottom: 6px; }
-.student-section { margin-top: 32px; }
-.student-section h2 { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.student-bar .logo { height: 28px; width: auto; }
+.student-bar-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.student-chip {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap;
+  padding: 5px 11px 5px 5px; border-radius: var(--pill); background: var(--navy-50);
+}
+.student-avatar {
+  display: grid; place-items: center; width: 26px; height: 26px; flex: none;
+  border-radius: 50%; background: var(--navy-600); color: #fff; font-size: 11.5px; font-weight: 600;
+}
+.student-chip-name {
+  font-size: 13.5px; font-weight: 600; color: var(--navy-700);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.student-chip-id { font-size: 12.5px; color: var(--navy-400); }
+
+.student-main { max-width: 860px; margin: 0 auto; padding: 28px 20px 72px; width: 100%; }
+.student-greet { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 22px; }
+.student-greet h1 {
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(28px, 4.2vw, 36px);
+  letter-spacing: -0.02em; margin-bottom: 4px;
+}
+.student-greet p { color: var(--muted); font-size: 14.5px; }
+.student-foot { margin-top: 28px; color: var(--faint); font-size: 12.5px; }
+
+/* The one thing to do next. */
+.next-up {
+  position: relative; overflow: hidden; border-radius: var(--r-lg); padding: 26px 28px;
+  background: linear-gradient(135deg, var(--grad-from), var(--grad-mid) 52%, var(--grad-to));
+  color: #fff; box-shadow: var(--shadow-lift);
+}
+.next-up::after {
+  content: ""; position: absolute; right: -70px; top: -70px; width: 230px; height: 230px;
+  border-radius: 50%; background: rgba(255, 255, 255, .06);
+}
+.next-up > * { position: relative; }
+.next-up-tag {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--lime); margin-bottom: 10px;
+}
+.next-up-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); }
+.next-up h2 {
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(21px, 3vw, 27px);
+  color: #fff; letter-spacing: -0.015em;
+}
+.next-up-meta { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 8px; color: var(--navy-200); font-size: 14px; }
+.next-up-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 20px; }
+.next-up-note { color: var(--navy-200); font-size: 13.5px; }
+.btn-lime {
+  background: var(--lime); color: var(--lime-ink); border: none; font-weight: 600;
+  padding: 11px 22px; border-radius: var(--pill); cursor: pointer; font-size: 15px;
+  font-family: inherit; letter-spacing: inherit;
+  transition: background var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.btn-lime:hover { background: var(--lime-hover); }
+.btn-lime:active { transform: scale(.975); }
+.btn-lime:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(206, 225, 119, .45); }
+
+/* Quiet, for a test that cannot be started yet and for an empty diary. */
+.next-up.is-quiet { background: #fff; color: var(--ink); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.next-up.is-quiet::after { display: none; }
+.next-up.is-quiet h2 { color: var(--ink); }
+.next-up.is-quiet .next-up-tag { color: var(--sky-dark); }
+.next-up.is-quiet .next-up-dot { background: var(--sky); }
+.next-up.is-quiet .next-up-meta,
+.next-up.is-quiet .next-up-note { color: var(--muted); }
+
+/* How they are getting on, from their own tests and nothing else. */
+.student-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0 0; }
+.stat-tile {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r); padding: 15px 18px;
+  /* The figure sits on the floor of the tile, so three tiles line up even
+     where one of the labels above them takes two lines on a narrow screen. */
+  display: flex; flex-direction: column; justify-content: space-between; gap: 2px;
+}
+.stat-num {
+  margin: 2px 0 0; font-family: var(--font-display); font-weight: 500; font-size: 28px;
+  line-height: 1.1; color: var(--ink); letter-spacing: -0.02em;
+}
+.stat-num small { font-size: 15px; color: var(--muted); font-family: var(--font-ui); font-weight: 500; }
+.stat-label { font-size: 12.5px; color: var(--muted); }
+
+.student-section { margin-top: 34px; }
+.student-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.student-section h2 { font-size: 12.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+/* After the section heading, so the hero keeps its own title wherever it sits. */
+.next-up h2, .student-section .next-up h2 {
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(21px, 3vw, 27px);
+  letter-spacing: -0.015em; text-transform: none; color: #fff;
+}
+.next-up.is-quiet h2, .student-section .next-up.is-quiet h2 { color: var(--ink); }
+.student-section-count { font-size: 12.5px; color: var(--faint); }
+
 .student-tests { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .student-test {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  padding: 16px 18px; background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
+  padding: 15px 18px; background: #fff; border: 1px solid var(--border); border-radius: var(--r);
+  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
-.student-test-main { min-width: 0; flex: 1 1 260px; }
+.student-test:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.test-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; flex: none;
+  border-radius: 11px; background: var(--navy-50); color: var(--navy-600);
+}
+.test-icon.is-math { background: var(--sky-wash); color: var(--sky-dark); }
+.test-icon.is-done { background: var(--ok-bg); color: var(--ok-fg); }
+.student-test-main { min-width: 0; }
 .student-test-title { font-weight: 600; color: var(--ink); }
-.student-test-sub { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
-.student-test-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-@media (max-width: 560px) {
-  .student-bar { padding: 12px 16px; }
-  .student-bar-id { display: none; }
+.student-test-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.student-test-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.score-chip {
+  display: inline-flex; align-items: baseline; padding: 4px 11px; border-radius: var(--pill);
+  background: var(--ok-bg); color: var(--ok-fg); font-weight: 600; font-size: 13.5px; white-space: nowrap;
+}
+.score-chip .of { font-weight: 500; opacity: .75; }
+.score-chip.is-mid { background: var(--medium-bg); color: var(--medium-fg); }
+.score-chip.is-low { background: var(--hard-bg); color: var(--hard-fg); }
+
+@media (max-width: 640px) {
+  .student-bar { padding: 10px 14px; }
+  .student-chip-name { max-width: 7.5em; }
+  .student-main { padding: 20px 14px 56px; }
+  .next-up { padding: 22px 20px; border-radius: var(--r); }
+  .student-stats { gap: 8px; }
+  .stat-tile { padding: 12px 12px; }
+  .stat-num { font-size: 22px; }
+  .stat-label { font-size: 11.5px; }
+  .student-test { grid-template-columns: auto minmax(0, 1fr); row-gap: 12px; padding: 14px; }
+  .student-test-side { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
 /* ------------------------------------------- the score, straight after (0068) */
@@ -2637,7 +2754,6 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 
 /* ----------------------------------------------- the parent report (0070) */
 :root { --warn: #BF8A00; --warn-bg: #FFF5DD; }
-.student-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .report-main { max-width: 800px; margin: 0 auto; padding: 28px 16px 64px; }
 .report-card {
   background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow);
@@ -2742,7 +2858,18 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .practice-list li { display: flex; flex-direction: column; gap: 2px; }
 .practice-list a { font-weight: 600; color: var(--sky-dark); }
 .practice-list span { color: var(--muted); font-size: 13.5px; }
-.student-practice { padding: 16px 18px; background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.practice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
+.practice-card {
+  display: flex; align-items: flex-start; gap: 12px; padding: 15px 16px; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--r); text-decoration: none; color: inherit;
+  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.practice-card:hover { border-color: var(--sky); color: inherit; box-shadow: var(--shadow); }
+.practice-card-body { min-width: 0; flex: 1; }
+.practice-card strong { display: block; font-size: 14.5px; color: var(--ink); font-weight: 600; }
+.practice-card span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.practice-card .arrow { color: var(--faint); flex: none; margin-top: 3px; }
+.practice-card:hover .arrow { color: var(--sky-dark); }
 
 /* ------------------------------------------------------ data clean-up (0071) */
 .retention-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }

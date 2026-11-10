@@ -100,6 +100,42 @@ export function splitTests(tests: StudentTest[]) {
   return { ahead, done }
 }
 
+/**
+ * What the student's own page says about them at a glance (0067).
+ *
+ * Only what their own tests already say: how many are finished, how much of
+ * what they were marked on they got right, and how many are still to sit.
+ * A test whose results the teacher has not published yet counts as finished
+ * and is left out of the proportion, because nobody has told the student how
+ * it went.
+ */
+export interface StudentStats {
+  completed: number
+  ahead: number
+  /** Right out of marked, across every test the student has been given back. */
+  marked: { right: number; of: number } | null
+}
+
+export function studentStats(tests: StudentTest[], now: number = Date.now()): StudentStats {
+  const { ahead, done } = splitTests(tests)
+  let right = 0
+  let of = 0
+  for (const t of done) {
+    const standing = standingOf(t, now)
+    if (standing.kind === 'results' && standing.of > 0) {
+      right += standing.right
+      of += standing.of
+    }
+  }
+  return { completed: done.length, ahead: ahead.length, marked: of > 0 ? { right, of } : null }
+}
+
+/** The proportion right as a whole percentage, for the page to show. */
+export function percentRight(marked: { right: number; of: number } | null): number | null {
+  if (!marked || marked.of <= 0) return null
+  return Math.round((marked.right / marked.of) * 100)
+}
+
 const SLOT = 'sat:student-key'
 
 /**

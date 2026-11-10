@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { PracticeList } from '../components/PracticeList'
 import { Notice } from '../components/ui'
 import { subjectLabel } from '../lib/constants'
 import {
+  percentRight,
   splitTests,
   standingOf,
   storeStudentKey,
   storedStudentKey,
+  studentStats,
   type StudentHome as Home,
   type StudentTest,
+  type TestStanding,
 } from '../lib/studentAccount'
 import { loadStudentHome, studentSignOut, studentTestTitle } from '../lib/studentApi'
 import { rememberEntry } from '../lib/studentEntry'
@@ -18,7 +21,14 @@ import { formatUtc } from '../lib/time'
 
 /**
  * The student's own page, once they have signed in with their ID and PIN
- * (0067): every test they have, the ones still to sit first.
+ * (0067): what to do next, how they are getting on, and every test they have.
+ *
+ * A student opens this to answer one question — "what am I meant to be doing?"
+ * — so the page answers it before anything else: the test they can start now,
+ * or the next one and when it opens, as the one thing above the fold with the
+ * one button on it. Their standing comes next, from their own tests and
+ * nothing else, then the full list, then somewhere to go when there is
+ * nothing booked.
  *
  * Opening a test hands its entry key to the tab (0066) and goes to its link,
  * so the test runs on exactly the screen it runs on from a link — the student
@@ -55,6 +65,19 @@ export function StudentHome() {
     return () => clearInterval(t)
   }, [load])
 
+  const sessions = useMemo(() => home?.sessions ?? [], [home])
+  const { ahead, done } = useMemo(() => splitTests(sessions), [sessions])
+  const stats = useMemo(() => studentStats(sessions), [sessions])
+
+  // What to do next: the one a student can get on with, else the soonest.
+  const next = useMemo(
+    () => ahead.find((t) => standingOf(t).kind === 'live')
+      ?? ahead.find((t) => standingOf(t).kind === 'open')
+      ?? ahead[0]
+      ?? null,
+    [ahead],
+  )
+
   if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
   async function signOut() {
@@ -68,8 +91,8 @@ export function StudentHome() {
     navigate(`/s/${t.link}`)
   }
 
-  const { ahead, done } = splitTests(home?.sessions ?? [])
   const first = home?.student.full_name.split(' ')[0]
+  const rest = ahead.filter((t) => t.id !== next?.id)
 
   return (
     <div className="student-home">
@@ -77,8 +100,12 @@ export function StudentHome() {
         <Logo />
         <div className="student-bar-who">
           {home && (
-            <span className="student-bar-id">
-              {home.student.full_name} · <span className="num">{home.student.display_id}</span>
+            <span className="student-chip">
+              <span className="student-avatar" aria-hidden="true">
+                {initials(home.student.full_name)}
+              </span>
+              <span className="student-chip-name">{home.student.full_name}</span>
+              <span className="student-chip-id num">{home.student.display_id}</span>
             </span>
           )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
@@ -88,12 +115,12 @@ export function StudentHome() {
       </header>
 
       <main className="student-main">
-        <div className="student-head">
+        <div className="student-greet">
           <div>
             <h1>{first ? `Hi, ${first}` : 'Your tests'}</h1>
-            <p className="muted">Your tests, and your results once your teacher shares them. Times are in UTC.</p>
+            <p>Here is what is next, and how you are getting on.</p>
           </div>
-          <Link className="btn btn-primary btn-sm" to="/student/report">
+          <Link className="btn btn-ghost btn-sm" to="/student/report">
             Progress report
           </Link>
         </div>
@@ -103,36 +130,45 @@ export function StudentHome() {
 
         {home && (
           <>
-            <section className="student-section">
-              <h2>Coming up</h2>
-              {ahead.length === 0 ? (
-                <p className="muted">Nothing booked. Your teacher will add your next test.</p>
-              ) : (
+            <NextUp test={next} onOpen={open} />
+
+            {(stats.completed > 0 || stats.ahead > 0) && (
+              <dl className="student-stats">
+                <Stat value={String(stats.completed)} label="Tests done" />
+                <Stat
+                  value={percentRight(stats.marked) === null ? '—' : String(percentRight(stats.marked))}
+                  unit={percentRight(stats.marked) === null ? undefined : '%'}
+                  label="Answers right"
+                />
+                <Stat value={String(stats.ahead)} label="Still to sit" />
+              </dl>
+            )}
+
+            {rest.length > 0 && (
+              <Section title="Also coming up" count={`${rest.length} ${rest.length === 1 ? 'test' : 'tests'}`}>
                 <ul className="student-tests">
-                  {ahead.map((t) => (
+                  {rest.map((t) => (
                     <TestRow key={t.id} test={t} onOpen={() => open(t)} />
                   ))}
                 </ul>
-              )}
-            </section>
+              </Section>
+            )}
 
             {done.length > 0 && (
-              <section className="student-section">
-                <h2>Done</h2>
+              <Section title="Completed" count={`${done.length} ${done.length === 1 ? 'test' : 'tests'}`}>
                 <ul className="student-tests">
                   {done.map((t) => (
                     <TestRow key={t.id} test={t} onOpen={() => open(t)} />
                   ))}
                 </ul>
-              </section>
+              </Section>
             )}
 
-            <section className="student-section">
-              <h2>More practice</h2>
-              <div className="student-practice">
-                <PracticeList />
-              </div>
-            </section>
+            <Section title="Practise on your own">
+              <PracticeList cards />
+            </Section>
+
+            <p className="student-foot">Times are shown in UTC.</p>
           </>
         )}
       </main>
@@ -140,18 +176,110 @@ export function StudentHome() {
   )
 }
 
+function Section({ title, count, children }: { title: string; count?: string; children: React.ReactNode }) {
+  return (
+    <section className="student-section">
+      <div className="student-section-head">
+        <h2>{title}</h2>
+        {count && <span className="student-section-count">{count}</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
+  return (
+    <div className="stat-tile">
+      <dt className="stat-label">{label}</dt>
+      <dd className="stat-num">
+        {value}
+        {unit && <small>{unit}</small>}
+      </dd>
+    </div>
+  )
+}
+
+/**
+ * The one thing to do next, or the reason there is nothing: the test a student
+ * can start now in full colour, the next one still to open in a quiet card,
+ * and an invitation to practise where there is neither.
+ */
+function NextUp({ test, onOpen }: { test: StudentTest | null; onOpen: (t: StudentTest) => void }) {
+  if (!test) {
+    return (
+      <section className="next-up is-quiet">
+        <div className="next-up-tag">
+          <span className="next-up-dot" />
+          Nothing booked
+        </div>
+        <h2>You are all caught up</h2>
+        <p className="next-up-meta">
+          Your teacher will add your next test. Until then, the practice below is the best use of your time.
+        </p>
+      </section>
+    )
+  }
+
+  const standing = standingOf(test)
+  const ready = standing.kind === 'open' || standing.kind === 'live'
+  const meta = [
+    subjectLabel(test.subject),
+    test.mode === 'targeted' ? 'Practice test' : 'Diagnostic',
+    test.set_size ? `${test.set_size} questions` : null,
+  ].filter(Boolean) as string[]
+
+  return (
+    <section className={`next-up${ready ? '' : ' is-quiet'}`}>
+      <div className="next-up-tag">
+        <span className="next-up-dot" />
+        {standing.kind === 'live' ? 'In progress' : standing.kind === 'open' ? 'Open now' : 'Up next'}
+      </div>
+      <h2>{studentTestTitle(test)}</h2>
+      <div className="next-up-meta">
+        {meta.map((m) => (
+          <span key={m}>{m}</span>
+        ))}
+        <span>
+          {ready ? 'Opened ' : 'Opens '}
+          {formatUtc(test.scheduled_at)}
+        </span>
+      </div>
+      <div className="next-up-actions">
+        <button
+          type="button"
+          className={ready ? 'btn-lime' : 'btn btn-primary'}
+          onClick={() => onOpen(test)}
+        >
+          {standing.kind === 'live' ? 'Carry on' : ready ? 'Start test' : 'Open the waiting room'}
+        </button>
+        <span className="next-up-note">
+          {ready
+            ? 'Find a quiet spot — the clock starts when you do.'
+            : 'You can open it now to check your link works.'}
+        </span>
+      </div>
+    </section>
+  )
+}
+
 function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
   const standing = standingOf(test)
-  const kind = test.mode === 'targeted' ? `${subjectLabel(test.subject)} · practice test` : `${subjectLabel(test.subject)} · diagnostic`
+  const sub = [
+    subjectLabel(test.subject),
+    test.mode === 'targeted' ? 'practice test' : 'diagnostic',
+    test.set_size ? `${test.set_size} questions` : null,
+    formatUtc(test.scheduled_at),
+  ].filter(Boolean) as string[]
 
   return (
     <li className="student-test">
+      <span className={`test-icon${standing.kind === 'results' || standing.kind === 'waiting' ? ' is-done' : test.subject === 'mathematics' ? ' is-math' : ''}`} aria-hidden="true">
+        <TestMark standing={standing} subject={test.subject} />
+      </span>
       <div className="student-test-main">
         <div className="student-test-title">{studentTestTitle(test)}</div>
-        <div className="student-test-sub">
-          {kind}
-          {test.set_size ? ` · ${test.set_size} questions` : ''} · {formatUtc(test.scheduled_at)}
-        </div>
+        <div className="student-test-sub">{sub.join(' · ')}</div>
       </div>
       <div className="student-test-side">
         {standing.kind === 'upcoming' && (
@@ -180,8 +308,9 @@ function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
         )}
         {standing.kind === 'results' && (
           <>
-            <span className="badge badge-ok">
-              {standing.right} of {standing.of} right
+            <span className={`score-chip${scoreTone(standing.right, standing.of)}`}>
+              {standing.right}
+              <span className="of">/{standing.of}</span>
             </span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={onOpen}>
               {standing.answers ? 'See answers' : 'See score'}
@@ -192,4 +321,42 @@ function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
       </div>
     </li>
   )
+}
+
+/** Green at three quarters, amber at half, and plain below it. */
+function scoreTone(right: number, of: number): string {
+  if (of <= 0) return ''
+  const share = right / of
+  if (share >= 0.75) return ''
+  return share >= 0.5 ? ' is-mid' : ' is-low'
+}
+
+function TestMark({ standing, subject }: { standing: TestStanding; subject: StudentTest['subject'] }) {
+  if (standing.kind === 'results' || standing.kind === 'waiting') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    )
+  }
+  if (subject === 'mathematics') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M4 7h7M7.5 3.5v7M13.5 17h7M13.5 7h7M15 14.5l4 5M19 14.5l-4 5" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4" />
+    </svg>
+  )
+}
+
+/** Up to two letters, for the chip in the bar. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  const letters = parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[parts.length - 1][0]
+  return letters.toUpperCase()
 }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   cleanPin,
+  percentRight,
   signInMessage,
   splitTests,
   standingOf,
   storeStudentKey,
   storedStudentKey,
+  studentStats,
   type StudentTest,
 } from './studentAccount'
 
@@ -120,5 +122,56 @@ describe('the key on the device', () => {
   it('is simply absent without storage', () => {
     storeStudentKey('abc', null)
     expect(storedStudentKey(null)).toBeNull()
+  })
+})
+
+describe('the student page at a glance', () => {
+  const base = {
+    subject: 'english' as const,
+    mode: 'targeted' as const,
+    link: 'l',
+    entry_key: 'k',
+    section: null,
+    skill: null,
+    set_size: 12,
+    title: null,
+    opened_early_at: null,
+    revealed: 0,
+    right: 0,
+  }
+  const at = (iso: string) => new Date(iso).getTime()
+  const now = at('2026-11-10T12:00:00Z')
+
+  it('counts what is finished and what is still to sit', () => {
+    const stats = studentStats(
+      [
+        { ...base, id: '1', status: 'completed', scheduled_at: '2026-11-01T10:00:00Z', score: { right: 9, reached: 12 } },
+        { ...base, id: '2', status: 'completed', scheduled_at: '2026-11-05T10:00:00Z', score: { right: 6, reached: 12 } },
+        { ...base, id: '3', status: 'scheduled', scheduled_at: '2026-11-20T10:00:00Z', score: null },
+      ],
+      now,
+    )
+    expect(stats.completed).toBe(2)
+    expect(stats.ahead).toBe(1)
+    expect(stats.marked).toEqual({ right: 15, of: 24 })
+    expect(percentRight(stats.marked)).toBe(63)
+  })
+
+  it('leaves a test nobody has been given back out of the proportion', () => {
+    const stats = studentStats(
+      [
+        { ...base, id: '1', status: 'completed', scheduled_at: '2026-11-01T10:00:00Z', score: { right: 9, reached: 12 } },
+        // Finished, but the teacher has published neither score nor answers.
+        { ...base, id: '2', status: 'completed', scheduled_at: '2026-11-06T10:00:00Z', score: null, revealed: 0 },
+      ],
+      now,
+    )
+    expect(stats.completed).toBe(2)
+    expect(stats.marked).toEqual({ right: 9, of: 12 })
+  })
+
+  it('has no proportion to show before anything is marked', () => {
+    const stats = studentStats([{ ...base, id: '1', status: 'scheduled', scheduled_at: '2026-11-20T10:00:00Z', score: null }], now)
+    expect(stats).toEqual({ completed: 0, ahead: 1, marked: null })
   })
 })
