@@ -28,8 +28,9 @@ export type MathSegment =
 const DIGIT = /[0-9]/
 // Letters in any script (π and the Greek angles), digits, roots, primes,
 // degrees and the superscript exponents the bank uses — the characters that
-// bind into one term. The caret joins an exponent written longhand.
-const BINDING = /[\p{L}\p{N}√°′^]/u
+// bind into one term. The caret joins an exponent written longhand. Marks
+// (\p{M}) belong to the letter they sit on: the bar over a segment, A̅B̅.
+const BINDING = /[\p{L}\p{N}\p{M}√∛∜°′^]/u
 
 function bindsAt(s: string, k: number): boolean {
   const c = s[k]

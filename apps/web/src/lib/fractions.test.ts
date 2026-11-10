@@ -70,6 +70,15 @@ describe('splitFractions', () => {
     expect(f('1/2, 3/4')).toBe('[1|2], [3|4]')
   })
 
+  it('keeps a segment bar and a cube root with the term they belong to', () => {
+    expect(f('A̅B̅/C̅D̅')).toBe('[A̅B̅|C̅D̅]')
+    expect(f('2/∛x')).toBe('[2|∛x]')
+  })
+
+  it('keeps a fraction off the bracket written after it with a space', () => {
+    expect(f('7/6 (6x - 5)')).toBe('[7|6] (6x - 5)')
+  })
+
   it('leaves a slash it cannot read as a division alone', () => {
     expect(f('and/or')).toBe('and/or')
     expect(f('either/or, 1/2')).toBe('either/or, [1|2]')
