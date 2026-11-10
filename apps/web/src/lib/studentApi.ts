@@ -1,6 +1,7 @@
 import { sectionLabel, skillList, skillsOn, subjectLabel } from './constants'
 import type { StudentReport } from './parentReport'
 import type { SignInResult, StudentHome, StudentTest } from './studentAccount'
+import type { StudentReportBundle, StudentReportList } from './studentReports'
 import { normaliseStudentId } from './studentEntry'
 import { supabase } from './supabase'
 
@@ -31,6 +32,20 @@ export async function loadStudentReport(key: string): Promise<StudentReport> {
   const { data, error } = await supabase.rpc('student_report', { p_key: key })
   if (error) throw new Error(error.message)
   return data as StudentReport
+}
+
+/** Every report that is ready, newest first (0098); throws "signed out" for a key that no longer works. */
+export async function loadStudentReports(key: string): Promise<StudentReportList> {
+  const { data, error } = await supabase.rpc('student_report_list', { p_key: key })
+  if (error) throw new Error(error.message)
+  return data as StudentReportList
+}
+
+/** One report's rows (0098); throws "no such report" for one that is not theirs or not ready. */
+export async function loadStudentSessionReport(key: string, sessionId: string): Promise<StudentReportBundle> {
+  const { data, error } = await supabase.rpc('student_session_report', { p_key: key, p_session: sessionId })
+  if (error) throw new Error(error.message)
+  return data as StudentReportBundle
 }
 
 export async function studentSignOut(key: string): Promise<void> {

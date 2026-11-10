@@ -7,10 +7,23 @@ import {
   subjectLabel,
   type TestOn,
 } from './constants.ts'
-import { describeLine, type ProgressConfig, type ProgressLine } from './progress.ts'
+import {
+  describeLine,
+  linesOf,
+  progressLine,
+  type ProgressConfig,
+  type ProgressLine,
+  type StudentProgress,
+} from './progress.ts'
 import type { ReportPdfDoc } from './reportPdf.ts'
 import { paceLabel } from './report.ts'
-import { analyseTargeted, type LongPattern, type TargetedAnalysis } from './targetedAnalytics.ts'
+import {
+  analyseTargeted,
+  longPattern,
+  type AnalysedQuestion,
+  type LongPattern,
+  type TargetedAnalysis,
+} from './targetedAnalytics.ts'
 import { formatUtc } from './time.ts'
 import type { Difficulty, SessionItem, Subject } from './types.ts'
 
@@ -262,4 +275,76 @@ export function targetedPdfDoc(input: TargetedReportInput): ReportPdfDoc {
         ? null
         : `${a.correct} of ${a.reached} right on ${skill} — ${a.raw!.toFixed(1)}/10, level score ${Math.round(a.level!)}`,
   }
+}
+
+/* ------------------------------------------------- from the rows read ---- */
+
+/**
+ * The line on each skill a targeted test asks (0086), from the student's
+ * progress. Empty when the test is not in it.
+ */
+export function targetedLines(progress: StudentProgress, sessionId: string): ProgressLine[] {
+  const row = progress.targeted.find((t) => t.session_id === sessionId) ?? null
+  return row ? linesOf(progress, row).map((on) => progressLine(progress, on.section, on.skill)) : []
+}
+
+/**
+ * Every question asked on a line's tests — what its long-question pattern is
+ * pooled over. A test of several skills counts only that skill's questions.
+ */
+export function pooledItems(progress: StudentProgress, line: ProgressLine): StudentProgress['items'] {
+  const tests = new Set(line.points.filter((p) => p.kind === 'test').map((p) => p.sessionId))
+  return progress.items.filter(
+    (i) => tests.has(i.session_id) && (line.skill === null || i.skill === line.skill),
+  )
+}
+
+/** The questions the patterns of a test's lines are read from, by id. */
+export function patternQuestionIds(progress: StudentProgress, sessionId: string): string[] {
+  return [...new Set(targetedLines(progress, sessionId).flatMap((l) => pooledItems(progress, l)).map((i) => i.question_id))]
+}
+
+/**
+ * A targeted test's report from the rows it is drawn from: the test, its set's
+ * size, its answers, the student's progress and the questions behind the
+ * long-question pattern. The PDF the PC is sent (_shared/reportDocs) and the
+ * student's own copy (0098) are both made here, so they cannot differ.
+ */
+export function targetedDocFrom(input: {
+  session: TargetedReportInput['session'] & { id: string }
+  test: TargetedReportInput['test']
+  setCount: number
+  items: SessionItem[]
+  progress: StudentProgress
+  questions: (AnalysedQuestion & { id: string })[]
+}): ReportPdfDoc {
+  const { session, progress } = input
+  const config = progress.config
+  if (!config) throw new Error('no progress_config for this subject')
+  const row = progress.targeted.find((t) => t.session_id === session.id) ?? null
+  const byId = new Map(input.questions.map((q) => [q.id, q]))
+  const lines = targetedLines(progress, session.id).map((line) => ({
+    line,
+    pattern: longPattern(
+      pooledItems(progress, line).map((i) => ({
+        status: i.status,
+        is_correct: i.is_correct,
+        timed_out: i.timed_out,
+        elapsed_seconds: i.elapsed_seconds,
+        time_limit_seconds: i.time_limit_seconds,
+        question: byId.get(i.question_id) ?? null,
+      })),
+      config,
+    ),
+  }))
+
+  return targetedPdfDoc({
+    session,
+    test: input.test,
+    setCount: input.setCount,
+    setBySkill: row?.set_by_skill ?? null,
+    items: input.items,
+    config,
+    lines,
+  })
 }

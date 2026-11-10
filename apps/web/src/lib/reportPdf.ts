@@ -4,7 +4,8 @@ import { FEEDBACK_LABELS, RELATION_LABELS, type Claim, type Extraction } from '.
 import { buildGrid, confidenceAverage, recommendedPriority, timeManagement } from './grid.ts'
 import { buildReport, formatDuration, paceLabel, type Attempt } from './report.ts'
 import { buildReportDoc, disagreements, hasFindings } from './reportDoc.ts'
-import { describeLine, type ProgressLine } from './progress.ts'
+import { describeLine, progressLines, type ProgressLine, type StudentProgress } from './progress.ts'
+import { readingStaleness } from './recording.ts'
 import { formatUtc } from './time.ts'
 import type { DomainNote, SessionItem, SessionReportRow, Subject } from './types.ts'
 
@@ -404,6 +405,36 @@ export function reportPdfDoc(input: ReportPdfInput): ReportPdfDoc {
     headline,
     extra: progressSection(input.progress ?? null),
   }
+}
+
+/**
+ * A lesson's report from the rows it is drawn from, with the stored reading of
+ * the recording and when the transcript went in, so a stale reading is left
+ * out exactly as the page leaves it out. The PDF the PC is sent
+ * (_shared/reportDocs) and the student's own copy (0098) are both made here.
+ */
+export function lessonDocFrom(input: {
+  session: ReportPdfInput['session']
+  items: SessionItem[]
+  notes: DomainNote[]
+  meta: SessionReportRow
+  reading: { body: Extraction; created_at: string } | null
+  transcriptAt: string | null
+  progress: StudentProgress | null
+}): ReportPdfDoc {
+  return reportPdfDoc({
+    session: input.session,
+    items: input.items,
+    notes: input.notes,
+    meta: input.meta,
+    extraction: input.reading?.body ?? null,
+    staleness: readingStaleness(
+      input.reading,
+      input.transcriptAt ? { created_at: input.transcriptAt } : null,
+      input.meta.form_submitted_at,
+    ),
+    progress: input.progress ? progressLines(input.progress) : null,
+  })
 }
 
 /** The Progress section: each skill's line, as sentences, raw beside mapped. */
