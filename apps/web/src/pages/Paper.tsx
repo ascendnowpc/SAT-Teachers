@@ -6,7 +6,8 @@ import { QuestionView } from '../components/QuestionView'
 import { IconBack } from '../components/icons'
 import { sectionLabel, skillLabel, subjectLabel } from '../lib/constants'
 import { buildPaper, type PaperGroup } from '../lib/paper'
-import { row, rows, supabase } from '../lib/supabase'
+import { allRows } from '../lib/allRows'
+import { row, supabase } from '../lib/supabase'
 import type { Question, QuestionSet } from '../lib/types'
 
 /**
@@ -38,22 +39,32 @@ export function Paper() {
     if (!id) return
     setLoading(true)
 
+    // Read whole, a page at a time: a practice pool holds more questions than
+    // PostgREST hands back in one answer, and opened as one it used to show
+    // its first thousand as though they were all of it. Position is unique
+    // within a set, so it orders the pages.
     const [setRes, itemRes] = await Promise.all([
       supabase.from('question_sets').select('*').eq('id', id).maybeSingle(),
-      supabase
-        .from('question_set_items')
-        .select('position, questions(*, question_options(*), question_keys(*))')
-        .eq('set_id', id)
-        .order('position'),
+      allRows<{ position: number; questions: Question | null }>((from, to) =>
+        supabase
+          .from('question_set_items')
+          .select('position, questions(*, question_options(*), question_keys(*))', {
+            count: 'exact',
+          })
+          .eq('set_id', id)
+          .order('position')
+          .range(from, to),
+      ),
     ])
 
     if (setRes.error) setError(setRes.error.message)
     else setSet(row<QuestionSet>(setRes.data))
 
-    if (itemRes.error) setError(itemRes.error.message)
+    if (itemRes.error) setError(itemRes.error)
     else {
-      const items = rows<{ position: number; questions: Question | null }>(itemRes.data)
-      setQuestions(items.map((i) => i.questions).filter((q): q is Question => q !== null))
+      setQuestions(
+        itemRes.rows.map((i) => i.questions).filter((q): q is Question => q !== null),
+      )
     }
 
     setLoading(false)

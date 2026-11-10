@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { DifficultyBadge, Notice } from '../components/ui'
 import { LEVELS, SUBJECTS, subjectLabel } from '../lib/constants'
+import { allRows } from '../lib/allRows'
 import { rows, supabase } from '../lib/supabase'
 import type { Question, QuestionSet, Subject } from '../lib/types'
 
@@ -78,28 +79,38 @@ export function Questions() {
     // Anything the bank holds that none of those tests does. Retired is the
     // deliberate version of that and is counted separately; a stray is the
     // accidental one, and is the fault this page used to hide.
-    const [itemRes, qRes] = await Promise.all([
-      supabase
-        .from('question_set_items')
-        .select('question_id')
-        .in(
-          'set_id',
-          // A question in the pool is filed too: it is not a stray.
-          [...found, ...poolSets].map((t) => t.id),
-        ),
-      supabase.from('questions').select('id,status'),
+    //
+    // Both lists are read whole, a page at a time (allRows): the pools put the
+    // bank past PostgREST's thousand-row answer, and comparing the first
+    // thousand of each is how this page once called 940 pool questions strays.
+    const filedIn = [...found, ...poolSets].map((t) => t.id) // a pool question is filed too
+    const [itemRes, liveRes, retiredRes] = await Promise.all([
+      allRows<{ question_id: string }>((from, to) =>
+        supabase
+          .from('question_set_items')
+          .select('question_id', { count: 'exact' })
+          .in('set_id', filedIn)
+          .order('set_id')
+          .order('question_id')
+          .range(from, to),
+      ),
+      allRows<Pick<Question, 'id'>>((from, to) =>
+        supabase
+          .from('questions')
+          .select('id', { count: 'exact' })
+          .neq('status', 'retired')
+          .order('id')
+          .range(from, to),
+      ),
+      supabase.from('questions').select('id', { count: 'exact', head: true }).eq('status', 'retired'),
     ])
 
-    if (itemRes.error) setError(itemRes.error.message)
-    if (qRes.error) setError(qRes.error.message)
-
-    if (!itemRes.error && !qRes.error) {
-      const filed = new Set(
-        rows<{ question_id: string }>(itemRes.data).map((i) => i.question_id),
-      )
-      const all = rows<Pick<Question, 'id' | 'status'>>(qRes.data)
-      setRetired(all.filter((q) => q.status === 'retired').length)
-      setStrays(all.filter((q) => q.status !== 'retired' && !filed.has(q.id)).length)
+    const failed = itemRes.error ?? liveRes.error ?? retiredRes.error?.message ?? null
+    if (failed) setError(failed)
+    else {
+      const filed = new Set(itemRes.rows.map((i) => i.question_id))
+      setRetired(retiredRes.count ?? 0)
+      setStrays(liveRes.rows.filter((q) => !filed.has(q.id)).length)
     }
 
     setLoading(false)
