@@ -105,6 +105,8 @@ def sup(base: str, exp: str) -> str:
         return b + ("′" if e != "″" else "″")
     if not (binds(b) and not b.startswith("-")) and not (b.startswith("(") and b.endswith(")") and _balanced(b[1:-1])):
         b = f"({b})"
+    if wrapped(e):
+        e = e[1:-1]  # the exponent's own brackets are the ^( ) already
     return f"{b}^({e})"
 
 
@@ -146,7 +148,11 @@ def mathml(n: Tag) -> str:
             return f"{mathml(kids[0])} {mathml(kids[1])}"
         return frac(mathml(kids[0]), mathml(kids[1]))
     if k == "msup":
-        return sup(mathml(kids[0]), mathml(kids[1]))
+        base = mathml(kids[0])
+        if base.strip() in (")", "]", "|"):  # (b - a)^2 written as "(", "b - a", ")" with the power on ")"
+            e = mathml(kids[1]).strip()
+            return base.strip() + f"^({e[1:-1] if wrapped(e) else e})"
+        return sup(base, mathml(kids[1]))
     if k == "msub":
         return sub(mathml(kids[0]), mathml(kids[1]))
     if k == "msubsup":
@@ -155,7 +161,8 @@ def mathml(n: Tag) -> str:
         return "√" + group(seq(kids))
     if k == "mroot":
         i = mathml(kids[1]).strip()
-        sign = {"3": "∛", "4": "∜"}.get(i, f"^({i})√")
+        sup_i = i.translate(str.maketrans("0123456789nkmxN", "⁰¹²³⁴⁵⁶⁷⁸⁹ⁿᵏᵐˣᴺ"))
+        sign = {"3": "∛", "4": "∜"}.get(i) or (sup_i + "√" if sup_i != i or not i else f"^({i})√")
         return sign + group(mathml(kids[0]))
     if k in ("mover", "munderover"):
         base, acc = mathml(kids[0]), _txt(kids[-1]).strip()
@@ -207,6 +214,8 @@ def seq(nodes: list[Tag]) -> str:
             if not op:
                 continue
             if op in OPEN:
+                if out and i and _edge(nodes[i - 1], -1):
+                    out.append(" ")  # 1/10 (b - a): kept off the denominator
                 out.append(op)
                 prev = "open"
             elif op in CLOSE:
@@ -235,6 +244,10 @@ def seq(nodes: list[Tag]) -> str:
             out.append(" ")
         elif out and i and _edge(nodes[i - 1], -1) and (s[:1].isalnum() or s[:1] in "(√∛"):
             out.append(" ")
+        elif out and (_name(n) == "mtext" and s.strip()[:1].isalpha() and last.isalnum()
+                      or i and _name(nodes[i - 1]) == "mtext" and last.isalpha() and s[:1].isalnum()):
+            out.append(" ")  # 250 square feet: a word is spaced off what it sits beside
+            s = s.strip() if _name(n) == "mtext" else s
         elif out and _name(n) == "mi" and out[-1].strip() in FUNCTIONS:
             out.append(" ")
         out.append(s)
@@ -317,7 +330,16 @@ class Reader:
         return self.inline_all(n)
 
     def inline_all(self, n: Tag) -> str:
-        return "".join(self.inline(c) for c in n.children)
+        out, kids = [], list(n.children)
+        for i, c in enumerate(kids):
+            s = self.inline(c)
+            # "7-foot-tall", "xy-plane": a word hyphenated onto the maths
+            # before it keeps the hyphen against the maths
+            nxt = kids[i + 1] if i + 1 < len(kids) else None
+            if isinstance(nxt, NavigableString) and re.match(r"-[A-Za-z]", str(nxt)) and s.endswith(" "):
+                s = s.rstrip(" ")
+            out.append(s)
+        return "".join(out)
 
     def blocks(self, fragment: str) -> tuple[list[str], list[str]]:
         soup = BeautifulSoup(fragment or "", "html.parser")
@@ -333,7 +355,11 @@ class Reader:
                 continue
             if isinstance(c, Tag) and is_figure(c):
                 lines.extend(self._para(buf)); buf = ""
-                figures.append(str(c))
+                system = self._system(c) or self._steps(c)
+                if system:
+                    lines.extend(system)  # a boxed system of equations is text, one to a line
+                else:
+                    figures.append(str(c))
             elif isinstance(c, Tag) and _name(c) in ("p", "div", "li", "ul", "ol", "section", "blockquote", "figure", "caption", "tbody", "center") or (
                     isinstance(c, Tag) and has_figure(c)):
                 lines.extend(self._para(buf)); buf = ""
@@ -351,8 +377,47 @@ class Reader:
                 else:
                     lines.extend(self._para(self.inline_all(c)))
             else:
+                if isinstance(c, NavigableString) and re.match(r"-[A-Za-z]", str(c)):
+                    buf = buf.rstrip(" ")  # "7-foot-tall": see inline_all
                 buf += self.inline(c)
         lines.extend(self._para(buf))
+
+    def _system(self, t: Tag) -> list[str] | None:
+        """A table that only boxes a system of equations: one cell to a row,
+        nothing in any cell but mathematics. Its lines, or None."""
+        table = t if t.name == "table" else t.find("table")
+        if table is None or t.find("svg") or any(not is_math_img(i) for i in t.find_all("img")):
+            return None
+        rows = table.find_all("tr")
+        if len(rows) < 2 or any(len(r.find_all(["td", "th"])) != 1 for r in rows):
+            return None
+        out = []
+        for r in rows:
+            cell = r.find(["td", "th"])
+            maths = cell.find_all("math") + [i for i in cell.find_all("img") if is_math_img(i)]
+            rest = cell.get_text(" ", strip=True) if not cell.find("math") else ""
+            if not maths or rest.strip():
+                return None
+            out.extend(self._para(self.inline_all(cell)))
+        return out if all(re.search(r"[=<>≤≥]", l) for l in out) else None
+
+    def _steps(self, t: Tag) -> list[str] | None:
+        """A worked solution set as a table: an equation and the reason for it
+        on each row. One line a row, "equation — reason", or None."""
+        table = t if t.name == "table" else t.find("table")
+        if table is None or t.find("svg") or any(not is_math_img(i) for i in t.find_all("img")):
+            return None
+        out = []
+        for r in table.find_all("tr"):
+            cells = r.find_all(["td", "th"])
+            if len(cells) != 2 or not (cells[0].find("math") or cells[0].find("img")):
+                return None
+            eq = " ".join(self._para(self.inline_all(cells[0])))
+            why = " ".join(self._para(self.inline_all(cells[1])))
+            if not re.search(r"[=<>≤≥]", eq):
+                return None
+            out.append(f"{eq} — {why}" if why else eq)
+        return out or None
 
     @staticmethod
     def _para(s: str) -> list[str]:
