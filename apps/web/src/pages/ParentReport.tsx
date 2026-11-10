@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Logo } from '../components/Logo'
+import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { DomainBands } from '../components/DomainBands'
 import { bluebookHeadline, byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
@@ -64,19 +64,14 @@ export function ParentReport() {
   const subjects = report ? (Object.keys(report.subjects) as Subject[]) : []
 
   return (
-    <div className="student-home">
-      <header className="student-bar no-print">
-        <Logo />
-        <div className="student-bar-who">
-          <Link className="btn btn-ghost btn-sm" to="/student">
-            My tests
-          </Link>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}>
-            Print
-          </button>
-        </div>
-      </header>
-
+    <StudentShell
+      student={report?.student}
+      actions={
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}>
+          Print
+        </button>
+      }
+    >
       <main className="report-main">
         {error && <Notice kind="error">{error}</Notice>}
         {!report && !error && <p className="muted">Loading…</p>}
@@ -184,8 +179,14 @@ export function ParentReport() {
             )}
           </article>
         )}
+        {report && (
+          <p className="report-more no-print">
+            Every diagnostic and targeted test report, in full, is under{' '}
+            <Link to="/student/reports">Reports</Link>.
+          </p>
+        )}
       </main>
-    </div>
+    </StudentShell>
   )
 }
 

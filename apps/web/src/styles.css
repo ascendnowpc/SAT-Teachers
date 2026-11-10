@@ -2936,3 +2936,125 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .exam-entry-box:focus { outline: none; border-color: var(--sky); box-shadow: var(--focus-ring); }
 .exam-entry-box:disabled { background: var(--paper); color: var(--muted); }
 .exam-entry-hint { margin: 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+
+/* ------------------------------------------- every report, for the family (0098)
+   The student's account has three places now — the tests, the reports and the
+   progress card — so the bar carries them as tabs. A report is the PC's PDF
+   laid out for a screen: the navy band, who and when, the figures, then the
+   sections in the PDF's order, each a quiet card. */
+.student-nav { display: flex; gap: 4px; margin-right: auto; margin-left: 18px; }
+.student-nav-link {
+  padding: 7px 13px; border-radius: var(--pill); font-size: 14px; font-weight: 500;
+  color: var(--ink-2); text-decoration: none; white-space: nowrap;
+  transition: background var(--t) var(--ease), color var(--t) var(--ease);
+}
+.student-nav-link:hover { background: var(--hover); color: var(--ink); }
+.student-nav-link.on { background: var(--navy-50); color: var(--navy-700); font-weight: 600; }
+.student-nav-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.student-section-link { color: var(--sky-dark); font-weight: 600; font-size: 13px; text-decoration: none; }
+.student-section-link:hover { text-decoration: underline; }
+.student-reports-filters { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 14px; }
+.student-reports-pc { margin: 14px 0 0; color: var(--ink-2); font-size: 14px; }
+.report-more { max-width: 800px; margin: 14px auto 0; padding: 0 16px; color: var(--muted); font-size: 13.5px; }
+.report-more a { color: var(--sky-dark); font-weight: 600; }
+.student-report-main { max-width: 980px; }
+.student-report-main .back-link { margin-bottom: 14px; }
+
+@media (max-width: 760px) {
+  .student-bar { flex-wrap: wrap; row-gap: 8px; }
+  .student-nav { order: 3; width: 100%; margin: 0 -4px; overflow-x: auto; scrollbar-width: none; }
+  .student-nav::-webkit-scrollbar { display: none; }
+}
+/* With a page's own button beside Sign out, the chip gives up its words first. */
+@media (max-width: 480px) {
+  .student-bar-who:has(> .btn + .btn) .student-chip { padding-right: 5px; }
+  .student-bar-who:has(> .btn + .btn) .student-chip-name,
+  .student-bar-who:has(> .btn + .btn) .student-chip-id { display: none; }
+}
+
+.rdoc {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.rdoc-band {
+  padding: 26px clamp(20px, 4vw, 34px) 24px; color: #fff;
+  background: linear-gradient(135deg, var(--grad-from), var(--grad-mid) 60%, var(--grad-to));
+}
+.rdoc-band-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.rdoc-kicker { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--lime); }
+.rdoc-band h1 {
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(24px, 3.6vw, 32px);
+  letter-spacing: -0.02em; color: #fff; overflow-wrap: anywhere;
+}
+.rdoc-sub { margin-top: 6px; color: var(--navy-200); font-size: 14px; }
+.rdoc-headline {
+  margin-top: 16px; padding: 10px 14px; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, .08); color: #fff; font-size: 15px; font-weight: 500;
+}
+.rdoc-people {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px;
+  margin: 0; padding: 18px clamp(20px, 4vw, 34px); border-bottom: 1px solid var(--border); background: var(--page);
+}
+.rdoc-people dt { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rdoc-people dd { margin: 3px 0 0; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.rdoc-empty { padding: 28px clamp(20px, 4vw, 34px); color: var(--muted); }
+.rdoc-stats {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0;
+  padding: 20px clamp(20px, 4vw, 34px) 0;
+}
+@media (min-width: 720px) { .rdoc-stats { grid-template-columns: repeat(4, 1fr); } .rdoc-stats.is-six { grid-template-columns: repeat(3, 1fr); } }
+.rdoc-stats .stat-tile { justify-content: flex-start; }
+.rdoc-stat-note { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.rdoc-notice {
+  margin: 18px clamp(20px, 4vw, 34px) 0; padding: 11px 14px; border-radius: var(--r-sm);
+  background: var(--sky-wash); color: var(--ink-2); font-size: 13.5px; line-height: 1.55;
+}
+.rdoc-section { padding: 22px clamp(20px, 4vw, 34px) 0; }
+.rdoc-section h2 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0 0 10px; }
+.rdoc-prose { font-size: 15px; line-height: 1.7; color: var(--ink-2); white-space: pre-line; }
+.rdoc-note { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; line-height: 1.55; }
+.rdoc-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rdoc-lines li {
+  font-size: 14px; line-height: 1.55; color: var(--ink-2);
+  padding: 8px 12px; border-radius: var(--r-sm); background: var(--page);
+}
+.rdoc .summary { margin-top: 4px; }
+.rdoc-cols { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .rdoc-cols { grid-template-columns: 1fr 1fr; } }
+.rdoc-domains { display: grid; gap: 12px; }
+.rdoc-domain { border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
+.rdoc-domain-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rdoc-domain-head h3 { font-size: 15.5px; font-weight: 600; color: var(--ink); }
+.rdoc-domain-measured { font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.rdoc-domain-focus { margin-top: 3px; color: var(--muted); font-size: 13px; }
+.rdoc-domain-marked { margin-top: 8px; font-size: 13.5px; color: var(--ink-2); }
+.rdoc-domain-cols { display: grid; grid-template-columns: 1fr; gap: 10px 20px; margin-top: 12px; }
+@media (min-width: 640px) { .rdoc-domain-cols { grid-template-columns: 1fr 1fr; } }
+.rdoc-domain-cols p { font-size: 14px; line-height: 1.6; color: var(--ink-2); margin-top: 3px; white-space: pre-line; }
+.rdoc-label { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rdoc-label-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.rdoc-domain-targets { margin-top: 12px; }
+.rdoc-domain-targets ul { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 3px; font-size: 14px; color: var(--ink-2); }
+.rdoc-domain-evidence { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; gap: 10px; }
+.rdoc-claim { border-left: 2px solid var(--sky); padding-left: 12px; }
+.rdoc-claim + .rdoc-claim { margin-top: 10px; }
+.rdoc-claim-text { font-size: 14px; color: var(--ink); line-height: 1.55; }
+.rdoc-claim blockquote { margin: 4px 0 0; font-size: 13.5px; color: var(--ink-2); font-style: italic; line-height: 1.55; }
+.rdoc-claim-cite { margin-top: 3px; font-size: 12px; color: var(--muted); }
+.rdoc-finding { padding: 12px 0; border-top: 1px solid var(--border); }
+.rdoc-finding:first-of-type { border-top: 0; padding-top: 0; }
+.rdoc-finding-head { font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 6px; }
+.rdoc-miss-head { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.rdoc-table td, .rdoc-table th { white-space: nowrap; }
+.rdoc-foot {
+  margin-top: 26px; padding: 14px clamp(20px, 4vw, 34px); border-top: 1px solid var(--border);
+  color: var(--faint); font-size: 12px;
+}
+
+@media print {
+  .student-report-main { padding: 0; max-width: none; }
+  .rdoc { border: 0; box-shadow: none; border-radius: 0; }
+  .rdoc-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rdoc-domain, .rdoc-claim, .rdoc-finding { break-inside: avoid; }
+  .rdoc-table td, .rdoc-table th { white-space: normal; }
+}

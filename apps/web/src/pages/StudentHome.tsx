@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Logo } from '../components/Logo'
 import { PracticeList } from '../components/PracticeList'
+import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { subjectLabel } from '../lib/constants'
 import {
@@ -15,8 +15,10 @@ import {
   type StudentTest,
   type TestStanding,
 } from '../lib/studentAccount'
-import { loadStudentHome, studentSignOut, studentTestTitle } from '../lib/studentApi'
+import { loadStudentHome, loadStudentReports, studentTestTitle } from '../lib/studentApi'
 import { rememberEntry } from '../lib/studentEntry'
+import type { StudentReportEntry } from '../lib/studentReports'
+import { ReportRow } from './StudentReports'
 import { formatUtc } from '../lib/time'
 
 /**
@@ -38,6 +40,7 @@ export function StudentHome() {
   const navigate = useNavigate()
   const [key] = useState(() => storedStudentKey())
   const [home, setHome] = useState<Home | null>(null)
+  const [reports, setReports] = useState<StudentReportEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [signedOut, setSignedOut] = useState(false)
 
@@ -46,6 +49,11 @@ export function StudentHome() {
     try {
       setHome(await loadStudentHome(key))
       setError(null)
+      // The reports are a second door: one that fails (before 0098 is
+      // applied, say) costs the page its reports section, not the tests.
+      loadStudentReports(key)
+        .then((l) => setReports(l.reports))
+        .catch(() => setReports(null))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not load your tests.'
       if (/signed out/i.test(message)) {
@@ -78,13 +86,10 @@ export function StudentHome() {
     [ahead],
   )
 
-  if (!key || signedOut) return <Navigate to="/login?as=student" replace />
+  // Which tests have a report to open, by session.
+  const reportFor = useMemo(() => new Set((reports ?? []).map((r) => r.session_id)), [reports])
 
-  async function signOut() {
-    if (key) await studentSignOut(key)
-    storeStudentKey(null)
-    navigate('/login?as=student', { replace: true })
-  }
+  if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
   function open(t: StudentTest) {
     rememberEntry(t.link, t.entry_key)
@@ -95,34 +100,13 @@ export function StudentHome() {
   const rest = ahead.filter((t) => t.id !== next?.id)
 
   return (
-    <div className="student-home">
-      <header className="student-bar">
-        <Logo />
-        <div className="student-bar-who">
-          {home && (
-            <span className="student-chip">
-              <span className="student-avatar" aria-hidden="true">
-                {initials(home.student.full_name)}
-              </span>
-              <span className="student-chip-name">{home.student.full_name}</span>
-              <span className="student-chip-id num">{home.student.display_id}</span>
-            </span>
-          )}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
+    <StudentShell student={home?.student}>
       <main className="student-main">
         <div className="student-greet">
           <div>
             <h1>{first ? `Hi, ${first}` : 'Your tests'}</h1>
             <p>Here is what is next, and how you are getting on.</p>
           </div>
-          <Link className="btn btn-ghost btn-sm" to="/student/report">
-            Progress report
-          </Link>
         </div>
 
         {error && <Notice kind="error">{error}</Notice>}
@@ -144,6 +128,23 @@ export function StudentHome() {
               </dl>
             )}
 
+            {reports && reports.length > 0 && (
+              <Section
+                title="Latest reports"
+                count={
+                  <Link className="student-section-link" to="/student/reports">
+                    See all {reports.length}
+                  </Link>
+                }
+              >
+                <ul className="student-tests">
+                  {reports.slice(0, 3).map((r) => (
+                    <ReportRow key={r.session_id} report={r} />
+                  ))}
+                </ul>
+              </Section>
+            )}
+
             {rest.length > 0 && (
               <Section title="Also coming up" count={`${rest.length} ${rest.length === 1 ? 'test' : 'tests'}`}>
                 <ul className="student-tests">
@@ -158,7 +159,12 @@ export function StudentHome() {
               <Section title="Completed" count={`${done.length} ${done.length === 1 ? 'test' : 'tests'}`}>
                 <ul className="student-tests">
                   {done.map((t) => (
-                    <TestRow key={t.id} test={t} onOpen={() => open(t)} />
+                    <TestRow
+                      key={t.id}
+                      test={t}
+                      onOpen={() => open(t)}
+                      report={reportFor.has(t.id) ? `/student/reports/${t.id}` : null}
+                    />
                   ))}
                 </ul>
               </Section>
@@ -172,11 +178,11 @@ export function StudentHome() {
           </>
         )}
       </main>
-    </div>
+    </StudentShell>
   )
 }
 
-function Section({ title, count, children }: { title: string; count?: string; children: React.ReactNode }) {
+function Section({ title, count, children }: { title: string; count?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="student-section">
       <div className="student-section-head">
@@ -263,7 +269,7 @@ function NextUp({ test, onOpen }: { test: StudentTest | null; onOpen: (t: Studen
   )
 }
 
-function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
+function TestRow({ test, onOpen, report = null }: { test: StudentTest; onOpen: () => void; report?: string | null }) {
   const standing = standingOf(test)
   const sub = [
     subjectLabel(test.subject),
@@ -318,6 +324,11 @@ function TestRow({ test, onOpen }: { test: StudentTest; onOpen: () => void }) {
           </>
         )}
         {standing.kind === 'waiting' && <span className="badge badge-neutral">Results coming soon</span>}
+        {report && (
+          <Link className="btn btn-primary btn-sm" to={report}>
+            Report
+          </Link>
+        )}
       </div>
     </li>
   )
@@ -351,12 +362,4 @@ function TestMark({ standing, subject }: { standing: TestStanding; subject: Stud
       <path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4" />
     </svg>
   )
-}
-
-/** Up to two letters, for the chip in the bar. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  const letters = parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[parts.length - 1][0]
-  return letters.toUpperCase()
 }

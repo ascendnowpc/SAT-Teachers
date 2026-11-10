@@ -47,6 +47,7 @@ npm run dev                                    # http://localhost:5173
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
+| **Every report, for the family** | The student's account lists every diagnostic, lesson and targeted test report and opens each one in full — the report the PC is sent, drawn by the same function (`0098`) |
 | **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
 | **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`). **Every report is saved as a PDF first**, and nothing it was drawn from goes until it is (`0087`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
@@ -903,6 +904,19 @@ same numbers as the staff's progress page: `student_progress`'s body moved into 
 (internal), and `student_report(key)` returns it cut down to what the card reads — no question id,
 difficulty, timing, teacher or shared wording (`student_report.sql`).
 
+**Every report, for the family** (`0098`, `/student/reports`). The student's account has three tabs
+now — **My tests**, **Reports** and **Progress** — and Reports lists every report written for the
+student: a lesson's or diagnostic's once the teacher or an admin has generated it (or published
+it), which is the moment the PC is emailed it, and a targeted test's once the test is over. Each
+opens in full at `/student/reports/:id` and saves as a PDF from the browser. It is the PC's report,
+not a second one: `student_session_report(key, session)` returns the rows the report is drawn from,
+and the page draws it with `lessonDocFrom` / `targetedDocFrom` — the functions
+`_shared/reportDocs.ts` now draws the PC's PDF with — so the two cannot say different things. The
+one thing left off the family's copy is "worth a second look", a note to the teacher rather than a
+finding. `student_report_list(key)` gives the list with each report's score and the student's PC;
+a report that is somebody else's or not ready is "no such report" (`student_reports.sql`). The
+home page shows the latest three, and a **Report** button on each finished test that has one.
+
 **Data clean-up** (`0071`, Settings → *Data clean-up*). Two windows: a student is deleted with
 everything of theirs — sessions, answers, forms, reports, transcripts, notes, PIN — once nothing
 has been booked for them for 12 months; a session's transcript and the model's reading of it (its
@@ -1391,6 +1405,12 @@ show a broken picture. Neither holds a destructive statement, so both go through
 **Order, for `0090`.** Safe for the app being served: the new columns have defaults and
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
+
+**Order, for `0098`.** Safe at any time: three new functions and nothing changed. Apply it before
+or with the app that shows Reports — the home page asks for the list on the side, so the app
+served before it is applied loses only its reports section. Redeploying `notify_pc_report` and
+`archive_reports` is optional: `_shared/reportDocs.ts` now calls the shared `lessonDocFrom` and
+`targetedDocFrom`, and draws the same PDF it drew before.
 
 **Order, for `0089`.** Safe at any time: a new targeted test starts at 12 questions instead of 10,
 in every subject still on the old default.

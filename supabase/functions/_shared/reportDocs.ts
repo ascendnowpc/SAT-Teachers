@@ -1,16 +1,9 @@
 import type { Extraction } from '../../../apps/web/src/lib/extraction.ts'
 import { appBase } from '../../../apps/web/src/lib/pcMail.ts'
-import {
-  linesOf,
-  progressLine,
-  progressLines,
-  type ProgressConfig,
-  type StudentProgress,
-} from '../../../apps/web/src/lib/progress.ts'
-import { readingStaleness } from '../../../apps/web/src/lib/recording.ts'
-import { reportPdfDoc, type ReportPdfDoc } from '../../../apps/web/src/lib/reportPdf.ts'
-import { longPattern, type AnalysedQuestion } from '../../../apps/web/src/lib/targetedAnalytics.ts'
-import { targetedPdfDoc } from '../../../apps/web/src/lib/targetedReport.ts'
+import type { StudentProgress } from '../../../apps/web/src/lib/progress.ts'
+import { lessonDocFrom, type ReportPdfDoc } from '../../../apps/web/src/lib/reportPdf.ts'
+import type { AnalysedQuestion } from '../../../apps/web/src/lib/targetedAnalytics.ts'
+import { patternQuestionIds, targetedDocFrom } from '../../../apps/web/src/lib/targetedReport.ts'
 import type { DomainNote, SessionItem, SessionReportRow, Subject } from '../../../apps/web/src/lib/types.ts'
 
 /**
@@ -78,8 +71,7 @@ export async function lessonDoc(db: any, session: SessionRow, report: SessionRep
     db.rpc('student_progress', { p_student: session.student_id, p_subject: session.subject }),
   ])
 
-  const stored = reading.data as { body: Extraction; created_at: string } | null
-  return reportPdfDoc({
+  return lessonDocFrom({
     session: {
       subject: session.subject,
       title: session.title,
@@ -92,13 +84,9 @@ export async function lessonDoc(db: any, session: SessionRow, report: SessionRep
     items: (items.data ?? []) as SessionItem[],
     notes: (notes.data ?? []) as DomainNote[],
     meta: report,
-    extraction: stored?.body ?? null,
-    staleness: readingStaleness(
-      stored,
-      transcript.data as { created_at: string } | null,
-      report.form_submitted_at,
-    ),
-    progress: progress.data ? progressLines(progress.data as StudentProgress) : null,
+    reading: reading.data as { body: Extraction; created_at: string } | null,
+    transcriptAt: (transcript.data as { created_at: string } | null)?.created_at ?? null,
+    progress: (progress.data ?? null) as StudentProgress | null,
   })
 }
 
@@ -121,44 +109,20 @@ export async function targetedDoc(db: any, session: SessionRow): Promise<ReportP
   const test = testRes.data
   if (!test) throw new Error('this session has no targeted test row')
   const progress = (progressRes.data ?? null) as StudentProgress | null
-  const config = (progress?.config ?? null) as ProgressConfig | null
-  if (!config) throw new Error('no progress_config for this subject')
-  const row = progress?.targeted.find((t) => t.session_id === session.id) ?? null
-  const lines = progress && row ? linesOf(progress, row).map((on) => progressLine(progress, on.section, on.skill)) : []
+  if (!progress?.config) throw new Error('no progress_config for this subject')
 
-  // The long-question pattern on each line, pooled over every test on it —
-  // a test of several skills counting only that skill's questions.
-  const pooledOf = (line: (typeof lines)[number]) => {
-    const tests = new Set(line.points.filter((p) => p.kind === 'test').map((p) => p.sessionId))
-    return (progress?.items ?? []).filter(
-      (i) => tests.has(i.session_id) && (line.skill === null || i.skill === line.skill),
-    )
-  }
-  const ids = [...new Set(lines.flatMap(pooledOf).map((i) => i.question_id))]
+  // The questions the long-question pattern on each line is pooled from.
+  const ids = patternQuestionIds(progress, session.id)
   const { data: qs } = ids.length
     ? await db
         .from('questions')
         .select('id, difficulty, passage, passage_underline, stem, image_url, target_seconds')
         .in('id', ids)
     : { data: [] }
-  const byId = new Map(((qs ?? []) as (AnalysedQuestion & { id: string })[]).map((q) => [q.id, q]))
-  const withPatterns = lines.map((line) => ({
-    line,
-    pattern: longPattern(
-      pooledOf(line).map((i) => ({
-        status: i.status,
-        is_correct: i.is_correct,
-        timed_out: i.timed_out,
-        elapsed_seconds: i.elapsed_seconds,
-        time_limit_seconds: i.time_limit_seconds,
-        question: byId.get(i.question_id) ?? null,
-      })),
-      config,
-    ),
-  }))
 
-  return targetedPdfDoc({
+  return targetedDocFrom({
     session: {
+      id: session.id,
       subject: session.subject,
       title: session.title,
       scheduled_at: session.scheduled_at,
@@ -168,9 +132,8 @@ export async function targetedDoc(db: any, session: SessionRow): Promise<ReportP
     },
     test,
     setCount: setRes.count ?? 0,
-    setBySkill: row?.set_by_skill ?? null,
     items: (itemsRes.data ?? []) as SessionItem[],
-    config,
-    lines: withPatterns,
+    progress,
+    questions: (qs ?? []) as (AnalysedQuestion & { id: string })[],
   })
 }
