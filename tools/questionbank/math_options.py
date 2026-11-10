@@ -239,13 +239,29 @@ HEAD = """\
 --  Each update is guarded by what the database holds now — the option's own
 --  wreckage, the question's own picture — so an option a teacher has
 --  corrected since is left alone, and a second run changes nothing.
+--
+--  An option's guard names two readings of that wreckage: the one the import
+--  wrote and the one 0094 leaves behind, which tidies a raised dot and a stray
+--  space inside a bracket and so rewrites 53 of these 88. Either is the
+--  wreckage this migration is for, so 0094 and this one may be applied in
+--  either order and neither decides whether an option gets its figure.
 -- ============================================================================
 
 """
 
 
-def write_migration(rows: list[dict], guards: dict, number: int, out: Path) -> Path:
-    """The rows that point each option at its figure, guarded by what is there."""
+def write_migration(rows: list[dict], guards: dict, number: int, out: Path,
+                    also: dict | None = None) -> Path:
+    """The rows that point each option at its figure, guarded by what is there.
+
+    `also` is a second reading of the same bodies — the one 0094 leaves behind,
+    which tidies a raised dot and a stray space inside a bracket and so changes
+    53 of these 88. Either is the wreckage this migration is for, and which of
+    them is in the database depends only on whether 0094 has run yet. Both are
+    accepted so that the order of the two does not decide whether an option
+    gets its figure; anything else in that column is somebody's correction and
+    is left alone.
+    """
     lines: list[str] = []
     for r in rows:
         ref = r["source_ref"]
@@ -253,10 +269,15 @@ def write_migration(rows: list[dict], guards: dict, number: int, out: Path) -> P
         if g is None:
             raise SystemExit(f"no guard for {ref}")
         for label in sorted(r["options"]):
+            seen = {g["opts"][label]}
+            if also and ref in also:
+                seen.add(also[ref][label])
+            whether = (f"md5(o.body) = '{next(iter(seen))}'" if len(seen) == 1
+                       else "md5(o.body) in (" + ", ".join(f"'{h}'" for h in sorted(seen)) + ")")
             lines.append(
                 f"update question_options o set body = '', image_url = '{r['options'][label]}' "
                 f"from questions q where q.id = o.question_id and q.source_ref = '{ref}' "
-                f"and o.label = '{label}' and md5(o.body) = '{g['opts'][label]}';"
+                f"and o.label = '{label}' and {whether};"
             )
         lines.append(
             f"update questions set image_url = null, updated_at = now() "
@@ -278,6 +299,9 @@ def main() -> None:
     ap.add_argument("--guards", type=Path,
                     help="md5 of each option body and of each question's image_url, "
                          "as the database holds them; required to write a migration")
+    ap.add_argument("--also", type=Path,
+                    help="md5 of each option body as 0094 leaves it, so the two "
+                         "migrations may be applied in either order")
     ap.add_argument("--migration", type=Path, help="where to write the migration")
     ap.add_argument("--number", type=int, default=96)
     args = ap.parse_args()
@@ -332,7 +356,8 @@ def main() -> None:
         if not args.guards:
             raise SystemExit("--migration needs --guards")
         path = write_migration(rows, json.loads(args.guards.read_text()),
-                               args.number, args.migration)
+                               args.number, args.migration,
+                               json.loads(args.also.read_text()) if args.also else None)
         print(f"  {path.name}  {len(rows)} questions  {path.stat().st_size // 1024} KB")
 
 
