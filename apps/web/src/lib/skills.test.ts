@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   SECTIONS,
+  sectionOfSkill,
   SKILLS,
   skillFitsSection,
   skillLabel,
+  skillList,
   skillsFor,
+  skillsOn,
 } from './constants'
 
 describe('the skill taxonomy', () => {
@@ -77,5 +80,53 @@ describe('skillLabel', () => {
 
   it('has no label for no skill', () => {
     expect(skillLabel(null)).toBeNull()
+  })
+})
+
+/* ------------------------------------------------- a test on several (0086) */
+
+describe('sectionOfSkill', () => {
+  it('finds the one section a skill is in', () => {
+    expect(sectionOfSkill('boundaries')).toBe('standard_english_conventions')
+    expect(sectionOfSkill('circles')).toBe('geometry_and_trigonometry')
+  })
+
+  it('is null for a skill the list does not name, and for none', () => {
+    expect(sectionOfSkill('command_of_evidence')).toBeNull()
+    expect(sectionOfSkill(null)).toBeNull()
+  })
+})
+
+describe('skillsOn', () => {
+  it('reads the list, or a row from before 0086 by its one skill', () => {
+    expect(skillsOn({ section: null, skills: ['transitions', 'boundaries'] })).toEqual([
+      'transitions',
+      'boundaries',
+    ])
+    expect(skillsOn({ section: 'expression_of_ideas', skill: 'transitions' })).toEqual(['transitions'])
+  })
+
+  it('is null for a whole section, and an empty list is no list', () => {
+    expect(skillsOn({ section: 'expression_of_ideas', skill: null, skills: null })).toBeNull()
+    expect(skillsOn({ section: 'expression_of_ideas', skill: null, skills: [] })).toBeNull()
+  })
+})
+
+describe('skillList', () => {
+  it('names one, two, and three skills as a phrase', () => {
+    expect(skillList(['transitions'])).toBe('Transitions')
+    expect(skillList(['transitions', 'boundaries'])).toBe('Transitions and Boundaries')
+    expect(skillList(['transitions', 'boundaries', 'inferences'])).toBe(
+      'Transitions, Boundaries and Inferences',
+    )
+  })
+
+  it('counts the rest past the room it has', () => {
+    expect(skillList(['transitions', 'boundaries', 'inferences', 'circles'], 3)).toBe(
+      'Transitions, Boundaries and 2 more',
+    )
+    expect(skillList(['transitions', 'boundaries', 'inferences'], 3)).toBe(
+      'Transitions, Boundaries and Inferences',
+    )
   })
 })

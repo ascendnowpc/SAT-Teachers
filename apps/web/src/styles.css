@@ -2361,6 +2361,29 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .mode-opt:disabled { cursor: default; opacity: .55; }
 .targeted-timing { margin-top: 22px; }
 
+/* What a targeted test is on (0086): every section with its skills, a box a
+   skill and a Whole section button a section. Two columns where they fit. */
+.skill-choose { display: grid; gap: 10px; }
+@media (min-width: 760px) { .skill-choose { grid-template-columns: 1fr 1fr; } }
+.skill-group {
+  padding: 10px 14px 8px; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--r); background: #fff;
+  transition: border-color var(--t), box-shadow var(--t);
+}
+.skill-group.on { border-color: var(--navy-700); box-shadow: inset 0 0 0 1px var(--navy-700); }
+.skill-group-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 2px;
+  font-size: 13px; font-weight: 600; color: var(--ink);
+}
+.skill-group-head .chip-btn { padding: 4px 10px; font-size: 12px; white-space: nowrap; flex: none; }
+.targeted-builder .skill-check { align-items: flex-start; margin: 6px 0; line-height: 1.4; }
+.targeted-builder .skill-check input { margin-top: 2px; flex: none; }
+.targeted-builder .skill-check .muted { font-size: 12px; }
+
+/* The picker's skills, when a test is on several. */
+.tpick-skills { padding: 0 22px 12px; }
+
 /* Pick for me: how many, and whether seen questions may come back. */
 .targeted-auto { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; margin: 0 0 14px; }
 .targeted-auto-size { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--ink); }
@@ -2514,6 +2537,8 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .result-line p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ink); }
 .result-line p + p { margin-top: 8px; }
 .result-line .muted { font-size: 13px; }
+/* A test of several skills: a line a skill, each with its own step (0086). */
+.result-skills { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
 .targeted-analysis .stat .of { font-size: 16px; font-weight: 500; color: var(--muted); }
 .how-scored {
   margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--border);
@@ -2610,6 +2635,32 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .report-hero-skill { font-size: 18px; font-weight: 600; color: var(--ink); }
 .report-hero-score { font-family: var(--font-ui); font-size: clamp(36px, 6vw, 48px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
 .report-hero-over { color: var(--ink-2); font-size: 15px; margin-top: 2px; }
+/* Bluebook practice tests on the parent card (0088): one line a test under the hero. */
+.report-bluebook-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.report-bluebook-list li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; gap: 10px; color: var(--ink-2); }
+.report-bluebook-list .num { font-weight: 600; color: var(--ink); }
+
+/* The staff's Bluebook card (0088): the list, and the form that adds to it. */
+.bluebook-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.bluebook-head .spring { flex: 1; }
+.bluebook-head .muted { margin: 2px 0 10px; }
+.bluebook-add { border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; margin: 4px 0 14px; background: #fff; }
+.bluebook-add > .grid-2 .btn { margin-top: 6px; }
+.bluebook-form { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 10px; }
+.bluebook-official { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 12px 0 0; }
+.bluebook-read-bands { margin: 4px 0 12px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--page); }
+.bluebook-read-bands-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; margin-bottom: 6px; }
+.bluebook-bands-row td { background: var(--page); }
+
+/* An SAT score report's eight domains (0090): Reading and Writing beside Math. */
+.bluebook-bands { display: grid; gap: 6px 28px; }
+@media (min-width: 640px) { .bluebook-bands { grid-template-columns: 1fr 1fr; } }
+.bluebook-bands-head { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 2px 0 4px; }
+.bluebook-bands dl { margin: 0; display: grid; gap: 3px; }
+.bluebook-band { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.bluebook-band dt { color: var(--ink-2); }
+.bluebook-band dd { margin: 0; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.report-bluebook-bands { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .report-section { margin-top: 28px; }
 .report-section h2 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
 .report-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -2683,6 +2734,9 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .retention-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12.5px; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
 .retention-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
 .retention-table .muted { margin-left: 6px; }
+/* A student's saved reports, opened under their row (0087). */
+.retention-saved td { padding-top: 6px; padding-bottom: 6px; font-size: 13px; color: var(--ink-2); }
+.retention-saved td:first-child { padding-left: 18px; }
 
 /* A targeted test's Skip (0072): there, but quieter than Submit. */
 .exam-skip { margin-top: 8px; }

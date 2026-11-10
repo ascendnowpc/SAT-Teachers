@@ -63,6 +63,8 @@ export function ProgressLineView({
                   <td>
                     {p.isBaseline ? 'Baseline — ' : ''}
                     {p.kind === 'diagnostic' ? 'diagnostic' : 'targeted test'}
+                    {/* A test of several skills: this point is this skill's share of it (0086). */}
+                    {p.ofSkills && <span className="muted"> · on {p.ofSkills} skills</span>}
                     <div className="muted">
                       {p.correct} of {p.reached} right
                       {p.timedOut > 0 && ` · ${p.timedOut} timed out`}
@@ -256,7 +258,11 @@ export function useLongPattern(
   useEffect(() => {
     if (!progress || !line || !cfg) return
     const testIds = new Set(line.points.filter((p) => p.kind === 'test').map((p) => p.sessionId))
-    const items = progress.items.filter((i) => testIds.has(i.session_id))
+    // On a skill's line, that skill's questions: a test of several skills
+    // (0086) asked others the line is not about.
+    const items = progress.items.filter(
+      (i) => testIds.has(i.session_id) && (line.skill === null || i.skill === line.skill),
+    )
     let active = true
     void loadAnalysedQuestions(items.map((i) => i.question_id)).then((qs) => {
       if (active) setPattern(longPattern(asAnalysed(items, qs), cfg))
@@ -285,9 +291,15 @@ interface DraftShared {
 export function OverridePanel({
   sessionId,
   previousSessionId,
+  skill = '',
+  title,
 }: {
   sessionId: string
   previousSessionId: string | null
+  /** On a test of several skills, the skill whose step this is (0086); '' for a test with one line. */
+  skill?: string
+  /** The heading, when the test has a step per skill. */
+  title?: string
 }) {
   const [wording, setWording] = useState('')
   const [context, setContext] = useState('')
@@ -305,11 +317,12 @@ export function OverridePanel({
       .from('verdict_overrides')
       .select('*')
       .eq('session_id', sessionId)
+      .eq('skill', skill)
       .maybeSingle()
     setRow(data)
     setWording(data?.draft_wording ?? '')
     setContext(data?.draft_context ?? '')
-  }, [sessionId])
+  }, [sessionId, skill])
   useEffect(() => {
     void load()
   }, [load])
@@ -329,11 +342,12 @@ export function OverridePanel({
       p_previous: previousSessionId,
       p_wording: wording,
       p_context: context,
+      p_skill: skill,
     })
 
   return (
     <div className="card card-pad">
-      <div className="section-title">Your wording for this step</div>
+      <div className="section-title">{title ?? 'Your wording for this step'}</div>
       <p className="muted">
         The computed verdict stays on the page under it. The PC sees this once you share it.
       </p>
@@ -357,7 +371,7 @@ export function OverridePanel({
           disabled={busy || (!wording.trim() && !context.trim())}
           onClick={async () => {
             await save()
-            await run('share_verdict_override', { p_session: sessionId, p_share: true })
+            await run('share_verdict_override', { p_session: sessionId, p_share: true, p_skill: skill })
           }}
         >
           Share with the PC
@@ -368,7 +382,7 @@ export function OverridePanel({
             className="btn btn-ghost btn-sm"
             disabled={busy}
             onClick={() =>
-              void run('share_verdict_override', { p_session: sessionId, p_share: false })
+              void run('share_verdict_override', { p_session: sessionId, p_share: false, p_skill: skill })
             }
           >
             Take it back

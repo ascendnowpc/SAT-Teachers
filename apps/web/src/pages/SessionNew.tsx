@@ -286,8 +286,10 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
         const { data, error: err } = await supabase.rpc('create_targeted_session', {
           p_student: student.id,
           p_subject: subject,
-          p_section: draft.section,
-          p_skill: draft.skill,
+          // A test on skills names them (0086); one on a whole section names it.
+          p_section: draft.skills.length > 0 ? null : draft.section,
+          p_skill: null,
+          p_skills: draft.skills.length > 0 ? draft.skills : null,
           p_scheduled_at: utcInputToIso(scheduledAt),
           p_title: title.trim() || null,
           p_size: bookedSize(draft),
@@ -359,7 +361,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           <h1>{targeted ? 'New targeted test' : 'New diagnostic'}</h1>
           <p className="sub">
             {targeted
-              ? 'A short set on one skill. The student sits it alone on their link, against the clock, and it has its own report.'
+              ? 'A short set on one skill, or on several. The student sits it alone on their link, against the clock, and it has its own report.'
               : 'A live session: you put each question up for the student and fill the diagnostic form after. Their first one in a subject is their baseline.'}
           </p>
         </div>
@@ -477,7 +479,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={
-                  targeted ? 'Optional — the skill is shown anyway' : 'Diagnostic follow-up'
+                  targeted ? 'Optional — the skills are shown anyway' : 'Diagnostic follow-up'
                 }
               />
             </Field>
@@ -639,8 +641,8 @@ function BaselineNote({
   if (targeted && !first) {
     return (
       <Notice kind="info">
-        This student has no {subject} diagnostic yet, so this test becomes their baseline on the
-        skill. Book their diagnostic first if you want it to be the starting point.
+        This student has no {subject} diagnostic yet, so this test becomes their baseline on each
+        skill it asks. Book their diagnostic first if you want it to be the starting point.
       </Notice>
     )
   }

@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildSet,
+  buildSkillsSet,
   byLevel,
   chosenSet,
   describeSet,
+  describeSkillsSet,
   inLevelOrder,
   levelCounts,
   mixFor,
   printedOrder,
   seededRandom,
+  skillsAsked,
+  splitEvenly,
   suggestedMinutes,
   type Candidate,
 } from './targetedSet'
@@ -272,5 +276,118 @@ describe('suggestedMinutes', () => {
 
   it('is never less than a minute', () => {
     expect(suggestedMinutes(0, 60)).toBe(1)
+  })
+})
+
+/* ------------------------------------------------ several skills (0086) --- */
+
+describe('splitEvenly', () => {
+  it('shares a set between skills, the earlier ones taking what is left over', () => {
+    expect(splitEvenly(12, 3)).toEqual([4, 4, 4])
+    expect(splitEvenly(10, 3)).toEqual([4, 3, 3])
+    expect(splitEvenly(10, 4)).toEqual([3, 3, 2, 2])
+    expect(splitEvenly(2, 3)).toEqual([1, 1, 0])
+  })
+
+  it('always adds up to the size', () => {
+    for (let n = 0; n <= 20; n++)
+      for (let k = 1; k <= 5; k++) expect(splitEvenly(n, k).reduce((a, b) => a + b, 0)).toBe(n)
+  })
+})
+
+/** n questions on a skill, spread over the levels: easy, medium, hard, easy, … */
+function onSkill(skill: string, n: number, extra: Partial<Candidate> = {}): Candidate[] {
+  const levels: Difficulty[] = ['easy', 'medium', 'hard']
+  return Array.from({ length: n }, (_, i) =>
+    c(`${skill}-${i + 1}`, levels[i % 3], i + 1, { skill, source: 'practice', set_level: null, ...extra }),
+  )
+}
+
+const skillOf = (id: string) => id.split('-')[0]
+
+describe('buildSkillsSet', () => {
+  const bank = [...onSkill('transitions', 9), ...onSkill('boundaries', 9)]
+
+  it('gives each skill an even share', () => {
+    const b = buildSkillsSet(bank, ['transitions', 'boundaries'], 10, { allowRepeats: false })
+    expect(b.questions).toHaveLength(10)
+    expect(b.parts.map((p) => [p.skill, p.given])).toEqual([
+      ['transitions', 5],
+      ['boundaries', 5],
+    ])
+    expect(b.missing).toBe(0)
+  })
+
+  it('is sat easy → medium → hard, the skills taking turns within a level', () => {
+    const b = buildSkillsSet(bank, ['transitions', 'boundaries'], 6, { allowRepeats: false })
+    expect(b.questions.map((q) => q.difficulty)).toEqual([
+      'easy', 'easy', 'medium', 'medium', 'hard', 'hard',
+    ])
+    expect(b.questions.map((q) => skillOf(q.question_id))).toEqual([
+      'transitions', 'boundaries', 'transitions', 'boundaries', 'transitions', 'boundaries',
+    ])
+  })
+
+  it('lets the others cover a skill with too few to ask, in the order chosen', () => {
+    const short = [...onSkill('transitions', 9), ...onSkill('boundaries', 2), ...onSkill('inferences', 9)]
+    const b = buildSkillsSet(short, ['transitions', 'boundaries', 'inferences'], 12, {
+      allowRepeats: false,
+    })
+    expect(b.parts.map((p) => [p.skill, p.asked, p.given])).toEqual([
+      ['transitions', 4, 5],
+      ['boundaries', 4, 2],
+      ['inferences', 4, 5],
+    ])
+    expect(b.questions).toHaveLength(12)
+    expect(describeSkillsSet(b, (k) => k)).toEqual([
+      'transitions: 5, covering for another skill',
+      'boundaries: 2 to ask — an even share is 4',
+      'inferences: 5, covering for another skill',
+    ])
+  })
+
+  it('leaves a seen question out unless repeats are allowed, and says what is missing', () => {
+    const seen = [...onSkill('transitions', 3), ...onSkill('boundaries', 3, { seen: true })]
+    const fresh = buildSkillsSet(seen, ['transitions', 'boundaries'], 6, { allowRepeats: false })
+    expect(skillsAsked(fresh.questions)).toEqual(['transitions'])
+    expect(fresh.missing).toBe(3)
+    expect(describeSkillsSet(fresh, (k) => k)).toContain('boundaries: nothing to ask — an even share is 3')
+    expect(describeSkillsSet(fresh, (k) => k)).toContain('3 of 6 available')
+
+    const again = buildSkillsSet(seen, ['transitions', 'boundaries'], 6, { allowRepeats: true })
+    expect(skillsAsked(again.questions)).toEqual(['transitions', 'boundaries'])
+  })
+
+  it('draws the same set from the same seed, and another from another', () => {
+    const big = [...onSkill('transitions', 30), ...onSkill('boundaries', 30)]
+    const draw = (seed: number) =>
+      buildSkillsSet(big, ['transitions', 'boundaries'], 8, {
+        allowRepeats: false,
+        random: seededRandom(seed),
+      }).questions.map((q) => q.question_id)
+    expect(draw(7)).toEqual(draw(7))
+    expect(draw(7)).not.toEqual(draw(8))
+  })
+})
+
+describe('skillsAsked', () => {
+  it('lists the skills a set asks, in the order they come', () => {
+    expect(
+      skillsAsked([{ skill: 'boundaries' }, { skill: 'transitions' }, { skill: 'boundaries' }, { skill: null }]),
+    ).toEqual(['boundaries', 'transitions'])
+  })
+})
+
+describe('describeSkillsSet', () => {
+  it('names a level a skill could not balance when it had questions to choose from', () => {
+    // Transitions has six, none of them hard: its share of 3 asks for one.
+    const noHard = [
+      ...onSkill('transitions', 6).map((x) => ({ ...x, difficulty: x.difficulty === 'hard' ? ('medium' as const) : x.difficulty })),
+      ...onSkill('boundaries', 6),
+    ]
+    const b = buildSkillsSet(noHard, ['transitions', 'boundaries'], 6, { allowRepeats: false })
+    expect(describeSkillsSet(b, (k) => k)).toEqual([
+      'transitions: a balanced set needs 1 hard; 0 unseen — 1 short; borrowed 1 from medium',
+    ])
   })
 })

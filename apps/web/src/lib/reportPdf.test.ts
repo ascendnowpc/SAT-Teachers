@@ -296,6 +296,7 @@ describe('the Progress section', () => {
         reached: 2,
         timedOut: 0,
         notReached: 0,
+        ofSkills: null,
         raw: 5,
         level: 30,
         sessionsBefore: 0,

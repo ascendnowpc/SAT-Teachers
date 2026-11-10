@@ -188,8 +188,8 @@ begin
 
   perform __as(null, 'postgres');
   select default_set_size::text into txt from progress_config where subject = 'english';
-  return query select '6 short'::text, 'a new test starts at 10 (0069)'::text, '10'::text,
-    coalesce(txt, 'null'), __verdict(txt = '10');
+  return query select '6 short'::text, 'a new test starts at 12 (0089)'::text, '12'::text,
+    coalesce(txt, 'null'), __verdict(txt = '12');
 
   -- ============ 7. grants ============
   perform __as(null, 'postgres');

@@ -473,7 +473,8 @@ export async function reportPdf(doc: ReportPdfDoc, logo: Uint8Array | null = nul
   } else {
     stats(l, doc)
     if (doc.recordingNote) notice(l, doc.recordingNote)
-    domains(l, doc)
+    // A targeted test has no form: no heading for one.
+    if (doc.domains.length > 0) domains(l, doc)
 
     if (doc.reflection) {
       l.heading('The teacher’s comments on the session')

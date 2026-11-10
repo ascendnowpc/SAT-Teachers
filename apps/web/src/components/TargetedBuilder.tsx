@@ -1,107 +1,59 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SECTIONS, sectionLabel, skillLabel, skillsFor } from '../lib/constants'
+import { SECTIONS, sectionLabel, skillLabel, skillList, skillsFor } from '../lib/constants'
 import { sessionsSinceLastTest, type StudentProgress } from '../lib/progress'
 import { loadCandidates, loadConfig } from '../lib/progressApi'
 import { rows, supabase } from '../lib/supabase'
 import {
+  bareSkills,
+  draftIsOn,
+  draftOnLabel,
+  newSeed,
+  overallMinutesOf,
+  withSet,
+  type TargetedDraft,
+} from '../lib/targetedDraft'
+import {
   buildSet,
+  buildSkillsSet,
   chosenSet,
   describeSet,
+  describeSkillsSet,
   levelCounts,
+  MAX_SET,
   seededRandom,
-  suggestedMinutes,
   type Candidate,
 } from '../lib/targetedSet'
 import type { Question, Subject } from '../lib/types'
 import { MathText } from './MathText'
-import { MAX_SET, TargetedPicker, whereFrom } from './TargetedPicker'
+import { TargetedPicker, whereFrom } from './TargetedPicker'
 import { DifficultyBadge, Field, Input, Notice, Select } from './ui'
 
+// The draft's rules live in lib/targetedDraft, where they are tested; the
+// booking page reads them from here, beside the form they belong to.
+export {
+  bookedSize,
+  draftProblem,
+  emptyDraft,
+  overallMinutesOf,
+  type TargetedDraft,
+} from '../lib/targetedDraft'
+
 /**
- * What the teacher asks for when they book a targeted test (0061): the skill
- * first, then how the questions are chosen, then the clocks.
+ * What the teacher asks for when they book a targeted test (0061): what it is
+ * on first, then how the questions are chosen, then the clocks.
  *
- * Neither way is chosen until the teacher picks one. **Choose them myself**
- * opens the questions on the skill in a pop-up (TargetedPicker) to tick;
- * **Pick for me** draws a balanced set at random (lib/targetedSet: easy →
- * medium → hard, unseen before seen), and Pick again draws another. Either
- * way the form then shows the set as a short numbered list, with Edit to open
- * the pop-up on it — a pick edited by hand becomes a set chosen by hand.
+ * It is on one skill, on several from any section (0086), or on a whole
+ * section. Nothing is chosen until the teacher ticks something: a skill's
+ * box, or a section's Whole section.
  *
- * The questions used to be listed down the form itself, fifty boxes deep on a
- * well-stocked skill, and before that a Swap menu under every question.
+ * Neither way of choosing the questions is chosen until the teacher picks one.
+ * **Choose them myself** opens the questions on the skills in a pop-up
+ * (TargetedPicker) to tick; **Pick for me** draws a balanced set at random
+ * (lib/targetedSet: easy → medium → hard, unseen before seen — and on several
+ * skills, an even share each), and Pick again draws another. Either way the
+ * form then shows the set as a short numbered list, with Edit to open the
+ * pop-up on it — a pick edited by hand becomes a set chosen by hand.
  */
-export interface TargetedDraft {
-  section: string
-  /** Null: the whole section. */
-  skill: string | null
-  /** Ticked by the teacher, drawn at random, or not chosen yet. */
-  how: 'manual' | 'auto' | null
-  /** Pick for me: how many to draw. A ticked set is as long as what is ticked. */
-  size: number
-  /** Pick for me: the draw. Pick again is a new one. */
-  seed: number
-  /** One clock for every question; null — each question's own target time. */
-  questionSeconds: number | null
-  overallMinutes: number
-  /** The whole test's clock follows the questions until the teacher sets it. */
-  overallAuto: boolean
-  /**
-   * Pick for me: whether a question the student has seen may be drawn. A
-   * ticked set allows it exactly when a ticked question was seen.
-   */
-  allowRepeats: boolean
-  /** The set, in the order it will be sat. */
-  questions: string[]
-}
-
-const newSeed = () => Math.floor(Math.random() * 2 ** 31)
-
-export function emptyDraft(subject: Subject): TargetedDraft {
-  return {
-    section: SECTIONS[subject][0].value,
-    skill: null,
-    how: null,
-    size: 0,
-    seed: newSeed(),
-    // The brief's mini-test: about a minute a question (0069).
-    questionSeconds: 60,
-    overallMinutes: suggestedMinutes(10, 60),
-    overallAuto: true,
-    allowRepeats: false,
-    questions: [],
-  }
-}
-
-/** The size the test is booked with: what was asked for, or what was ticked. */
-export function bookedSize(d: TargetedDraft): number {
-  // What the set holds. Pick for me on a short bank holds fewer than was
-  // asked for, and the test is that many questions, not the number asked.
-  return d.questions.length
-}
-
-/** The whole test's clock: the teacher's, or a minute a question and one to spare. */
-export function overallMinutesOf(d: TargetedDraft): number {
-  return d.overallAuto ? suggestedMinutes(d.questions.length || d.size, d.questionSeconds) : d.overallMinutes
-}
-
-/** What create_targeted_session would refuse, said before it is pressed. Null when it is ready. */
-export function draftProblem(d: TargetedDraft): string | null {
-  if (d.how === null) return 'Choose how the questions are picked.'
-  if (d.questions.length === 0)
-    return d.how === 'manual'
-      ? 'Choose the questions for the test.'
-      : 'The set is empty — there are no questions on this skill to use.'
-  const size = bookedSize(d)
-  if (size < 1 || size > MAX_SET || d.questions.length > MAX_SET)
-    return `A targeted test is 1 to ${MAX_SET} questions.`
-  if (d.questionSeconds !== null && (d.questionSeconds < 10 || d.questionSeconds > 900))
-    return 'A question’s clock is 10 to 900 seconds.'
-  const overall = overallMinutesOf(d)
-  if (overall < 1 || overall > 180) return 'The whole test is 1 to 180 minutes.'
-  return null
-}
-
 export function TargetedBuilder({
   studentId,
   subject,
@@ -136,10 +88,18 @@ export function TargetedBuilder({
 
   // The questions themselves too, without their keys: the pop-up shows each
   // one the way the student will see it.
+  const onKey = `${draft.section ?? ''}|${draft.skills.join(',')}`
   useEffect(() => {
+    if (!draftIsOn(draft)) {
+      setCandidates([])
+      setQuestions(new Map())
+      setError(null)
+      setLoading(false)
+      return
+    }
     let active = true
     setLoading(true)
-    void loadCandidates(studentId, subject, draft.section, draft.skill).then(
+    void loadCandidates(studentId, subject, draft.section, draft.skills).then(
       async ({ candidates: list, error: err }) => {
         if (!active) return
         setError(err)
@@ -161,42 +121,49 @@ export function TargetedBuilder({
     return () => {
       active = false
     }
-  }, [studentId, subject, draft.section, draft.skill])
+  }, [studentId, subject, onKey])
 
-  const built = useMemo(
-    () =>
-      buildSet(candidates, draft.size, {
-        allowRepeats: draft.allowRepeats,
-        random: seededRandom(draft.seed),
-      }),
-    [candidates, draft.size, draft.allowRepeats, draft.seed],
-  )
+  const several = draft.skills.length > 1
+  const built = useMemo(() => {
+    const options = { allowRepeats: draft.allowRepeats, random: seededRandom(draft.seed) }
+    if (several) {
+      const b = buildSkillsSet(candidates, draft.skills, draft.size, options)
+      return { questions: b.questions, notes: describeSkillsSet(b, (k) => skillLabel(k) ?? k) }
+    }
+    const b = buildSet(candidates, draft.size, options)
+    return { questions: b.questions, notes: describeSet(b) }
+  }, [candidates, several, draft.skills.join(','), draft.size, draft.allowRepeats, draft.seed])
 
-  // Picked for them: a new skill, size, rule or draw is a new set. Ticked:
-  // only what is on this skill stays ticked.
+  // Picked for them: a new choice of skills, size, rule or draw is a new set.
+  // Ticked: only what is on the chosen skills stays ticked.
   const builtKey = built.questions.map((c) => c.question_id).join(',')
   useEffect(() => {
     if (loading) return
     if (draft.how === 'auto') {
-      onChange({ ...draft, questions: built.questions.map((c) => c.question_id) })
+      onChange(withSet(draft, built.questions))
     } else if (draft.how === 'manual') {
-      const kept = chosenSet(draft.questions, candidates).map((c) => c.question_id)
-      if (kept.join() !== draft.questions.join()) onChange({ ...draft, questions: kept })
+      const kept = chosenSet(draft.questions, candidates)
+      if (kept.map((c) => c.question_id).join() !== draft.questions.join())
+        onChange(withSet(draft, kept))
     }
   }, [builtKey, loading, draft.how])
 
   const byId = useMemo(() => new Map(candidates.map((c) => [c.question_id, c])), [candidates])
   const set = draft.questions.map((id) => byId.get(id)).filter((c): c is Candidate => !!c)
-  const since = progress ? sessionsSinceLastTest(progress, draft.section, draft.skill) : null
-  const notes = describeSet(built)
-  const on = draft.skill ? skillLabel(draft.skill) : `${sectionLabel(draft.section)} — whole section`
+  const what = several ? 'these skills' : draft.skills.length === 1 ? 'this skill' : 'this section'
+  const bare = bareSkills(draft)
+
+  function choose(on: Pick<TargetedDraft, 'section' | 'skills'>) {
+    // A new choice is a new set: nothing ticked carries over until the
+    // questions are read again, and a pick is drawn afresh.
+    onChange({ ...draft, ...on, questions: [], asks: [] })
+  }
 
   function applyTicked(ids: string[]) {
     const chosen = chosenSet(ids, candidates)
     onChange({
-      ...draft,
+      ...withSet(draft, chosen),
       how: 'manual',
-      questions: chosen.map((c) => c.question_id),
       // The server refuses a seen question unless repeats are allowed, and a
       // ticked one was ticked on purpose.
       allowRepeats: chosen.some((c) => c.seen),
@@ -206,49 +173,22 @@ export function TargetedBuilder({
 
   return (
     <div className="targeted-builder">
-      <div className="grid-2">
-        <Field label="Section" required>
-          <Select
-            value={draft.section}
-            onChange={(e) =>
-              onChange({ ...draft, section: e.target.value, skill: null, questions: [] })
-            }
-          >
-            {SECTIONS[subject].map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field
-          label="Skill"
-          hint={
-            since === null
-              ? undefined
-              : `${since} session${since === 1 ? '' : 's'} since the last test on this ${draft.skill ? 'skill' : 'section'}`
-          }
-        >
-          <Select
-            value={draft.skill ?? ''}
-            onChange={(e) => onChange({ ...draft, skill: e.target.value || null, questions: [] })}
-          >
-            <option value="">The whole section</option>
-            {skillsFor(draft.section).map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
+      <SkillChooser
+        subject={subject}
+        section={draft.section}
+        skills={draft.skills}
+        progress={progress}
+        onChange={choose}
+      />
 
       <div className="targeted-how-label">
         The questions
         <span className="muted">
-          {loading
-            ? ' · reading the bank…'
-            : ` · ${candidates.length} on ${draft.skill ? 'this skill' : 'this section'}`}
+          {!draftIsOn(draft)
+            ? ' · choose what the test is on first'
+            : loading
+              ? ' · reading the bank…'
+              : ` · ${candidates.length} on ${what}`}
         </span>
       </div>
       <div className="mode-pick" role="group" aria-label="How the questions are chosen">
@@ -273,15 +213,18 @@ export function TargetedBuilder({
           }
         >
           <strong>Pick for me</strong>
-          <span className="mode-hint">A balanced mix at random, easy → hard, unseen first.</span>
+          <span className="mode-hint">
+            {several
+              ? 'An even share of each skill at random, easy → hard, unseen first.'
+              : 'A balanced mix at random, easy → hard, unseen first.'}
+          </span>
         </button>
       </div>
 
       {error && <Notice kind="error">{error}</Notice>}
-      {!loading && candidates.length === 0 && !error && (
+      {draftIsOn(draft) && !loading && candidates.length === 0 && !error && (
         <p className="field-hint">
-          There are no questions on this {draft.skill ? 'skill' : 'section'} yet. Choose another,
-          or add some to the practice pool.
+          There are no questions on {what} yet. Choose another, or add some to the practice pool.
         </p>
       )}
 
@@ -310,11 +253,13 @@ export function TargetedBuilder({
         </div>
       )}
 
-      {draft.how !== null && !loading && (
+      {draft.how !== null && !loading && draftIsOn(draft) && (
         <ChosenSet
           set={set}
           questions={questions}
-          notes={draft.how === 'auto' ? notes : []}
+          several={several}
+          notes={draft.how === 'auto' ? built.notes : []}
+          bare={draft.questions.length > 0 ? bare : []}
           onEdit={() => setPicking(true)}
           onPickAgain={
             draft.how === 'auto' ? () => onChange({ ...draft, seed: newSeed() }) : undefined
@@ -369,7 +314,8 @@ export function TargetedBuilder({
           candidates={candidates}
           questions={questions}
           initial={draft.questions}
-          title={on ?? ''}
+          title={draftOnLabel(draft)}
+          skills={draft.skills}
           onUse={applyTicked}
           onClose={() => setPicking(false)}
         />
@@ -379,25 +325,122 @@ export function TargetedBuilder({
 }
 
 /**
+ * What the test is on: every section of the subject with its skills, a box
+ * for each skill and a Whole section button for each section. Ticking skills
+ * makes a test on them — from any section, in the order ticked; Whole section
+ * makes a test on all of one section and clears the ticks, and ticking a skill
+ * after it clears the section.
+ */
+function SkillChooser({
+  subject,
+  section,
+  skills,
+  progress,
+  onChange,
+}: {
+  subject: Subject
+  section: string | null
+  skills: string[]
+  progress: StudentProgress | null
+  onChange: (on: Pick<TargetedDraft, 'section' | 'skills'>) => void
+}) {
+  const since = (sec: string, skill: string | null) => {
+    if (!progress) return null
+    const n = sessionsSinceLastTest(progress, sec, skill)
+    return n === null ? null : `${n} session${n === 1 ? '' : 's'} since its last test`
+  }
+
+  function toggle(skill: string) {
+    const next = skills.includes(skill) ? skills.filter((k) => k !== skill) : [...skills, skill]
+    onChange({ section: null, skills: next })
+  }
+
+  return (
+    <Field
+      label="What it is on"
+      required
+      hint={
+        skills.length > 0 || section
+          ? `On ${skills.length > 0 ? skillList(skills) : `the whole of ${sectionLabel(section)}`}.`
+          : 'Tick a skill, several from any section, or a whole section.'
+      }
+    >
+      <div className="skill-choose">
+        {SECTIONS[subject].map((sec) => {
+          const whole = section === sec.value && skills.length === 0
+          const wholeSince = since(sec.value, null)
+          return (
+            <div
+              key={sec.value}
+              role="group"
+              aria-labelledby={`skills-${sec.value}`}
+              className={`skill-group ${whole ? 'on' : ''}`}
+            >
+              <div className="skill-group-head">
+                <span id={`skills-${sec.value}`}>{sec.label}</span>
+                <button
+                  type="button"
+                  className={`chip-btn ${whole ? 'on' : ''}`}
+                  aria-pressed={whole}
+                  title={wholeSince ?? undefined}
+                  onClick={() =>
+                    onChange(whole ? { section: null, skills: [] } : { section: sec.value, skills: [] })
+                  }
+                >
+                  Whole section
+                </button>
+              </div>
+              {skillsFor(sec.value).map((sk) => {
+                const hint = since(sec.value, sk.value)
+                return (
+                  <label key={sk.value} className="check skill-check">
+                    <input
+                      type="checkbox"
+                      checked={skills.includes(sk.value)}
+                      onChange={() => toggle(sk.value)}
+                    />
+                    <span>
+                      {sk.label}
+                      {hint && <span className="muted"> · {hint}</span>}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    </Field>
+  )
+}
+
+/**
  * The set, as the form shows it once it is chosen: how many and how they
- * split by level, then one line a question in the order they are sat.
+ * split by level (and by skill, on several), then one line a question in the
+ * order they are sat.
  */
 function ChosenSet({
   set,
   questions,
+  several,
   notes,
+  bare,
   onEdit,
   onPickAgain,
 }: {
   set: Candidate[]
   questions: Map<string, Question>
+  several: boolean
   /** What the draw could not balance. */
   notes: string[]
+  /** Chosen skills the set asks nothing on. */
+  bare: string[]
   onEdit: () => void
   /** Only for a set picked at random. */
   onPickAgain?: () => void
 }) {
   const counts = levelCounts(set)
+  const bySkill = several ? skillCountsOf(set) : []
 
   if (set.length === 0) {
     return (
@@ -425,6 +468,11 @@ function ChosenSet({
                 </span>
               ) : null,
             )}
+            {bySkill.map(([k, n]) => (
+              <span key={k} className="badge badge-neutral">
+                {n} {skillLabel(k) ?? k}
+              </span>
+            ))}
           </div>
         </div>
         <span className="spring" />
@@ -438,6 +486,12 @@ function ChosenSet({
         </button>
       </div>
 
+      {bare.length > 0 && (
+        <Notice kind="error">
+          Nothing in the set is on {skillList(bare)}. Every skill the test is on needs at least
+          one question — add one, or take the skill off the test.
+        </Notice>
+      )}
       {notes.length > 0 && (
         <Notice kind="info">
           {notes.map((n) => (
@@ -456,7 +510,7 @@ function ChosenSet({
                 <span className="chosen-stem">
                   <MathText text={q?.stem ?? '—'} math={q?.subject === 'mathematics'} />
                 </span>
-                <span className="chosen-from">{whereFrom(c)}</span>
+                <span className="chosen-from">{whereFrom(c, several)}</span>
               </span>
               <DifficultyBadge level={c.difficulty} />
             </li>
@@ -465,4 +519,11 @@ function ChosenSet({
       </ol>
     </div>
   )
+}
+
+/** How many of a set are on each skill, in the order the skills first appear. */
+function skillCountsOf(set: Candidate[]): [string, number][] {
+  const out = new Map<string, number>()
+  for (const c of set) if (c.skill) out.set(c.skill, (out.get(c.skill) ?? 0) + 1)
+  return [...out]
 }

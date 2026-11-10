@@ -170,7 +170,7 @@ begin
     __verdict((j->>'ran')::boolean and (j->>'students')::int >= 1);
 
   -- ============ 6. grants ============
-  for txt in select unnest(array['run_retention()', 'retention_due(interval)', 'retention_old_transcripts()']) loop
+  for txt in select unnest(array['run_retention(boolean)', 'retention_due(interval)', 'retention_old_transcripts()']) loop
     return query select '6 grants'::text, txt || ' — internal'::text, 'nobody'::text,
       (case when has_function_privilege('anon', 'public.'||txt, 'execute')
               or has_function_privilege('authenticated', 'public.'||txt, 'execute')

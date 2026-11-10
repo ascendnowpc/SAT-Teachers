@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { BluebookScores } from '../components/BluebookScores'
 import { IconBack } from '../components/icons'
 import {
   ProgressLineView,
@@ -34,7 +35,7 @@ import type { Profile, Subject } from '../lib/types'
  */
 export function StudentProgress() {
   const { id } = useParams<{ id: string }>()
-  const { isTeacher } = useAuth()
+  const { isTeacher, isAdmin, profile } = useAuth()
   const [student, setStudent] = useState<Profile | null>(null)
   const [subject, setSubject] = useState<Subject>('english')
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -86,10 +87,20 @@ export function StudentProgress() {
         </h1>
       </div>
       <p className="muted">
-        Progress on each skill a targeted test has been set on: the baseline, every test since, and
-        the sessions in between, whoever taught them.
+        SAT scores — official SATs and Bluebook practice tests — then progress on each skill a targeted test
+        has been set on: the baseline, every test since, and the sessions in between, whoever taught
+        them.
         {student?.pc && <> PC: {student.pc}.</>}
       </p>
+
+      {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
+      <BluebookScores
+        studentId={id}
+        studentName={student?.full_name ?? null}
+        staff={isTeacher}
+        me={profile?.id ?? null}
+        isAdmin={isAdmin}
+      />
 
       <div className="mode-pick" role="group" aria-label="Subject">
         {SUBJECTS.map((s) => (

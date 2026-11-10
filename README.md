@@ -44,14 +44,15 @@ npm run dev                                    # http://localhost:5173
 | **Loaded bank** | 60 items with passages, keys, sections and difficulty, and every one of them in a test |
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
-| **Targeted tests** | A short set on one skill, built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`) |
+| **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | A one-page card inside the student's account: the headline progress, a red / amber / green skill map and the trend, opened with the student's ID and PIN (`0070`) |
 | **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
-| **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`) |
+| **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`). **Every report is saved as a PDF first**, and nothing it was drawn from goes until it is (`0087`) |
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
 | **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`) |
+| **SAT scores** | A student's official SATs and Bluebook practice tests — total, Reading and Writing, Math, their percentiles and the eight domains' performance bands — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`, `0090`) |
 
 ## English is three tests
 
@@ -821,14 +822,16 @@ targeted tests. `live` is what sessions were before `0059` — a "lesson", the d
 under another name, counted the same way between tests. Nothing books one now, and every screen
 files those rows with the diagnostics.
 
-**Booking a targeted test** (`0061`). The teacher picks a section and a skill (or the whole
-section), then how the questions are chosen, then the clocks. **Choose them myself** opens a
-pop-up (`components/TargetedPicker.tsx`) on every question on the skill from
+**Booking a targeted test** (`0061`). The teacher picks what it is on, then how the questions are
+chosen, then the clocks. What it is on is every section of the subject with its skills: tick one
+skill, tick several — from any section, in the order ticked — or press a section's **Whole
+section** (`0086`). **Choose them myself** opens a
+pop-up (`components/TargetedPicker.tsx`) on every question on the skills from
 `targeted_candidates`: the levels as tabs, a box to tick on each question, "seen before" on any
 the student has met, and the question clicked shown whole on the right the way the student will
 see it — a skill's stems are often word for word the same. "Use these" brings the ticks back;
 the set is sat easy → medium → hard. **Pick for me** draws a balanced set at random —
-`lib/targetedSet.ts`: a size (10 by default since `0069`, an admin's setting), easy → medium →
+`lib/targetedSet.ts`: a size (12 by default since `0089`, an admin's setting), easy → medium →
 hard (10 → 3/3/4, 12 → 4/3/5, 15 → 5/4/6), unseen before seen, a seeded draw that Pick again
 replaces. A level the bank cannot fill borrows from its neighbour and the form says so — "a
 balanced set needs 1 medium; 0 unseen — 1 short" — and a set the bank cannot fill is booked as
@@ -839,6 +842,26 @@ level, and Edit reopens the pop-up on it. `create_targeted_session` books the se
 set in one transaction and checks every question again; a ticked set allows repeats exactly
 when a ticked question was seen. The set is the teacher's and an admin's to read: it is what the
 student has not seen.
+
+**A test on several skills** (`0086`). The skills a diagnostic finds weak are seldom one and
+seldom in one section, and a teacher who wanted Transitions and Boundaries tested used to book two
+tests. `targeted_tests.skills` holds the list (null for a whole section, a list of one for one
+skill; `section` is null when the skills cross sections, and `skill` is kept in step for what read
+it before). Pick for me splits the size evenly between the skills (`splitEvenly`: 12 over 3 is
+4/4/4, 10 over 3 is 4/3/3) and balances each share across the levels as a one-skill set is; a skill
+with too few to ask gives what it has and the others cover the difference, and the form says so
+("Boundaries: 2 to ask — an even share is 4"). The set is sat easy → medium → hard, the skills
+taking turns within a level. The pop-up can be narrowed to one skill and counts each. **Every skill
+on the test has to be asked at least once** — the form will not book one that is not, and
+`write_targeted_set` refuses it — because a test that says it is on Boundaries and asks nothing on
+it would put a point on a line it never measured. Reading it, each skill is a point on its own line,
+made of that skill's questions in the test against that skill's share of the set
+(`progress_payload`'s `set_by_skill`, counts and never ids), the way the baseline diagnostic is
+read; the report and its PDF give the result skill by skill with each one's step, and the line
+marks such a point *on 3 skills*. The teacher's wording for a step is one per skill on such a test
+(`verdict_overrides.skill`), since each skill steps from its own point before. Every RPC kept its
+arguments and gained an optional one (`p_skills`, `p_skill`), so the app from before books and
+reads as it did (`several_skills.sql`).
 
 **Explanations** are drawn in the shape they were written in (`lib/explanation.ts`,
 `components/Explanation.tsx`). The OnePrep items (`0065`) say why the key is right and why each
@@ -889,6 +912,25 @@ count of recordings, whether it is on or off, and turning it on asks first. `run
 once a day at 03:17 UTC through pg_cron where the project has it (the local rebuild does not), and
 on the admin's *Run now*; a run while it is off deletes nothing, and every run is written onto
 `retention_policy.last_run` (`retention.sql`).
+
+**A report is saved before its data goes** (`0087`). The rows go; the reports — the record of what
+was taught and what came of it, the thing the PC was sent — are kept. **Nothing a report was drawn
+from is deleted until the report is saved as a PDF**: a due student is *held* until every report of
+theirs is (a lesson's generated report, and every completed targeted test), and a recording past its
+90 days until its session's report is, since the report quotes the model's reading of the recording
+and deleting the reading first would change the report without a word. A copy counts for the
+generation it was drawn from (`report_archive.made_from`), so a report generated again is saved
+again, beside the first. The database cannot draw a PDF, so a run that holds something back queues
+the `archive_reports` edge function (pg_net, as a report's email is queued), which reads what is
+waiting (`retention_reports_waiting`), draws each with the code that draws the PC's PDF
+(`_shared/reportDocs.ts`), stores it in the private `report-archive` bucket, indexes it in
+`report_archive`, and calls `run_retention` again so what is now saved can go. It asks for itself
+again only when it saved something, so a report that will not draw stops the loop instead of
+spinning it, and stays listed as waiting. The tab says what each run held back and why, how many
+reports each due student has still to save, and lists the **Saved reports** by student: an admin
+opens one (a link good for a minute) or deletes a student's — the files through the bucket, then
+the rows — which is how a family's request to be forgotten is met. Nobody else reads them, and no
+client writes them (`report_archive.sql`).
 
 **Reading it.** The console and the report (`/sessions/:id/report`, its own page for a targeted
 test) show, computed on read (`lib/targetedAnalytics.ts`): the score over what was reached, raw
@@ -1018,6 +1060,54 @@ number, so a student who writes `1/2` where the key says `.5` is right. It is de
 fuzzier than that: a tolerance wide enough to catch an unusual spelling is wide enough to mark a
 wrong answer right.
 
+## SAT scores from Bluebook
+
+Students sit the SAT in Bluebook — the official test at a test centre, and College Board's full
+practice tests on their own — and the score report is what tells a parent where they are on the
+scale colleges read. A teacher records it (`0088`, `0090`) on the student's progress page
+(`/students/:id/progress`), under **SAT scores**, above the subjects because it is the whole SAT:
+**Add a score**, then the report's PDF, or its text pasted, or the scores typed.
+
+**The report it is built for** is College Board's own *Your SAT Score Report*. From it come the
+test (*Test administration: SAT May 02, 2026* → an official SAT, *SAT May 2026*) and the day it was
+sat (*Tested on*); the total and the two section scores; their percentiles (*90th\**); and
+*Knowledge and Skills* — each of the eight content domains with its performance band
+(*Information and Ideas · Performance: 550-600*), which are the eight sections every question in
+this app is filed under. A practice test's report gives what it gives: *Practice Test 4* and its
+scores. The rest of the report — score ranges and three-year averages, which are about everybody,
+and the name, grade and record locator, which are the student's own — is not kept.
+
+**Reading it** is done in the browser, and nothing of the file is kept. The PDF's text layer comes
+out through pdf.js (`lib/pdfText.ts`, loaded only then), put back into lines by baseline, and
+`lib/bluebook.ts` reads it: each score from beside its label — *Total Score*, *Reading and Writing*,
+*Math* — on the label's line or the next few. Never from the printed scales, which the report sets
+in small type beside each score and breaks over two lines (*400–* above *1600*): both ends are taken
+out first, because read as scores they are 200 + 200 = 400, which adds up — the first version of the
+reader read exactly that off the real report. Never from a score range, a three-year average, or
+*Advanced Math*. College Board's scale settles the rest: a section is 200 to 800 in tens and **the
+total is the two sections added**, so the three that add up are the three read, and three that do
+not are shown as read and flagged rather than corrected. A percentile is taken only where the report
+marks one (*90th\**), never the *12th* of *12th grade*. The domains' names and their bands are each
+taken in reading order and paired one to one — and only when every name has a band, since a band
+on the wrong domain would be worse than none. What is not found is left empty to type, never worked
+out from the others, and a PSAT report, on another scale, is refused. The name on the report is read
+only to be compared with the student's: a report for somebody else says so before it is saved.
+The teacher sees every value, with a line saying what was and was not found, and nothing is saved
+until **Save the score**; changing a score it read makes it a typed one.
+
+The tests read the real report's text in both orders the app meets it — pdf.js's lines and a PDF
+viewer's copy — with the student's name, locator, scores, percentiles and ranges changed and the
+layout as printed (`lib/fixtures/sat-score-report.*.txt`).
+
+`save_bluebook_score` checks the scale again — a percentile is 1 to 99, a domain one of the eight
+and its band two scores in tens, the lower first — refuses a day still to come and the same test
+twice on one day, and is staff's: any teacher, any student, as with progress. The teacher who
+recorded a score or an admin deletes it. The PC reads their own students' and changes nothing. The
+parent card leads with the latest test — an official SAT by its name, with its percentile — and the
+line from the first ("1240 → 1350 over 2 tests"), then the domains' bands from the latest report
+that gave them, with nothing about who recorded any of it. A student the clean-up deletes takes
+their scores with them (`bluebook.sql`).
+
 ## The one rule that shapes the schema
 
 Postgres RLS is *row*-level: a policy cannot hide a single column of a row it grants. And
@@ -1054,6 +1144,9 @@ psql "$DATABASE_URL" -f supabase/tests/student_report.sql
 psql "$DATABASE_URL" -f supabase/tests/retention.sql
 psql "$DATABASE_URL" -f supabase/tests/skipping.sql
 psql "$DATABASE_URL" -f supabase/tests/typed_answer.sql
+psql "$DATABASE_URL" -f supabase/tests/several_skills.sql
+psql "$DATABASE_URL" -f supabase/tests/report_archive.sql
+psql "$DATABASE_URL" -f supabase/tests/bluebook.sql
 ```
 
 On a plain local Postgres, `tools/local-db/rebuild.sh` builds a scratch database from every
@@ -1220,6 +1313,7 @@ supabase functions deploy notify_new_teacher --no-verify-jwt   # the database ca
 supabase functions deploy notify_pc_report --no-verify-jwt   # the database calls it, with no token
 supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
 supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
+supabase functions deploy archive_reports --no-verify-jwt    # the clean-up calls it, with no token (0087)
 
 # once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
@@ -1243,6 +1337,29 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0090`.** Safe for the app being served: the new columns have defaults and
+`save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
+SQL editor.
+
+**Order, for `0089`.** Safe at any time: a new targeted test starts at 12 questions instead of 10,
+in every subject still on the old default.
+
+**Order, for `0088`.** Safe at any time: a table, two functions and `student_report` with one more
+field, which the app from before ignores.
+
+**Order, for `0087`.** Deploy `archive_reports` (and `notify_pc_report`, which now draws its PDF
+through the same `_shared/reportDocs.ts`) before applying it, and set `app_config.functions_url`
+if the project has not. Applied without the function, nothing is lost: the clean-up holds back
+everything a report was drawn from, and the tab says the reports could not be sent for saving. It
+holds `drop function` (`run_retention` gains an argument), so it goes through the SQL editor; the
+daily schedule calls `run_retention()` by name and needs no change.
+
+**Order, for `0086`.** Safe for the app being served: no RPC loses an argument, and a test on one
+skill is booked, read and written about as before. It holds `drop function` (the signatures gain
+an optional argument), so it goes through the SQL editor. Apply it, redeploy `notify_pc_report`
+(its targeted PDF prints a line per skill), then merge — only the new app books a test on several
+skills, so nothing older meets one.
 
 **Order, for `0066` and `0067`.** `0067` is safe at any time on its own. Apply `0066` together with
 the app that asks for the student ID, not ahead of it: the old app sends the link's token to the `*_by_token` functions, which take the entry key

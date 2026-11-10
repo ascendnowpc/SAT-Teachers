@@ -59,6 +59,8 @@ $$;
 create publication supabase_realtime;
 
 grant usage on schema public, auth, storage, net to anon, authenticated, service_role;
+-- As on Supabase: every role may touch the storage tables, and RLS decides what.
+grant select, insert, update, delete on storage.objects, storage.buckets to anon, authenticated, service_role;
 grant execute on all functions in schema auth to anon, authenticated;
 grant all on all tables in schema net to anon, authenticated;
 grant all on all sequences in schema net to anon, authenticated;

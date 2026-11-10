@@ -32,17 +32,22 @@ export async function loadConfig(subject: Subject): Promise<ProgressConfig> {
   return (data as ProgressConfig | null) ?? defaultConfig(subject)
 }
 
+/**
+ * The questions a test could ask: on any of `skills` (0086), or with none,
+ * anywhere in `section`. Each candidate says its own section and skill.
+ */
 export async function loadCandidates(
   studentId: string,
   subject: Subject,
-  section: string,
-  skill: string | null,
+  section: string | null,
+  skills: string[],
 ): Promise<{ candidates: Candidate[]; error: string | null }> {
   const { data, error } = await supabase.rpc('targeted_candidates', {
     p_student: studentId,
     p_subject: subject,
-    p_section: section,
-    p_skill: skill,
+    p_section: skills.length > 0 ? null : section,
+    p_skill: null,
+    p_skills: skills.length > 0 ? skills : null,
   })
   if (error) return { candidates: [], error: error.message }
   return { candidates: (data ?? []) as Candidate[], error: null }

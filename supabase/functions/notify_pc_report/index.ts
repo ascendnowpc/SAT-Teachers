@@ -1,18 +1,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 
 import { subjectLabel } from '../../../apps/web/src/lib/constants.ts'
-import type { Extraction } from '../../../apps/web/src/lib/extraction.ts'
 import { transportFrom } from '../../../apps/web/src/lib/mail.ts'
-import { appBase, reportEmail } from '../../../apps/web/src/lib/pcMail.ts'
-import { readingStaleness } from '../../../apps/web/src/lib/recording.ts'
-import { progressLine, progressLines, type ProgressConfig, type StudentProgress } from '../../../apps/web/src/lib/progress.ts'
-import { reportPdfDoc, type ReportPdfDoc } from '../../../apps/web/src/lib/reportPdf.ts'
-import { longPattern, type AnalysedQuestion } from '../../../apps/web/src/lib/targetedAnalytics.ts'
-import { targetedPdfDoc } from '../../../apps/web/src/lib/targetedReport.ts'
+import { reportEmail } from '../../../apps/web/src/lib/pcMail.ts'
 import { formatUtc } from '../../../apps/web/src/lib/time.ts'
-import type { DomainNote, SessionItem, SessionReportRow, Subject } from '../../../apps/web/src/lib/types.ts'
+import type { SessionReportRow } from '../../../apps/web/src/lib/types.ts'
 import { CORS, json } from '../_shared/http.ts'
 import { reportPdf } from '../_shared/pdf.ts'
+import {
+  lessonDoc,
+  logo,
+  SESSION_SELECT,
+  targetedDoc,
+  type SessionRow,
+} from '../_shared/reportDocs.ts'
 import { sendMail } from '../_shared/send.ts'
 
 /**
@@ -49,45 +50,6 @@ import { sendMail } from '../_shared/send.ts'
  * link and a line saying so. A mail that cannot be sent is recorded as failed,
  * with the reason, and the screens offer to send it again.
  */
-
-const SESSION_SELECT =
-  'id, subject, title, scheduled_at, started_at, duration_mins, teacher_notes, teacher_id, student_id, mode,' +
-  ' teacher:profiles!sessions_teacher_id_fkey(full_name),' +
-  ' student:profiles!sessions_student_id_fkey(id, full_name, display_id, pc, pc_id)'
-
-interface SessionRow {
-  id: string
-  subject: Subject
-  title: string | null
-  scheduled_at: string
-  started_at: string | null
-  duration_mins: number
-  student_id: string
-  mode: 'live' | 'diagnostic' | 'targeted'
-  teacher_notes: string | null
-  teacher_id: string
-  teacher: { full_name: string | null } | null
-  student: {
-    id: string
-    full_name: string | null
-    display_id: string | null
-    pc: string | null
-    pc_id: string | null
-  } | null
-}
-
-/** The brand mark for the PDF's band, from the app that serves it. Best effort. */
-async function logo(appUrl: string): Promise<Uint8Array | null> {
-  try {
-    const response = await fetch(`${appBase(appUrl)}/brand/ascend-now-logo-on-navy.png`, {
-      signal: AbortSignal.timeout(3000),
-    })
-    if (!response.ok || !(response.headers.get('content-type') ?? '').includes('png')) return null
-    return new Uint8Array(await response.arrayBuffer())
-  } catch {
-    return null
-  }
-}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -206,51 +168,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let filename = 'Report.pdf'
   let headline: string | null = null
   try {
-    if (targeted) {
-      const doc = await targetedDoc(db, session)
-      headline = doc.headline
-      filename = `${doc.filename}.pdf`
-      pdf = await reportPdf(doc, await logo(appUrl))
-    } else {
-      const [items, notes, transcript, reading, progress] = await Promise.all([
-        db
-          .from('session_items')
-          .select('*, questions(*), session_item_assessments(*)')
-          .eq('session_id', sessionId)
-          .order('sequence_no'),
-        db.from('session_domain_notes').select('*').eq('session_id', sessionId),
-        db.from('session_transcripts').select('created_at').eq('session_id', sessionId).maybeSingle(),
-        db.from('session_context_extractions').select('body, created_at').eq('session_id', sessionId).maybeSingle(),
-        // The Progress section (0063). Best effort: a report prints without it.
-        db.rpc('student_progress', { p_student: session.student_id, p_subject: session.subject }),
-      ])
-
-      const stored = reading.data as { body: Extraction; created_at: string } | null
-      const doc = reportPdfDoc({
-        session: {
-          subject: session.subject,
-          title: session.title,
-          scheduled_at: session.scheduled_at,
-          duration_mins: session.duration_mins,
-          teacher_notes: session.teacher_notes,
-          teacher: session.teacher,
-          student: session.student,
-        },
-        items: (items.data ?? []) as SessionItem[],
-        notes: (notes.data ?? []) as DomainNote[],
-        meta: report!,
-        extraction: stored?.body ?? null,
-        staleness: readingStaleness(
-          stored,
-          transcript.data as { created_at: string } | null,
-          report!.form_submitted_at,
-        ),
-        progress: progress.data ? progressLines(progress.data as StudentProgress) : null,
-      })
-      headline = doc.headline
-      filename = `${doc.filename}.pdf`
-      pdf = await reportPdf(doc, await logo(appUrl))
-    }
+    const doc = targeted ? await targetedDoc(db, session) : await lessonDoc(db, session, report!)
+    headline = doc.headline
+    filename = `${doc.filename}.pdf`
+    pdf = await reportPdf(doc, await logo(appUrl))
   } catch (e) {
     console.error('the report PDF could not be made:', e instanceof Error ? e.message : e)
   }
@@ -291,70 +212,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   return json({ sent: sent.sent, to, attached: pdf !== null, reason: sent.reason }, sent.sent ? 200 : 502)
 })
-
-/**
- * A targeted test's PDF: its answers, its set's size, and the line on its
- * skill — read on the service role, from the same rows the report page reads.
- */
-// deno-lint-ignore no-explicit-any
-async function targetedDoc(db: any, session: SessionRow): Promise<ReportPdfDoc> {
-  const [testRes, setRes, itemsRes, progressRes] = await Promise.all([
-    db.from('targeted_tests').select('*').eq('session_id', session.id).maybeSingle(),
-    db.from('targeted_set_items').select('position', { count: 'exact', head: true }).eq('session_id', session.id),
-    db
-      .from('session_items')
-      .select('*, questions(*), session_item_assessments(*)')
-      .eq('session_id', session.id)
-      .order('sequence_no'),
-    db.rpc('student_progress', { p_student: session.student_id, p_subject: session.subject }),
-  ])
-  const test = testRes.data
-  if (!test) throw new Error('this session has no targeted test row')
-  const progress = (progressRes.data ?? null) as StudentProgress | null
-  const config = (progress?.config ?? null) as ProgressConfig | null
-  if (!config) throw new Error('no progress_config for this subject')
-  const line = progress ? progressLine(progress, test.section, test.skill) : null
-
-  // The long-question pattern, pooled over every test on the line.
-  let pattern = null
-  if (progress && line) {
-    const tests = new Set(line.points.filter((p) => p.kind === 'test').map((p) => p.sessionId))
-    const pooled = progress.items.filter((i) => tests.has(i.session_id))
-    const ids = [...new Set(pooled.map((i) => i.question_id))]
-    const { data: qs } = ids.length
-      ? await db
-          .from('questions')
-          .select('id, difficulty, passage, passage_underline, stem, image_url, target_seconds')
-          .in('id', ids)
-      : { data: [] }
-    const byId = new Map(((qs ?? []) as (AnalysedQuestion & { id: string })[]).map((q) => [q.id, q]))
-    pattern = longPattern(
-      pooled.map((i) => ({
-        status: i.status,
-        is_correct: i.is_correct,
-        timed_out: i.timed_out,
-        elapsed_seconds: i.elapsed_seconds,
-        time_limit_seconds: i.time_limit_seconds,
-        question: byId.get(i.question_id) ?? null,
-      })),
-      config,
-    )
-  }
-
-  return targetedPdfDoc({
-    session: {
-      subject: session.subject,
-      title: session.title,
-      scheduled_at: session.scheduled_at,
-      started_at: session.started_at,
-      teacher: session.teacher,
-      student: session.student,
-    },
-    test,
-    setCount: setRes.count ?? 0,
-    items: (itemsRes.data ?? []) as SessionItem[],
-    config,
-    line,
-    pattern,
-  })
-}

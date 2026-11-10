@@ -1,3 +1,4 @@
+import { sectionOfSkill, skillsOn } from './constants.ts'
 import { formatUtc } from './time.ts'
 import type { Difficulty, SessionMode, SessionStatus, Subject } from './types.ts'
 
@@ -10,6 +11,10 @@ import type { Difficulty, SessionMode, SessionStatus, Subject } from './types.ts
  * same rule the report keeps — and the platform only computes. The verdict is
  * arithmetic against the admin's thresholds; what it means is the teacher's,
  * in the override and the summary.
+ *
+ * A test on several skills (0086) is a point on each of their lines, made of
+ * that skill's questions in it — the way the baseline diagnostic, which asks
+ * everything, is read.
  */
 
 /* --------------------------------------------------------------- config --- */
@@ -41,7 +46,7 @@ export function defaultConfig(subject: Subject): ProgressConfig {
     improved_at: 5,
     declined_at: -5,
     long_words: subject === 'english' ? 75 : 40,
-    default_set_size: 10,
+    default_set_size: 12,
     pattern_min_each: 4,
     pattern_gap: 0.4,
   }
@@ -207,12 +212,17 @@ export interface ProgressSession {
 
 export interface ProgressTargeted {
   session_id: string
-  section: string
-  /** Null for a test on the whole section. */
+  /** Null when the test's skills cross sections (0086). */
+  section: string | null
+  /** The one skill of a test on exactly one; null otherwise. */
   skill: string | null
+  /** The skills it is on, in the order chosen; null for a whole section (0086). */
+  skills?: string[] | null
   set_size: number
   /** How many questions the set actually held. */
   set_count: number
+  /** On a test with skills, how many of the set were on each (0086). */
+  set_by_skill?: Record<string, number> | null
   question_seconds: number | null
   overall_seconds: number
 }
@@ -242,6 +252,8 @@ export interface SharedSummary {
 
 export interface SharedOverride {
   session_id: string
+  /** '' for a test with one line; the skill whose step it is, on a test of several (0086). */
+  skill?: string
   previous_session_id: string | null
   shared_wording: string | null
   shared_context: string | null
@@ -274,6 +286,57 @@ function onKey(
 
 const time = (s: Pick<ProgressSession, 'at'>) => new Date(s.at).getTime()
 
+/** A test on more than one skill (0086): each of them is a point on its own line. */
+export function onSeveral(t: Pick<ProgressTargeted, 'section' | 'skill' | 'skills'>): boolean {
+  return (skillsOn(t)?.length ?? 0) > 1
+}
+
+/**
+ * Whether a test is a point on the line for this section and skill: a test on
+ * the whole section for the section's line; a test on the skill, alone or
+ * with others, for the skill's.
+ */
+export function testOnLine(
+  t: Pick<ProgressTargeted, 'section' | 'skill' | 'skills'>,
+  section: string,
+  skill: string | null,
+): boolean {
+  const skills = skillsOn(t)
+  if (skill === null) return skills === null && t.section === section
+  // A test whose skills cross sections has no section of its own to match.
+  return !!skills?.includes(skill) && (t.section === null || t.section === section)
+}
+
+/**
+ * The items that make a test's point on a line: every one it reached — or, on
+ * a test of several skills, the reached ones on this line's skill.
+ */
+function pointItems(
+  p: StudentProgress,
+  t: ProgressTargeted,
+  section: string,
+  skill: string | null,
+): ProgressItem[] {
+  const mine = p.items.filter((i) => i.session_id === t.session_id && reached(i))
+  return skill !== null && onSeveral(t) ? mine.filter((i) => onKey(i, section, skill)) : mine
+}
+
+/** How many of a test's set its point on a line was asked from. */
+function setCountOn(t: ProgressTargeted, skill: string | null): number {
+  if (skill !== null && onSeveral(t)) return t.set_by_skill?.[skill] ?? 0
+  return t.set_count
+}
+
+/** The section of one of a test's skills: the list's, the test's own, or its questions'. */
+function sectionFor(p: StudentProgress, t: ProgressTargeted, skill: string): string {
+  return (
+    sectionOfSkill(skill) ??
+    t.section ??
+    p.items.find((i) => i.session_id === t.session_id && i.skill === skill)?.section ??
+    ''
+  )
+}
+
 export interface Step {
   /** Level points from the point before. */
   delta: number
@@ -294,6 +357,11 @@ export interface ProgressPoint {
   timedOut: number
   /** On a test: the set's questions the student never answered or ran out of time on. */
   notReached: number
+  /**
+   * A test on several skills: how many — its point here is this line's skill's
+   * questions alone. Null for a test with one line, and for the diagnostic.
+   */
+  ofSkills: number | null
   raw: number
   level: number
   /** Completed lessons and diagnostics since the point before, any teacher. */
@@ -348,7 +416,7 @@ export function progressLine(
   const byId = new Map(p.sessions.map((s) => [s.id, s]))
 
   const tests = p.targeted
-    .filter((t) => t.section === section && (t.skill ?? null) === skill)
+    .filter((t) => testOnLine(t, section, skill))
     .map((t) => ({ t, s: byId.get(t.session_id) }))
     .filter(
       (x): x is { t: ProgressTargeted; s: ProgressSession } => !!x.s && x.s.status === 'completed',
@@ -382,14 +450,16 @@ export function progressLine(
       reached: mine.length,
       timedOut: mine.filter((i) => i.timed_out).length,
       notReached: 0,
+      ofSkills: null,
       raw: r,
       level: mapScore(r, cfg.score_points),
     })
   }
 
   for (const { t, s } of tests) {
-    const mine = p.items.filter((i) => i.session_id === s.id && reached(i))
-    // A test with nothing reached has no score to plot.
+    const mine = pointItems(p, t, section, skill)
+    // A test with nothing reached — on this skill, for a test of several — has
+    // no score to plot here.
     if (mine.length === 0) continue
     const correct = mine.filter((i) => i.is_correct).length
     const r = rawOutOf10(correct, mine.length) ?? 0
@@ -400,7 +470,8 @@ export function progressLine(
       correct,
       reached: mine.length,
       timedOut: mine.filter((i) => i.timed_out).length,
-      notReached: Math.max(0, t.set_count - mine.length),
+      notReached: Math.max(0, setCountOn(t, skill) - mine.length),
+      ofSkills: onSeveral(t) ? skillsOn(t)!.length : null,
       raw: r,
       level: mapScore(r, cfg.score_points),
     })
@@ -432,7 +503,13 @@ export function progressLine(
         ),
       }
     }
-    const o = x.kind === 'test' ? p.overrides.find((v) => v.session_id === x.sessionId) : undefined
+    // The wording for this step: the test's, or on a test of several skills,
+    // the one written for this line's skill (0086).
+    const key = x.ofSkills !== null ? (skill ?? '') : ''
+    const o =
+      x.kind === 'test'
+        ? p.overrides.find((v) => v.session_id === x.sessionId && (v.skill ?? '') === key)
+        : undefined
     return {
       ...x,
       isBaseline: idx === 0,
@@ -461,6 +538,16 @@ export function progressLine(
   }
 }
 
+/** The lines a test is a point on: its whole section's, or each of its skills'. */
+export function linesOf(
+  p: StudentProgress,
+  t: ProgressTargeted,
+): { section: string; skill: string | null }[] {
+  const skills = skillsOn(t)
+  if (skills === null) return [{ section: t.section ?? '', skill: null }]
+  return skills.map((k) => ({ section: sectionFor(p, t, k), skill: k }))
+}
+
 /** Every skill (or section) with a completed targeted test, newest test first. */
 export function progressLines(p: StudentProgress): ProgressLine[] {
   const byId = new Map(p.sessions.map((s) => [s.id, s]))
@@ -468,10 +555,12 @@ export function progressLines(p: StudentProgress): ProgressLine[] {
   for (const t of p.targeted) {
     const s = byId.get(t.session_id)
     if (!s || s.status !== 'completed') continue
-    const k = `${t.section}/${t.skill ?? ''}`
     const at = time(s)
-    const had = keys.get(k)
-    if (!had || at > had.at) keys.set(k, { section: t.section, skill: t.skill ?? null, at })
+    for (const on of linesOf(p, t)) {
+      const k = `${on.section}/${on.skill ?? ''}`
+      const had = keys.get(k)
+      if (!had || at > had.at) keys.set(k, { ...on, at })
+    }
   }
   return [...keys.values()]
     .sort((a, b) => b.at - a.at)
@@ -497,7 +586,7 @@ export function sessionsSinceLastTest(
 export function describeLine(line: ProgressLine): string[] {
   const out: string[] = []
   for (const p of line.points) {
-    const what = `${p.isBaseline ? 'Baseline, ' : ''}${p.kind === 'diagnostic' ? 'diagnostic' : 'targeted test'}`
+    const what = `${p.isBaseline ? 'Baseline, ' : ''}${p.kind === 'diagnostic' ? 'diagnostic' : p.ofSkills ? `targeted test on ${p.ofSkills} skills` : 'targeted test'}`
     const extra = [
       p.timedOut > 0 ? `${p.timedOut} timed out` : null,
       p.notReached > 0 ? `${p.notReached} not reached` : null,

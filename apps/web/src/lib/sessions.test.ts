@@ -285,6 +285,32 @@ describe('the two kinds', () => {
     )
   })
 
+  it('names a test on several skills by them, with room for three (0086)', () => {
+    const on = (skills: string[]) =>
+      targetedLabel({ section: null, skill: null, skills, set_size: 10 })
+    expect(on(['transitions', 'boundaries'])).toBe('Transitions and Boundaries')
+    expect(on(['transitions', 'boundaries', 'inferences', 'circles'])).toBe(
+      'Transitions, Boundaries and 2 more',
+    )
+    expect(targetedLabel({ section: 'expression_of_ideas', skill: 'transitions', set_size: 5 })).toBe(
+      'Transitions',
+    )
+  })
+
+  it('finds a test on several skills by any of them, the label’s or not', () => {
+    const t = session('t', 's1', '2026-03-04T10:00:00Z', 'scheduled', {
+      mode: 'targeted',
+      targeted: {
+        section: null,
+        skill: null,
+        skills: ['transitions', 'boundaries', 'inferences', 'circles'],
+        set_size: 12,
+      },
+    })
+    const other = session('o', 's1', '2026-03-05T10:00:00Z')
+    expect(filterSessions([t, other], { ...NO_FILTERS, query: 'circles' })).toEqual([t])
+  })
+
   it('finds a targeted test by its skill', () => {
     const t = session('t', 's1', '2026-03-04T10:00:00Z', 'scheduled', {
       mode: 'targeted',

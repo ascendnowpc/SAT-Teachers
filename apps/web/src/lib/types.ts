@@ -156,9 +156,12 @@ export interface Session {
 }
 
 export interface TargetedSummary {
-  section: string
-  /** Null: the whole section. */
+  /** Null when the skills cross sections (0086). */
+  section: string | null
+  /** The one skill of a test on exactly one; null otherwise. */
   skill: string | null
+  /** The skills, in the order chosen; null for the whole section (0086). */
+  skills?: string[] | null
   set_size: number
 }
 
@@ -312,9 +315,12 @@ export interface ReportEmail {
 export interface TargetedTest {
   session_id: string
   subject: Subject
-  section: string
-  /** Null for a test on the whole section. */
+  /** The section it is in; null when its skills cross sections (0086). */
+  section: string | null
+  /** The one skill of a test on exactly one; null otherwise. */
   skill: string | null
+  /** The skills, in the order chosen; null for a test on the whole section (0086). */
+  skills: string[] | null
   /** The size the teacher asked for; the set may be shorter. */
   set_size: number
   /** One clock for every question; null — each question's own target_seconds. */

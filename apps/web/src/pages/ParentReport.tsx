@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { Notice } from '../components/ui'
+import { DomainBands } from '../components/DomainBands'
+import { bluebookHeadline, byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
 import { skillLabel, subjectLabel } from '../lib/constants'
 import {
   buildParentReport,
@@ -107,7 +109,16 @@ export function ParentReport() {
               )}
             </div>
 
-            {subjects.length === 0 && <p className="muted">No tests yet. The report fills in after the first one.</p>}
+            {/* The whole SAT, on its own scale: above the subjects (0088). */}
+            {report.bluebook && report.bluebook.length > 0 && <BluebookSection rows={report.bluebook} />}
+
+            {subjects.length === 0 && (
+              <p className="muted">
+                {report.bluebook && report.bluebook.length > 0
+                  ? 'The skill map fills in after their first session.'
+                  : 'No tests yet. The report fills in after the first one.'}
+              </p>
+            )}
 
             {built && subject && (
               <>
@@ -175,6 +186,55 @@ export function ParentReport() {
         )}
       </main>
     </div>
+  )
+}
+
+/**
+ * Their SAT scores (0088, 0090): the latest total, its percentile where the
+ * report gave one, the line from the first, each test — official SATs and
+ * Bluebook practice tests together — and the domains' bands from the latest
+ * report that gave them.
+ */
+function BluebookSection({ rows }: { rows: BluebookRow[] }) {
+  const sorted = byDay(rows)
+  const last = sorted[sorted.length - 1]
+  const bands = latestDomains(rows)
+  return (
+    <section className="report-headline report-bluebook">
+      <div className="report-label">SAT scores · on the SAT’s own scale</div>
+      <div className="report-hero">
+        <span className="report-hero-skill">{last.official ? last.test_name : 'Latest total'}</span>
+        <span className="report-hero-score num">{last.total}</span>
+        <span className="report-hero-over">
+          of 1600{last.total_percentile ? ` · ${ordinal(last.total_percentile)} percentile` : ''}
+        </span>
+      </div>
+      <div className="report-hero-over">
+        {bluebookHeadline(rows)} · Reading and Writing {last.reading_writing}, Math {last.math}
+      </div>
+      {sorted.length > 1 && (
+        <ul className="report-bluebook-list">
+          {sorted.map((r) => (
+            <li key={`${r.taken_on}/${r.test_name}`}>
+              <span>{dayLabel(r.taken_on)}</span>
+              <span className="muted">
+                {r.test_name}
+                {r.official ? ' · official' : ''}
+              </span>
+              <span className="num">{r.total}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {bands && bands.domains && (
+        <div className="report-bluebook-bands">
+          <div className="report-note">
+            By domain, from the {bands.test_name} report: College Board’s performance band for each.
+          </div>
+          <DomainBands domains={bands.domains} />
+        </div>
+      )}
+    </section>
   )
 }
 
