@@ -87,14 +87,20 @@ export function StudentProgress() {
         </h1>
       </div>
       <p className="muted">
-        Bluebook practice tests on the SAT’s own scale, then progress on each skill a targeted test
+        SAT scores — official SATs and Bluebook practice tests — then progress on each skill a targeted test
         has been set on: the baseline, every test since, and the sessions in between, whoever taught
         them.
         {student?.pc && <> PC: {student.pc}.</>}
       </p>
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
-      <BluebookScores studentId={id} staff={isTeacher} me={profile?.id ?? null} isAdmin={isAdmin} />
+      <BluebookScores
+        studentId={id}
+        studentName={student?.full_name ?? null}
+        staff={isTeacher}
+        me={profile?.id ?? null}
+        isAdmin={isAdmin}
+      />
 
       <div className="mode-pick" role="group" aria-label="Subject">
         {SUBJECTS.map((s) => (

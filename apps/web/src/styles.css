@@ -2647,6 +2647,20 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .bluebook-add { border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; margin: 4px 0 14px; background: #fff; }
 .bluebook-add > .grid-2 .btn { margin-top: 6px; }
 .bluebook-form { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 10px; }
+.bluebook-official { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 12px 0 0; }
+.bluebook-read-bands { margin: 4px 0 12px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--page); }
+.bluebook-read-bands-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; margin-bottom: 6px; }
+.bluebook-bands-row td { background: var(--page); }
+
+/* An SAT score report's eight domains (0090): Reading and Writing beside Math. */
+.bluebook-bands { display: grid; gap: 6px 28px; }
+@media (min-width: 640px) { .bluebook-bands { grid-template-columns: 1fr 1fr; } }
+.bluebook-bands-head { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 2px 0 4px; }
+.bluebook-bands dl { margin: 0; display: grid; gap: 3px; }
+.bluebook-band { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.bluebook-band dt { color: var(--ink-2); }
+.bluebook-band dd { margin: 0; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.report-bluebook-bands { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .report-section { margin-top: 28px; }
 .report-section h2 { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
 .report-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }

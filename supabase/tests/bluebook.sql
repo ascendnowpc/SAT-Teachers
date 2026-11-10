@@ -10,6 +10,9 @@
 --      anon cannot, and nobody writes the table but through the function
 --    * College Board's scale: a section 200 to 800 in tens; the total the two
 --      sections added; not a day still to come; one test once a day
+--    * an official SAT keeps its percentiles and its domains' bands (0090);
+--      a percentile is 1 to 99, a domain one of the eight, a band two scores
+--      on the section's scale, in tens, the lower first
 --
 --  Reading them
 --    * staff read every student's; the PC their own students' and nobody
@@ -49,7 +52,11 @@ declare
   pc2   profiles;
   stu   profiles;
   other profiles;
-  b1 uuid; b2 uuid; b3 uuid;
+  b1 uuid; b2 uuid; b3 uuid; b4 uuid;
+  bands jsonb := '{"information_and_ideas":[550,600],"craft_and_structure":[610,670],
+                   "expression_of_ideas":[680,800],"standard_english_conventions":[610,670],
+                   "algebra":[680,800],"advanced_math":[610,670],
+                   "problem_solving_and_data_analysis":[610,670],"geometry_and_trigonometry":[680,800]}';
   n int; txt text; j jsonb; pin text; skey text;
 begin
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
@@ -115,6 +122,45 @@ begin
   return query select '1 recording'::text, 'the same test on the same day twice is refused'::text, 'refused'::text,
     txt, __verdict(txt = 'refused');
 
+  -- An official SAT, read off College Board's score report (0090).
+  b4 := save_bluebook_score(stu.id, 'SAT May 2026', current_date - 3, 1350, 650, 700, 'report',
+                            true, 90, 85, 92, bands);
+  select official || ' ' || total_percentile || '/' || rw_percentile || '/' || math_percentile || ' ' ||
+         (domains->'information_and_ideas')::text || ' ' || (select count(*) from jsonb_object_keys(domains))
+    into txt from bluebook_scores where id = b4;
+  return query select '1 recording'::text, 'an official SAT keeps its percentiles and its eight domains'' bands'::text,
+    'true 90/85/92 [550, 600] 8'::text, coalesce(txt, '(none)'), __verdict(txt = 'true 90/85/92 [550, 600] 8');
+
+  begin perform save_bluebook_score(stu.id, 'SAT June 2026', current_date - 2, 1350, 650, 700, 'report',
+                                    true, 100, null, null, null); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'a percentile of 100 is refused'::text, 'refused'::text, txt,
+    __verdict(txt = 'refused');
+
+  begin perform save_bluebook_score(stu.id, 'SAT June 2026', current_date - 2, 1350, 650, 700, 'report',
+                                    true, null, null, null, '{"vocabulary":[550,600]}'); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'a domain that is not one of the eight is refused'::text, 'refused'::text,
+    txt, __verdict(txt = 'refused');
+
+  begin perform save_bluebook_score(stu.id, 'SAT June 2026', current_date - 2, 1350, 650, 700, 'report',
+                                    true, null, null, null, '{"algebra":[800,680]}'); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'a band higher end first is refused'::text, 'refused'::text, txt,
+    __verdict(txt = 'refused');
+
+  begin perform save_bluebook_score(stu.id, 'SAT June 2026', current_date - 2, 1350, 650, 700, 'report',
+                                    true, null, null, null, '{"algebra":[680,805]}'); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'and a band off the scale'::text, 'refused'::text, txt,
+    __verdict(txt = 'refused');
+
+  perform __as(null, 'postgres');
+  begin update bluebook_scores set domains = '{"algebra":"high"}' where id = b4; txt := 'changed';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'the table itself refuses a band that is not two scores'::text,
+    'refused'::text, txt, __verdict(txt = 'refused');
+
   perform __as(pc.id);
   begin perform save_bluebook_score(stu.id, 'Practice Test 6', current_date, 1250, 620, 630); txt := 'saved';
   exception when others then txt := 'refused'; end;
@@ -138,11 +184,11 @@ begin
   -- ============ 2. reading them ============
   perform __as(x_id);
   select count(*) into n from bluebook_scores where student_id in (stu.id, other.id);
-  return query select '2 reading'::text, 'staff read every student''s'::text, '3'::text, n::text, __verdict(n = 3);
+  return query select '2 reading'::text, 'staff read every student''s'::text, '4'::text, n::text, __verdict(n = 4);
 
   perform __as(pc.id);
   select count(*) into n from bluebook_scores where student_id = stu.id;
-  return query select '2 reading'::text, 'the PC reads their student''s'::text, '2'::text, n::text, __verdict(n = 2);
+  return query select '2 reading'::text, 'the PC reads their student''s'::text, '3'::text, n::text, __verdict(n = 3);
   select count(*) into n from bluebook_scores where student_id = other.id;
   return query select '2 reading'::text, 'and not another PC''s student''s'::text, '0'::text, n::text, __verdict(n = 0);
 
@@ -161,7 +207,11 @@ begin
   j := student_report(skey)->'bluebook';
   select string_agg(e->>'total', ',' order by e->>'taken_on') into txt from jsonb_array_elements(j) e;
   return query select '2 reading'::text, 'the parent card carries the student''s scores, oldest first'::text,
-    '1250,1300'::text, coalesce(txt, '(none)'), __verdict(txt = '1250,1300');
+    '1250,1300,1350'::text, coalesce(txt, '(none)'), __verdict(txt = '1250,1300,1350');
+  select (e->>'official') || ' ' || (e->>'total_percentile') || ' ' || (e->'domains'->>'algebra') into txt
+    from jsonb_array_elements(j) e where e->>'test_name' = 'SAT May 2026';
+  return query select '2 reading'::text, 'with whether it was an official SAT, its percentile and its bands'::text,
+    'true 90 [680, 800]'::text, coalesce(txt, '(none)'), __verdict(txt = 'true 90 [680, 800]');
   return query select '2 reading'::text, 'with nothing about who recorded them'::text, 'absent'::text,
     (case when position('created_by' in j::text) > 0 or position(t_id::text in j::text) > 0 then 'present' else 'absent' end),
     __verdict(position('created_by' in j::text) = 0 and position(t_id::text in j::text) = 0);
@@ -195,7 +245,7 @@ begin
     __verdict(n = 0);
 
   -- ============ 4. grants ============
-  for txt in select unnest(array['save_bluebook_score(uuid,text,date,integer,integer,integer,text)',
+  for txt in select unnest(array['save_bluebook_score(uuid,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)',
                                  'delete_bluebook_score(uuid)']) loop
     return query select '4 grants'::text, txt || ' — signed in only'::text, 'authenticated'::text,
       (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon too!'
@@ -204,6 +254,17 @@ begin
       __verdict(not has_function_privilege('anon', 'public.'||txt, 'execute')
                 and has_function_privilege('authenticated', 'public.'||txt, 'execute'));
   end loop;
+
+  return query select '4 grants'::text, 'bluebook_domains_ok(jsonb) — internal'::text, 'nobody signed in'::text,
+    (case when has_function_privilege('anon', 'public.bluebook_domains_ok(jsonb)', 'execute')
+            or has_function_privilege('authenticated', 'public.bluebook_domains_ok(jsonb)', 'execute')
+          then 'somebody' else 'nobody signed in' end),
+    __verdict(not has_function_privilege('anon', 'public.bluebook_domains_ok(jsonb)', 'execute')
+              and not has_function_privilege('authenticated', 'public.bluebook_domains_ok(jsonb)', 'execute'));
+  return query select '4 grants'::text, 'save_bluebook_score with 0088''s arguments only — replaced'::text, 'absent'::text,
+    (case when to_regprocedure('public.save_bluebook_score(uuid,text,date,integer,integer,integer,text)') is null
+          then 'absent' else 'present' end),
+    __verdict(to_regprocedure('public.save_bluebook_score(uuid,text,date,integer,integer,integer,text)') is null);
 
   -- Cleanup.
   delete from bluebook_scores where student_id = stu.id;

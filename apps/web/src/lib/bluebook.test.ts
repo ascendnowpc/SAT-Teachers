@@ -1,15 +1,122 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   bluebookHeadline,
   bluebookProblem,
   change,
-  dayLabel,
   dateIn,
+  dayLabel,
+  EMPTY_SCORE,
+  latestDomains,
+  ordinal,
   readBluebook,
+  sameName,
+  withoutScales,
   type BluebookScore,
 } from './bluebook'
 
-// The practice score report as its text layer comes out: each label on its
+/*
+ * College Board's own "Your SAT Score Report" for an official SAT, as the app
+ * meets it: the lines pdf.js's text layer gives (lib/pdfText), and the text a
+ * PDF viewer's copy gives, its two columns side by side. Taken from a real
+ * report, with the student's name, record locator, scores, percentiles and
+ * score ranges changed; the layout, the printed scales and the domains' bands
+ * are as printed.
+ */
+const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
+const SAT_PDFJS = fixture('sat-score-report.pdfjs.txt')
+const SAT_LAYOUT = fixture('sat-score-report.layout.txt')
+
+const SAT_SCORE: BluebookScore = {
+  test: 'SAT May 2026',
+  official: true,
+  takenOn: '2026-05-02',
+  total: 1280,
+  readingWriting: 610,
+  math: 670,
+  totalPercentile: 84,
+  readingWritingPercentile: 78,
+  mathPercentile: 89,
+  domains: {
+    information_and_ideas: [550, 600],
+    craft_and_structure: [610, 670],
+    expression_of_ideas: [680, 800],
+    standard_english_conventions: [610, 670],
+    algebra: [680, 800],
+    advanced_math: [610, 670],
+    problem_solving_and_data_analysis: [610, 670],
+    geometry_and_trigonometry: [680, 800],
+  },
+}
+
+describe('reading an official SAT score report', () => {
+  it('reads everything off pdf.js’s lines: the scores, the percentiles, the eight bands, the test and the day', () => {
+    const r = readBluebook(SAT_PDFJS)
+    expect(r.score).toEqual(SAT_SCORE)
+    expect(r.name).toBe('Jordan Sample')
+    expect(r.notes).toEqual([
+      'Read 1280: Reading and Writing 610 and Math 670, which add up to it.',
+      'Percentiles: 84th, 78th, 89th — total, Reading and Writing, Math.',
+      'All eight domains’ performance bands read.',
+      'An official SAT: SAT May 2026.',
+    ])
+  })
+
+  it('reads the same off text pasted from a PDF viewer, its columns side by side', () => {
+    const r = readBluebook(SAT_LAYOUT)
+    expect(r.score).toEqual(SAT_SCORE)
+    expect(r.name).toBe('Jordan Sample')
+  })
+
+  it('never reads the printed scale, broken over two lines, as scores — 400 = 200 + 200 adds up', () => {
+    // What the first version read off this report.
+    const r = readBluebook(SAT_PDFJS)
+    expect([r.score.total, r.score.readingWriting, r.score.math]).not.toEqual([400, 200, 200])
+    expect(withoutScales(['TOTAL SCORE', '400–', '1280 1600 84th*']).map((l) => l.trim())).toEqual([
+      'TOTAL SCORE',
+      '',
+      '1280      84th*',
+    ])
+  })
+
+  it('reads a perfect score next to its scale', () => {
+    const r = readBluebook(
+      'TOTAL SCORE\n400–\n1600 1600 99th*\nSECTION SCORES\nReading and Writing\n200–\n800 800 99th*\nMath\n200–\n800 800 99th*',
+    )
+    expect(r.score).toMatchObject({ total: 1600, readingWriting: 800, math: 800, totalPercentile: 99 })
+  })
+
+  it('never reads a three-year average as a score', () => {
+    expect(withoutScales(['3 Year Average Score (all testers): 1050'])[0].trim()).toBe('')
+    const r = readBluebook(
+      'Total Score\n3 Year Average Score (all testers): 1050\n1250\nReading and Writing 620\nMath 630',
+    )
+    expect(r.score.total).toBe(1250)
+  })
+
+  it('takes a percentile only where the report marks one: not the “12th” of “12th grade”', () => {
+    const r = readBluebook(
+      'Total Score 1250\nReading and Writing 620\nMath 630\n* Percentiles represent the percent of 12th\ngrade test takers',
+    )
+    expect([r.score.totalPercentile, r.score.readingWritingPercentile, r.score.mathPercentile]).toEqual([
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it('leaves the bands out when they do not pair with the domains one to one', () => {
+    const r = readBluebook(SAT_PDFJS.replace('Performance: 680-800\n', 'Score: 680-800\n'))
+    expect(r.score.domains).toBeNull()
+    expect(r.notes).toContain(
+      'The domains’ performance bands could not be matched to their names, so they are left out.',
+    )
+    // The scores are read all the same.
+    expect(r.score.total).toBe(1280)
+  })
+})
+
+// A practice test's report, as its text layer comes out: each label on its
 // own line, the score under it, and the scale under that.
 const STACKED = `SAT Practice Test 4
 Bea Bluebook
@@ -49,24 +156,25 @@ Total Score Reading and Writing Math
 1180 590 590
 Date 11/02/2025`
 
-describe('readBluebook', () => {
+describe('reading a practice test’s report', () => {
   it('reads the stacked report: the scores, the test and the day — never the scale', () => {
     const r = readBluebook(STACKED)
     expect(r.score).toEqual({
+      ...EMPTY_SCORE,
       test: 'Practice Test 4',
+      official: false,
       takenOn: '2025-10-12',
       total: 1250,
       readingWriting: 620,
       math: 630,
     })
-    expect(r.notes).toEqual([
-      'Read 1250: Reading and Writing 620 and Math 630, which add up to it.',
-    ])
+    expect(r.notes).toEqual(['Read 1250: Reading and Writing 620 and Math 630, which add up to it.'])
   })
 
   it('reads one line a score, past the score ranges', () => {
-    expect(readBluebook(RANGED).score).toEqual({
+    expect(readBluebook(RANGED).score).toMatchObject({
       test: 'Practice Test 6',
+      official: false,
       takenOn: '2026-03-08',
       total: 1390,
       readingWriting: 700,
@@ -100,7 +208,8 @@ describe('readBluebook', () => {
 
   it('says when it found nothing, and when it found no date', () => {
     const r = readBluebook('A photo of a cat.')
-    expect(r.score).toEqual({ test: null, takenOn: null, total: null, readingWriting: null, math: null })
+    expect(r.score).toEqual(EMPTY_SCORE)
+    expect(r.name).toBeNull()
     expect(r.notes).toEqual([
       'No scores could be read from this. Type them from the report.',
       'No date found: say which day it was sat.',
@@ -122,6 +231,7 @@ describe('readBluebook', () => {
 describe('dateIn', () => {
   it('reads the ways a report writes a day', () => {
     expect(dateIn('Test Date: October 12, 2025')).toBe('2025-10-12')
+    expect(dateIn('Tested on: May 2, 2026')).toBe('2026-05-02')
     expect(dateIn('Sat on 12 Oct 2025')).toBe('2025-10-12')
     expect(dateIn('Sept. 3, 2025')).toBe('2025-09-03')
     expect(dateIn('2025-10-12')).toBe('2025-10-12')
@@ -134,8 +244,33 @@ describe('dateIn', () => {
   })
 })
 
+describe('sameName', () => {
+  it('matches the same student however the name is cased or accented', () => {
+    expect(sameName('Jordan Sample', 'jordan sample')).toBe(true)
+    expect(sameName('José Núñez', 'Jose Nunez')).toBe(true)
+  })
+
+  it('matches a report’s first and last names among the student’s', () => {
+    expect(sameName('Jordan Sample', 'Jordan A. Sample')).toBe(true)
+  })
+
+  it('does not match somebody else', () => {
+    expect(sameName('Jordan Sample', 'Bea Bluebook')).toBe(false)
+    expect(sameName('Jordan Sample', 'Jordan Smith')).toBe(false)
+  })
+})
+
+describe('ordinal', () => {
+  it('says a percentile as the report does', () => {
+    expect([1, 2, 3, 11, 12, 13, 21, 89, 90, 92].map(ordinal)).toEqual([
+      '1st', '2nd', '3rd', '11th', '12th', '13th', '21st', '89th', '90th', '92nd',
+    ])
+  })
+})
+
 describe('bluebookProblem', () => {
   const ok: BluebookScore = {
+    ...EMPTY_SCORE,
     test: 'Practice Test 4',
     takenOn: '2025-10-12',
     total: 1250,
@@ -146,6 +281,7 @@ describe('bluebookProblem', () => {
 
   it('is nothing for a score on the scale that adds up', () => {
     expect(bluebookProblem(ok, today)).toBeNull()
+    expect(bluebookProblem({ ...SAT_SCORE, takenOn: '2025-10-01' }, today)).toBeNull()
   })
 
   it('says what the database would refuse', () => {
@@ -155,9 +291,8 @@ describe('bluebookProblem', () => {
     expect(bluebookProblem({ ...ok, math: 635, total: 1255 }, today)).toBe(
       'A Math score is 200 to 800, in tens.',
     )
-    expect(bluebookProblem({ ...ok, total: null }, today)).toBe(
-      'Fill in the total and both section scores.',
-    )
+    expect(bluebookProblem({ ...ok, total: null }, today)).toBe('Fill in the total and both section scores.')
+    expect(bluebookProblem({ ...ok, totalPercentile: 100 }, today)).toBe('A percentile is 1 to 99.')
     expect(bluebookProblem({ ...ok, takenOn: '2025-12-01' }, today)).toBe(
       'A test cannot be sat on a day still to come.',
     )
@@ -166,20 +301,33 @@ describe('bluebookProblem', () => {
 })
 
 describe('the trend', () => {
-  const row = (taken_on: string, total: number) => ({
+  const row = (taken_on: string, total: number, extra = {}) => ({
     test_name: 'Bluebook practice test',
     taken_on,
     total,
     reading_writing: total / 2,
     math: total / 2,
+    ...extra,
   })
 
-  it('reads first to latest, by the day sat', () => {
+  it('reads first to latest, by the day sat, official SATs and practice tests together', () => {
     expect(
       bluebookHeadline([row('2025-11-01', 1290), row('2025-09-01', 1180), row('2025-10-01', 1240)]),
-    ).toBe('1180 → 1290 over 3 practice tests')
-    expect(bluebookHeadline([row('2025-09-01', 1180)])).toBe('1180 on the first practice test')
+    ).toBe('1180 → 1290 over 3 tests')
+    expect(bluebookHeadline([row('2025-09-01', 1180)])).toBe('1180 on the first test')
     expect(bluebookHeadline([])).toBeNull()
+  })
+
+  it('finds the latest report that gave the domains’ bands', () => {
+    const bands = { algebra: [680, 800] as [number, number] }
+    expect(
+      latestDomains([
+        row('2025-09-01', 1180, { domains: bands }),
+        row('2025-10-01', 1240, { test_name: 'SAT October 2025', domains: bands }),
+        row('2025-11-01', 1290),
+      ])?.test_name,
+    ).toBe('SAT October 2025')
+    expect(latestDomains([row('2025-09-01', 1180)])).toBeNull()
   })
 
   it('signs a change', () => {

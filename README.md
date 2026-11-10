@@ -52,7 +52,7 @@ npm run dev                                    # http://localhost:5173
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
 | **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`) |
-| **Bluebook scores** | A student's Bluebook practice tests — total, Reading and Writing, Math — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`) |
+| **SAT scores** | A student's official SATs and Bluebook practice tests — total, Reading and Writing, Math, their percentiles and the eight domains' performance bands — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`, `0090`) |
 
 ## English is three tests
 
@@ -1060,34 +1060,53 @@ number, so a student who writes `1/2` where the key says `.5` is right. It is de
 fuzzier than that: a tolerance wide enough to catch an unusual spelling is wide enough to mark a
 wrong answer right.
 
-## Bluebook scores
+## SAT scores from Bluebook
 
-Students sit College Board's full practice tests in Bluebook on their own, and the score report is
-what tells a parent where they are on the scale colleges read. A teacher records it (`0088`) on the
-student's progress page (`/students/:id/progress`), under **Bluebook practice tests**, above the
-subjects because it is the whole SAT: **Add a score**, then the report's PDF, or its text pasted,
-or the scores typed.
+Students sit the SAT in Bluebook — the official test at a test centre, and College Board's full
+practice tests on their own — and the score report is what tells a parent where they are on the
+scale colleges read. A teacher records it (`0088`, `0090`) on the student's progress page
+(`/students/:id/progress`), under **SAT scores**, above the subjects because it is the whole SAT:
+**Add a score**, then the report's PDF, or its text pasted, or the scores typed.
 
-**Reading the report** is done in the browser and nothing of it is kept but the scores — the file
-carries the student's name and more. The PDF's text layer comes out through pdf.js (`lib/pdfText.ts`,
-loaded only then), put back into lines by baseline, and `lib/bluebook.ts` reads it: each score from
-beside its label — *Total Score*, *Reading and Writing*, *Math* — on the label's line or the next
-few, never the printed scale (`400–1600`, `200–800`) or a score range, and never *Advanced Math*.
-College Board's scale settles the rest: a section is 200 to 800 in tens and **the total is the two
-sections added**, so where a label has more than one number near it, the three that add up are the
-three read, and three that do not are shown as read and flagged rather than corrected. What is not
-found is left empty to type, never worked out from the others — a misread total would make a
-worked-out section look right. The test (*Practice Test 4*) and the day it was sat are read too, and
-a PSAT report, on another scale, is refused. The teacher sees every value, with a line saying what
-was and was not found, and nothing is saved until **Save the score**; changing a score it read
-makes it a typed one.
+**The report it is built for** is College Board's own *Your SAT Score Report*. From it come the
+test (*Test administration: SAT May 02, 2026* → an official SAT, *SAT May 2026*) and the day it was
+sat (*Tested on*); the total and the two section scores; their percentiles (*90th\**); and
+*Knowledge and Skills* — each of the eight content domains with its performance band
+(*Information and Ideas · Performance: 550-600*), which are the eight sections every question in
+this app is filed under. A practice test's report gives what it gives: *Practice Test 4* and its
+scores. The rest of the report — score ranges and three-year averages, which are about everybody,
+and the name, grade and record locator, which are the student's own — is not kept.
 
-`save_bluebook_score` checks the scale again, refuses a day still to come and the same test twice
-on one day, and is staff's — any teacher, any student, as with progress. The teacher who recorded a
-score or an admin deletes it. The PC reads their own students' and changes nothing; the parent card
-leads with the latest total and the line from the first ("1180 → 1290 over 3 practice tests"), with
-nothing about who recorded them. A student the clean-up deletes takes their scores with them
-(`bluebook.sql`).
+**Reading it** is done in the browser, and nothing of the file is kept. The PDF's text layer comes
+out through pdf.js (`lib/pdfText.ts`, loaded only then), put back into lines by baseline, and
+`lib/bluebook.ts` reads it: each score from beside its label — *Total Score*, *Reading and Writing*,
+*Math* — on the label's line or the next few. Never from the printed scales, which the report sets
+in small type beside each score and breaks over two lines (*400–* above *1600*): both ends are taken
+out first, because read as scores they are 200 + 200 = 400, which adds up — the first version of the
+reader read exactly that off the real report. Never from a score range, a three-year average, or
+*Advanced Math*. College Board's scale settles the rest: a section is 200 to 800 in tens and **the
+total is the two sections added**, so the three that add up are the three read, and three that do
+not are shown as read and flagged rather than corrected. A percentile is taken only where the report
+marks one (*90th\**), never the *12th* of *12th grade*. The domains' names and their bands are each
+taken in reading order and paired one to one — and only when every name has a band, since a band
+on the wrong domain would be worse than none. What is not found is left empty to type, never worked
+out from the others, and a PSAT report, on another scale, is refused. The name on the report is read
+only to be compared with the student's: a report for somebody else says so before it is saved.
+The teacher sees every value, with a line saying what was and was not found, and nothing is saved
+until **Save the score**; changing a score it read makes it a typed one.
+
+The tests read the real report's text in both orders the app meets it — pdf.js's lines and a PDF
+viewer's copy — with the student's name, locator, scores, percentiles and ranges changed and the
+layout as printed (`lib/fixtures/sat-score-report.*.txt`).
+
+`save_bluebook_score` checks the scale again — a percentile is 1 to 99, a domain one of the eight
+and its band two scores in tens, the lower first — refuses a day still to come and the same test
+twice on one day, and is staff's: any teacher, any student, as with progress. The teacher who
+recorded a score or an admin deletes it. The PC reads their own students' and changes nothing. The
+parent card leads with the latest test — an official SAT by its name, with its percentile — and the
+line from the first ("1240 → 1350 over 2 tests"), then the domains' bands from the latest report
+that gave them, with nothing about who recorded any of it. A student the clean-up deletes takes
+their scores with them (`bluebook.sql`).
 
 ## The one rule that shapes the schema
 
@@ -1318,6 +1337,10 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0090`.** Safe for the app being served: the new columns have defaults and
+`save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
+SQL editor.
 
 **Order, for `0089`.** Safe at any time: a new targeted test starts at 12 questions instead of 10,
 in every subject still on the old default.

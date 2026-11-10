@@ -6,14 +6,19 @@ import {
   byDay,
   change,
   dayLabel,
+  EMPTY_SCORE,
+  ordinal,
   readBluebook,
+  sameName,
+  type Band,
   type BluebookScore,
 } from '../lib/bluebook'
 import { pdfLines } from '../lib/pdfText'
 import { supabase } from '../lib/supabase'
+import { DomainBands } from './DomainBands'
 import { Field, Input, Notice, Textarea } from './ui'
 
-/** One row of bluebook_scores (0088). */
+/** One row of bluebook_scores (0088, 0090). */
 interface Row {
   id: string
   test_name: string
@@ -22,25 +27,36 @@ interface Row {
   reading_writing: number
   math: number
   read_from: 'report' | 'typed'
+  official: boolean
+  total_percentile: number | null
+  rw_percentile: number | null
+  math_percentile: number | null
+  domains: Record<string, Band> | null
   created_by: string | null
 }
 
 /**
- * A student's Bluebook practice tests (0088): the total and the two sections
- * of each, oldest first, and the change in the total from the one before.
+ * A student's SAT scores from Bluebook (0088, 0090): official SATs and
+ * practice tests, oldest first — the total and the two sections with their
+ * percentiles, the change in the total from the one before, and the eight
+ * domains' performance bands where the report gave them.
  *
  * Staff add one by reading College Board's score report — a PDF, or its text
  * pasted — or by typing it; either way the form shows what will be saved and
  * the database checks it again. The report itself is read here, in the
- * browser, and is not kept. The PC reads the list and changes nothing.
+ * browser, and is not kept; the name on it is read only to check it is this
+ * student's. The PC reads the list and changes nothing.
  */
 export function BluebookScores({
   studentId,
+  studentName,
   staff,
   me,
   isAdmin,
 }: {
   studentId: string
+  /** Whom the page is for — a report for somebody else is said to be. */
+  studentName: string | null
   /** A teacher or an admin: may add one. */
   staff: boolean
   /** Who is looking: a teacher deletes what they recorded. */
@@ -51,14 +67,18 @@ export function BluebookScores({
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data, error: err } = await supabase
       .from('bluebook_scores')
-      .select('id, test_name, taken_on, total, reading_writing, math, read_from, created_by')
+      .select(
+        'id, test_name, taken_on, total, reading_writing, math, read_from, official,' +
+          ' total_percentile, rw_percentile, math_percentile, domains, created_by',
+      )
       .eq('student_id', studentId)
     if (err) setError(err.message)
-    setRows(byDay((data ?? []) as Row[]))
+    setRows(byDay((data ?? []) as unknown as Row[]))
   }, [studentId])
 
   useEffect(() => {
@@ -76,16 +96,17 @@ export function BluebookScores({
   }
 
   const headline = bluebookHeadline(rows)
+  const columns = 7 + (staff ? 1 : 0)
 
   return (
     <section className="card card-pad bluebook">
       <div className="bluebook-head">
         <div>
-          <div className="section-title">Bluebook practice tests</div>
+          <div className="section-title">SAT scores</div>
           <p className="muted">
             {headline
-              ? `${headline}. Total on 400–1600; each section on 200–800.`
-              : 'College Board’s full practice tests, sat in Bluebook. None recorded yet.'}
+              ? `${headline}. Official SATs and Bluebook practice tests: total on 400–1600, each section on 200–800.`
+              : 'Official SATs and College Board’s practice tests, sat in Bluebook. None recorded yet.'}
           </p>
         </div>
         <span className="spring" />
@@ -101,6 +122,7 @@ export function BluebookScores({
       {adding && (
         <BluebookAdd
           studentId={studentId}
+          studentName={studentName}
           onDone={async (saved) => {
             setAdding(false)
             if (saved) await load()
@@ -120,36 +142,24 @@ export function BluebookScores({
                   <th className="num">Reading and Writing</th>
                   <th className="num">Math</th>
                   <th className="num">Change</th>
+                  <th>Domains</th>
                   {staff && <th />}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={r.id}>
-                    <td>{dayLabel(r.taken_on)}</td>
-                    <td>
-                      {r.test_name}
-                      {r.read_from === 'report' && <div className="muted">read off the report</div>}
-                    </td>
-                    <td className="num cell-strong">{r.total}</td>
-                    <td className="num">{r.reading_writing}</td>
-                    <td className="num">{r.math}</td>
-                    <td className="num">{i === 0 ? '—' : change(rows[i - 1].total, r.total)}</td>
-                    {staff && (
-                      <td className="num">
-                        {(isAdmin || r.created_by === me) && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            disabled={busy}
-                            onClick={() => void remove(r)}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
+                  <ScoreRow
+                    key={r.id}
+                    r={r}
+                    before={i > 0 ? rows[i - 1] : null}
+                    open={open === r.id}
+                    onToggle={() => setOpen(open === r.id ? null : r.id)}
+                    columns={columns}
+                    canDelete={staff && (isAdmin || r.created_by === me)}
+                    staff={staff}
+                    busy={busy}
+                    onDelete={() => void remove(r)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -160,12 +170,93 @@ export function BluebookScores({
   )
 }
 
-const EMPTY: BluebookScore = { test: null, takenOn: null, total: null, readingWriting: null, math: null }
+/** "1350" with "90th" under it, or the score alone. */
+function Scored({ value, percentile }: { value: number; percentile: number | null }) {
+  return (
+    <>
+      {value}
+      {percentile !== null && <div className="muted">{ordinal(percentile)} percentile</div>}
+    </>
+  )
+}
+
+function ScoreRow({
+  r,
+  before,
+  open,
+  onToggle,
+  columns,
+  canDelete,
+  staff,
+  busy,
+  onDelete,
+}: {
+  r: Row
+  before: Row | null
+  open: boolean
+  onToggle: () => void
+  columns: number
+  canDelete: boolean
+  staff: boolean
+  busy: boolean
+  onDelete: () => void
+}) {
+  const hasDomains = !!r.domains && Object.keys(r.domains).length > 0
+  return (
+    <>
+      <tr>
+        <td>{dayLabel(r.taken_on)}</td>
+        <td>
+          {r.test_name}{' '}
+          <span className={`badge ${r.official ? 'badge-sky' : 'badge-neutral'}`}>
+            {r.official ? 'Official SAT' : 'Practice'}
+          </span>
+          {r.read_from === 'report' && <div className="muted">read off the report</div>}
+        </td>
+        <td className="num cell-strong">
+          <Scored value={r.total} percentile={r.total_percentile} />
+        </td>
+        <td className="num">
+          <Scored value={r.reading_writing} percentile={r.rw_percentile} />
+        </td>
+        <td className="num">
+          <Scored value={r.math} percentile={r.math_percentile} />
+        </td>
+        <td className="num">{before ? change(before.total, r.total) : '—'}</td>
+        <td>
+          {hasDomains ? (
+            <button type="button" className="link-btn" aria-expanded={open} onClick={onToggle}>
+              {open ? 'Hide' : 'Show'} bands
+            </button>
+          ) : (
+            <span className="dash">—</span>
+          )}
+        </td>
+        {staff && (
+          <td className="num">
+            {canDelete && (
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onDelete}>
+                Delete
+              </button>
+            )}
+          </td>
+        )}
+      </tr>
+      {open && hasDomains && (
+        <tr className="bluebook-bands-row">
+          <td colSpan={columns}>
+            <DomainBands domains={r.domains!} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 /** "1250" → 1250; "" → null. */
-const asScore = (v: string): number | null => (v.trim() === '' ? null : Number(v))
+const asNumber = (v: string): number | null => (v.trim() === '' ? null : Number(v))
 
 /**
  * Adding a score: read the report, or type it. What the report gave is shown
@@ -174,13 +265,16 @@ const asScore = (v: string): number | null => (v.trim() === '' ? null : Number(v
  */
 function BluebookAdd({
   studentId,
+  studentName,
   onDone,
 }: {
   studentId: string
+  studentName: string | null
   onDone: (saved: boolean) => Promise<void>
 }) {
-  const [score, setScore] = useState<BluebookScore>(EMPTY)
+  const [score, setScore] = useState<BluebookScore>(EMPTY_SCORE)
   const [notes, setNotes] = useState<string[]>([])
+  const [reportName, setReportName] = useState<string | null>(null)
   const [paste, setPaste] = useState('')
   const [read, setRead] = useState(false)
   const [edited, setEdited] = useState(false)
@@ -192,6 +286,7 @@ function BluebookAdd({
     const r = readBluebook(text)
     setScore(r.score)
     setNotes(r.notes)
+    setReportName(r.name)
     setRead(true)
     setEdited(false)
   }
@@ -214,13 +309,15 @@ function BluebookAdd({
     setReading(false)
   }
 
-  function set(field: keyof BluebookScore, value: string) {
-    const v = field === 'test' || field === 'takenOn' ? value || null : asScore(value)
-    setScore({ ...score, [field]: v })
-    if (field !== 'test') setEdited(true)
+  function set<K extends keyof BluebookScore>(field: K, value: BluebookScore[K]) {
+    setScore({ ...score, [field]: value })
+    // A score or the day changed by hand is no longer what the report said.
+    if (field === 'total' || field === 'readingWriting' || field === 'math' || field === 'takenOn')
+      setEdited(true)
   }
 
   const problem = bluebookProblem(score, today())
+  const someoneElse = reportName && studentName && !sameName(reportName, studentName) ? reportName : null
 
   async function save() {
     if (problem) return
@@ -228,12 +325,17 @@ function BluebookAdd({
     setError(null)
     const { error: err } = await supabase.rpc('save_bluebook_score', {
       p_student: studentId,
-      p_test_name: score.test?.trim() || BLUEBOOK_DEFAULT_NAME,
+      p_test_name: score.test?.trim() || (score.official ? 'SAT' : BLUEBOOK_DEFAULT_NAME),
       p_taken_on: score.takenOn,
       p_total: score.total,
       p_reading_writing: score.readingWriting,
       p_math: score.math,
       p_read_from: read && !edited ? 'report' : 'typed',
+      p_official: score.official === true,
+      p_total_percentile: score.totalPercentile,
+      p_rw_percentile: score.readingWritingPercentile,
+      p_math_percentile: score.mathPercentile,
+      p_domains: score.domains,
     })
     setBusy(false)
     if (err) setError(err.message)
@@ -245,7 +347,7 @@ function BluebookAdd({
       <div className="grid-2">
         <Field
           label="Read it off the score report"
-          hint="College Board’s PDF, from My Practice. It is read here and not kept: only the scores are saved."
+          hint="College Board’s PDF: the SAT score report, or a practice test’s from My Practice. It is read here and not kept: only the scores are saved."
         >
           <input
             type="file"
@@ -274,6 +376,12 @@ function BluebookAdd({
       </div>
 
       {reading && <p className="muted">Reading the report…</p>}
+      {someoneElse && (
+        <Notice kind="error">
+          This report is for {someoneElse}, and you are adding it to {studentName}. Check it is
+          theirs before saving.
+        </Notice>
+      )}
       {notes.length > 0 && (
         <Notice kind="info">
           {notes.map((n) => (
@@ -283,12 +391,21 @@ function BluebookAdd({
       )}
       {error && <Notice kind="error">{error}</Notice>}
 
+      <label className="check bluebook-official">
+        <input
+          type="checkbox"
+          checked={score.official === true}
+          onChange={(e) => set('official', e.target.checked)}
+        />{' '}
+        An official SAT, sat at a test centre — not a practice test
+      </label>
+
       <div className="bluebook-form">
         <Field label="Test">
           <Input
             value={score.test ?? ''}
-            placeholder={BLUEBOOK_DEFAULT_NAME}
-            onChange={(e) => set('test', e.target.value)}
+            placeholder={score.official ? 'SAT' : BLUEBOOK_DEFAULT_NAME}
+            onChange={(e) => set('test', e.target.value || null)}
           />
         </Field>
         <Field label="Sat on" required>
@@ -296,7 +413,7 @@ function BluebookAdd({
             type="date"
             max={today()}
             value={score.takenOn ?? ''}
-            onChange={(e) => set('takenOn', e.target.value)}
+            onChange={(e) => set('takenOn', e.target.value || null)}
           />
         </Field>
         <Field label="Total" required>
@@ -306,7 +423,7 @@ function BluebookAdd({
             max={1600}
             step={10}
             value={score.total ?? ''}
-            onChange={(e) => set('total', e.target.value)}
+            onChange={(e) => set('total', asNumber(e.target.value))}
           />
         </Field>
         <Field label="Reading and Writing" required>
@@ -316,7 +433,7 @@ function BluebookAdd({
             max={800}
             step={10}
             value={score.readingWriting ?? ''}
-            onChange={(e) => set('readingWriting', e.target.value)}
+            onChange={(e) => set('readingWriting', asNumber(e.target.value))}
           />
         </Field>
         <Field label="Math" required>
@@ -326,10 +443,52 @@ function BluebookAdd({
             max={800}
             step={10}
             value={score.math ?? ''}
-            onChange={(e) => set('math', e.target.value)}
+            onChange={(e) => set('math', asNumber(e.target.value))}
           />
         </Field>
       </div>
+
+      <div className="bluebook-form">
+        <Field label="Total percentile" hint="Optional: the report’s 90th* and so on.">
+          <Input
+            type="number"
+            min={1}
+            max={99}
+            value={score.totalPercentile ?? ''}
+            onChange={(e) => set('totalPercentile', asNumber(e.target.value))}
+          />
+        </Field>
+        <Field label="Reading and Writing percentile">
+          <Input
+            type="number"
+            min={1}
+            max={99}
+            value={score.readingWritingPercentile ?? ''}
+            onChange={(e) => set('readingWritingPercentile', asNumber(e.target.value))}
+          />
+        </Field>
+        <Field label="Math percentile">
+          <Input
+            type="number"
+            min={1}
+            max={99}
+            value={score.mathPercentile ?? ''}
+            onChange={(e) => set('mathPercentile', asNumber(e.target.value))}
+          />
+        </Field>
+      </div>
+
+      {score.domains && (
+        <div className="bluebook-read-bands">
+          <div className="bluebook-read-bands-head">
+            <strong>The domains’ performance bands, as read</strong>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('domains', null)}>
+              Leave them out
+            </button>
+          </div>
+          <DomainBands domains={score.domains} />
+        </div>
+      )}
 
       {problem && <p className="field-hint">{problem}</p>}
       <div className="panel-actions">
