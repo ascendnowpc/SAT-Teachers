@@ -24,6 +24,7 @@ npm run dev                                    # http://localhost:5173
 | **Suspend** | An admin closes an account, or reopens it — and a closed account cannot sign in |
 | **Question bank** | Teachers write and correct MCQs: passage or figure, question, up to 4 options, key, explanation |
 | **Three tests** | English is easy, medium and hard — twenty questions each, under Questions, read as printed |
+| **Filtering a test** | Above every test and pool: a search, then section, skill, difficulty, answer type, source and picture, each option with the count it would leave, and "Showing 41 of 1,892 questions". The filters are in the address, so a reload or Edit comes back to them, and a printed copy says what it was narrowed to (`lib/paperFilter.ts`) |
 | **Maths, three too** | Mathematics has the same three tests, sixty questions filed into them by `0041`, so a maths session runs |
 | **Where it goes** | A question is written *inside* a test, in one call, and takes that test's subject and level |
 | **Difficulty** | Easy / medium / hard, and every question says *why* it sits at that level |
@@ -51,7 +52,7 @@ npm run dev                                    # http://localhost:5173
 | **Progress** | Each skill's line from the baseline through every targeted test, with the sessions between and a verdict that is computed, never decided (`0063`) |
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
-| **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`) |
+| **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`). The English ones read as text, passage left and question right, with a picture only of a chart or a table (`0091`, `0092`) |
 | **SAT scores** | A student's official SATs and Bluebook practice tests — total, Reading and Writing, Math, their percentiles and the eight domains' performance bands — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`, `0090`) |
 
 ## English is three tests
@@ -1040,6 +1041,48 @@ The pictures go up **before** the migrations, so no question is published pointi
 is not there yet. `seed_pool_question` upserts on `source_ref`, so the import is re-runnable and
 a question already in a pool keeps its place in it.
 
+### The English bank, put back into the app's shape (`0091`, `0092`)
+
+The import read the export line by line, and what it stored still carried the printed page:
+every printed line ended in a line break, so a sentence broke wherever the page's margin fell; the
+passage and the question were one block, so the passage sat where the question goes and the left
+pane said "This question stands on its own"; a Rhetorical Synthesis question's bullets were
+pictures of the notes, with `?` where each bullet was in the text beside them; an underline was a
+rule read as a minus sign at the end of a line, so "the underlined sentence" was underlined nowhere;
+and every question with a chart or a table was one picture of the whole question.
+
+`tools/questionbank/tidy.py` puts each Reading and Writing question back as the diagnostic tests'
+own are: the passage (paragraphs, "Text 1" / "Text 2", verse kept to its lines, notes as bullets)
+and the question alone in the stem. A printed line of 110 characters or more ran to the margin, so
+the next line continues it; a word hyphenated at the margin is joined back. The underline is
+recovered where the rule says which sentence it is — 36 of the 103 questions about something
+underlined; a portion or a claim can stop anywhere, and its ends are what the rule did not keep,
+so those are left until the export PDFs are to hand. No word changes: for all 1,844 questions the
+letters and digits of the new passage and stem are the old stem's, in order, less a chart's labels.
+
+`tools/questionbank/figures.py` cuts the chart or table out of each whole-question picture —
+everything above the first run of printed lines at the left margin — and every one of the 133 was
+checked by eye. They are served from `apps/web/public/question-figures/cb`, as the diagnostic
+tests' figures are. Five more pictures were not figures at all but a sliver of one printed line
+under an underlined word; they go, and the underline they showed is set in `tidy.py`'s `OVERRIDES`.
+
+Two things were wrong in the stored text itself. The export maps the ʻokina of "Hawaiʻi" to
+nothing, the import wrote a NUL byte for it, and psql cut the line short there — one English
+passage lost half a line, which `0091` writes back in full. And `0091` carries the rules, not the
+text: `tidy_english.sql` is `tidy.py` in PL/pgSQL, run on the stems the database holds, and gives
+the same text for every question (checked on a rebuild from every migration). `0092` carries the
+133 questions with a figure, whose stems `0085` had already replaced, in full.
+
+```bash
+python3 tools/questionbank/from_migrations.py supabase/migrations --out rows.json
+python3 tools/questionbank/figures.py rows.json --pictures ./pictures --out apps/web/public/question-figures/cb
+python3 tools/questionbank/tidy.py rows.json --figures apps/web/public/question-figures/cb --out tidy.json
+python3 tools/questionbank/make_update.py rows.json tidy.json --number 91 --out supabase/migrations
+```
+
+The maths bank is not tidied by this: its mathematics was decoded from drawn shapes, and where
+that went wrong the text needs the export PDFs, not a rule.
+
 ## A question the student types the answer to
 
 Every question before `0073` was four options with one right answer. A quarter of the SAT's
@@ -1338,6 +1381,12 @@ code path it had. Apply them in order, then deploy `notify_pc_report` (its targe
 the Progress section), then merge. The Supabase MCP tool's `apply_migration` waits for a
 confirmation on any SQL holding `drop` or `delete` and times out when nobody gives it, so those
 migrations go through the SQL editor — see the handoff note.
+
+**Order, for `0091` and `0092`.** `0091` is safe at any time: it changes text the app already
+shows, and the passage and underline are fields every screen — the student's link included —
+already reads. `0092` points 133 questions at pictures in `apps/web/public/question-figures/cb`,
+so it is applied **after** the app with that folder is deployed; before it, those questions would
+show a broken picture. Neither holds a destructive statement, so both go through the tool.
 
 **Order, for `0090`.** Safe for the app being served: the new columns have defaults and
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the

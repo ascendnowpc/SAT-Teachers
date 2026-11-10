@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconBack } from '../components/icons'
 import { Field, Input, Notice, Select, Textarea } from '../components/ui'
 import {
@@ -40,6 +40,11 @@ export function QuestionNew() {
   const { id } = useParams<{ id: string }>()
   const editing = Boolean(id)
   const navigate = useNavigate()
+  // A test opened with filters on sends them along with Edit (Paper), so saving
+  // or cancelling lands back on the questions the teacher was looking at.
+  const location = useLocation()
+  const back = (location.state as { back?: unknown } | null)?.back
+  const backTo = typeof back === 'string' && back.startsWith('/tests/') ? back : null
 
   const [subject, setSubject] = useState<Subject>('english')
   const [section, setSection] = useState('')
@@ -272,7 +277,7 @@ export function QuestionNew() {
           })
       if (rpcError) throw new Error(rpcError.message)
 
-      navigate(home ? `/tests/${home.id}` : '/questions')
+      navigate(backTo ?? (home ? `/tests/${home.id}` : '/questions'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the question.')
     } finally {
@@ -544,7 +549,7 @@ export function QuestionNew() {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => navigate(home ? `/tests/${home.id}` : '/questions')}
+            onClick={() => navigate(backTo ?? (home ? `/tests/${home.id}` : '/questions'))}
             disabled={busy}
           >
             Cancel

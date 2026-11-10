@@ -1445,6 +1445,26 @@ table.board-table tr.live-row { background: var(--sky-wash); }
   text-decoration-color: var(--sky); text-decoration-thickness: 2px; text-underline-offset: 3px;
 }
 
+/* The filter row above a test (PaperFilterBar). On a wide screen it stays in
+   reach as the test scrolls — a pool is nearly two thousand questions, and the
+   count in it is what says how many are left. On a phone it would cover the
+   page under the sticky top bar, so there it scrolls away with everything else.
+   A list that is narrowing the test is tinted, so a filter left on is seen. */
+.paper-filters { margin-bottom: 20px; }
+/* A list is as wide as its longest option, and a maths skill can run to
+   "Nonlinear equations in one variable and systems of equations in two
+   variables" — so each is held to a width and the chosen name truncates. */
+.paper-filters .select { flex: 0 1 auto; max-width: 240px; text-overflow: ellipsis; }
+@media (min-width: 900px) {
+  .paper-filters { position: sticky; top: 12px; z-index: 6; }
+}
+.paper-filters .select.is-set { border-color: var(--sky); background-color: var(--sky-wash); color: var(--sky-dark); }
+/* What a printed copy was narrowed to. The row itself does not print. */
+.paper-filtered { display: none; }
+@media print {
+  .paper-filtered { display: block; margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+}
+
 /* Each question is a card in the same shape the student meets it in. */
 .paper-q {
   margin-bottom: 18px; break-inside: avoid;
