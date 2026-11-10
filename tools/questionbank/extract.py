@@ -137,9 +137,18 @@ def page_gray(page) -> tuple[np.ndarray, int, int]:
     return gray, pix.width, pix.height
 
 
-def expressions(page, top: float = BODY_TOP) -> list[tuple[pymupdf.Rect, list[Glyph]]]:
-    """The page's drawn shapes, read and grouped into expressions."""
-    drawings = [d for d in page.get_drawings() if d["rect"].y0 > top]
+def expressions(page, top: float = BODY_TOP,
+                bottom: float | None = None) -> list[tuple[pymupdf.Rect, list[Glyph]]]:
+    """The page's drawn shapes, read and grouped into expressions.
+
+    `bottom`, where it is given, keeps the grouping inside a band of the page.
+    A chart is drawn from the same vector paths as an expression is, so a
+    cluster that is free to grow across the whole page grows from the chart
+    into the line of prose beneath it and swallows the expression sitting
+    there (math_figure.py). Bounding the band is what keeps them apart.
+    """
+    drawings = [d for d in page.get_drawings()
+                if d["rect"].y0 > top and (bottom is None or d["rect"].y1 < bottom)]
     if not drawings:
         return []
     gray, w, h = page_gray(page)
