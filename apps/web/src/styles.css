@@ -3366,3 +3366,20 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
 .report-bluebook-edit { max-width: 1120px !important; padding: 0 20px 48px !important; }
 .report-bluebook-edit .card { border-radius: 18px; }
 @media (max-width: 640px) { .report-bluebook-edit { padding: 0 14px 40px !important; } }
+
+/* More pages in the dashboard's language. */
+.subject-tabs { margin: 18px 0; }
+.stat-row > .stat {
+  border: 0; box-shadow: none; border-radius: 18px; padding: 18px 20px; background: #ECEBFF;
+  animation: rise-in .5s var(--ease) both;
+}
+.stat-row > .stat:nth-child(4n + 2) { background: #E3F1FC; animation-delay: .05s; }
+.stat-row > .stat:nth-child(4n + 3) { background: #E5F6E3; animation-delay: .1s; }
+.stat-row > .stat:nth-child(4n + 4) { background: #FDECE3; animation-delay: .15s; }
+.stat-row > .stat:nth-child(5) { background: #ECEBFF; animation-delay: .2s; }
+.stat-row .stat .v { font-family: var(--font-ui); font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
+.report .card, .page .card.card-pad { animation: rise-in .5s var(--ease) both; }
+.progress-line .board-table td .muted { font-size: 13px; }
+.how-scored { border-radius: 14px; }
+@media (min-width: 860px) { .dash-stats.dash-stats-3 { grid-template-columns: repeat(3, 1fr); } }
+.dash-stats + .student-section { margin-top: 22px; }

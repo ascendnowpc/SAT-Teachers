@@ -67,11 +67,7 @@ export function TestsSummary({
       {error && <Notice kind="error">{error}</Notice>}
 
       {!s && !error && (
-        <p className="muted">
-          A few lines on every targeted test {studentName.split(' ')[0] || 'the student'} has sat,
-          written from the scores on these pages — what moved, what did not, and what to work on
-          next. Read it before you share it.
-        </p>
+        <p className="muted">A short AI summary of {studentName.split(' ')[0] || 'the student'}’s targeted tests.</p>
       )}
 
       {s && (

@@ -217,14 +217,7 @@ export function SessionReport() {
           </div>
 
           <div className="card card-pad">
-            <div className="section-title">
-              Each domain: the form{extraction && ', and what the recording shows'}
-            </div>
-            <p className="step-text muted">
-              The four rows of the diagnostic form, reproduced word for word.
-              {extraction &&
-                ' The last column is the recording, and every line in it carries the words it came from.'}
-            </p>
+            <div className="section-title">Each domain</div>
             <EvaluationGrid rows={grid} evidence={extraction ? byDomain : undefined} />
           </div>
 
@@ -237,29 +230,22 @@ export function SessionReport() {
 
           {staleness ? (
             <Notice kind="info">
-              {staleness === 'form'
-                ? 'The diagnostic form was handed in again after the recording was read'
-                : 'The transcript was changed after the recording was read'}
-              , so what the recording showed is left out until it is read again. Everything here is
-              the teacher’s own writing and the numbers from the answers. Generate the report again
-              from the session console to have it read.
+              {staleness === 'form' ? 'The form changed' : 'The transcript changed'} since the recording was
+              read — generate again to include it.
             </Notice>
           ) : (
             !extraction && (
               <Notice kind="info">
-                The recording has not been read for this session, so everything here is the teacher’s
-                own writing and the numbers from the answers. Generate the report again from the
-                session console to have the transcript read.
+                The recording hasn’t been read for this report.
               </Notice>
             )
           )}
 
           {conflicts.length > 0 && (
             <div className="card card-pad">
-              <div className="section-title">Worth a second look before this goes out</div>
+              <div className="section-title">Worth a second look</div>
               <p className="step-text muted">
-                The recording sits awkwardly against what was written on the form here. One of the
-                two needs correcting, and only the teacher can say which.
+                The recording doesn’t match the form here.
               </p>
               <DomainFindings evidence={conflicts} />
             </div>
@@ -385,10 +371,6 @@ export function SessionReport() {
           {report.misses.length > 0 && (
             <div className="card card-pad">
               <div className="section-title">Every miss, and why</div>
-              <p className="step-text muted">
-                What the question was is on the paper; what is worth reading here is why this one
-                went wrong. The question is named by its number and its level.
-              </p>
               <div className="miss-list">
                 {report.misses.map((a) => (
                   <MissRow key={a.itemId} attempt={a} />

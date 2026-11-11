@@ -52,7 +52,7 @@ export function ProgressLineView({
                 <th>What</th>
                 <th className="num">Score /10</th>
                 <th className="num">Level score</th>
-                <th className="num">Sessions since the last</th>
+                <th className="num">Sessions between</th>
                 <th>Change</th>
               </tr>
             </thead>
@@ -82,8 +82,9 @@ export function ProgressLineView({
                           {VERDICT_LABELS[p.step.verdict]} ({p.step.delta >= 0 ? '+' : ''}
                           {round(p.step.delta)})
                         </span>
-                        <div className="muted">{p.step.text}</div>
-                        <div className="muted">{p.step.caveat}</div>
+                        <div className="muted" title={p.step.caveat}>
+                          {p.step.text}
+                        </div>
                         {showOverrides && p.override?.shared_wording && (
                           <div className="override-shared">
                             <strong>Teacher:</strong> {p.override.shared_wording}

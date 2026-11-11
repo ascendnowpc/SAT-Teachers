@@ -54,8 +54,7 @@ export function Account() {
 
       {isPc && (
         <Notice kind="info">
-          You are a PC. You see the sessions and reports of the students assigned to you, and each
-          report is emailed to you as a PDF when it is generated.
+          You see your students’ sessions and reports, and each report is emailed to you.
         </Notice>
       )}
 

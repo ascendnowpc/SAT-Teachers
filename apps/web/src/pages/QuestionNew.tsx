@@ -321,8 +321,7 @@ export function QuestionNew() {
           <div>
             <h1>New question</h1>
             <p className="sub">
-              A question is written inside the test that holds it. Pick the test and the form opens
-              on it.
+              Pick the test it goes in.
             </p>
           </div>
         </div>
@@ -451,7 +450,7 @@ export function QuestionNew() {
 
           <Field
             label="Why is it that level?"
-            hint="Optional, but it is what makes a report explain an escalation rather than just report one."
+            hint="Optional."
           >
             <Textarea
               rows={2}
@@ -476,7 +475,7 @@ export function QuestionNew() {
 
           <Field
             label="Underlined sentence"
-            hint="Optional — paste it exactly as it appears above, for “function of the underlined sentence”."
+            hint="Optional — copied exactly from the passage."
           >
             <Textarea
               rows={2}
@@ -488,7 +487,7 @@ export function QuestionNew() {
 
           <Field
             label="Figure"
-            hint="Optional. A diagram or chart, shown with the stimulus — for the maths items that are a picture rather than a paragraph."
+            hint="Optional diagram or chart."
           >
             <div className="figure-field">
               <input
@@ -561,7 +560,7 @@ export function QuestionNew() {
           ))}
 
           <div style={{ marginTop: 18 }}>
-            <Field label="Explanation" hint="Why the correct answer is correct. Shown to the student after the teacher reveals it.">
+            <Field label="Explanation" hint="Shown to the student after the reveal.">
               <Textarea
                 rows={3}
                 value={explanation}

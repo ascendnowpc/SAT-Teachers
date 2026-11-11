@@ -138,17 +138,6 @@ export function Sessions() {
       <div className="page-head">
         <div>
           <h1>Sessions</h1>
-          <p className="sub">
-            {!staff
-              ? 'Your tutoring sessions. Open one once its time has come.'
-              : tab === 'targeted'
-                ? isPc
-                  ? 'Short timed tests on one skill or a few, which your students sat alone. Each has its own report.'
-                  : 'Short timed tests on one skill or a few. The student sits them alone on their link; each has its own report and adds a point to their progress on each skill it asks.'
-                : isPc
-                  ? 'Sessions your students had live with their teacher, each written up in a report.'
-                  : 'Sessions you run live with the student: you put each question up and write it up after. A student’s first in a subject is their baseline.'}
-          </p>
         </div>
         <div className="spring" />
         {isTeacher && (

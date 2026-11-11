@@ -156,8 +156,7 @@ export function AfterTheTest({
       <div className="card card-pad next-step">
         <div className="section-title">Diagnostic form</div>
         <p>
-          The test is done and nothing is scored yet. The report is built from the reflection grid,
-          your comments and the Fathom transcript — fill those in and it can be generated.
+          Fill in the form, your comments and the transcript to generate the report.
         </p>
         <div className="step-actions">
           <Link className="btn btn-primary" to={`/sessions/${sessionId}/diagnostic`}>
@@ -274,8 +273,7 @@ export function AfterTheTest({
             )}
           </div>
           <p className="step-text muted">
-            Set this if the quotes come out against the wrong questions — it is where the lesson
-            starts in the recording.
+            Where the lesson starts in the recording.
           </p>
         </>
       )}
@@ -333,8 +331,7 @@ export function AfterTheTest({
       {readingFailed && (
         <div className="step-actions">
           <span className="muted">
-            The recording could not be read. You can still generate the report from your form and
-            the answers.
+            The recording couldn’t be read.
           </span>
           <button
             type="button"

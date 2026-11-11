@@ -302,7 +302,6 @@ function SubjectSettings({ subject, label }: { subject: Subject; label: string }
               : `is not enough to count as Improved — it takes ${Math.ceil(
                   draft.improved_at / Math.max(worth, 1),
                 )}.`}{' '}
-            Every verdict says this too, so nobody reads one question as a trend.
           </p>
         )}
       </section>

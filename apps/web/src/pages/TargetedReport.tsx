@@ -348,7 +348,7 @@ function SendToPc({ sessionId, pcName }: { sessionId: string; pcName: string | n
       <div className="section-title">The PC</div>
       {err && <Notice kind="error">{err}</Notice>}
       <p className="muted">
-        {line ? line.text : `Not sent to ${pcName || 'the PC'} yet. Nothing is emailed on its own.`}
+        {line ? line.text : `Not sent to ${pcName || 'the PC'} yet.`}
       </p>
       <button
         type="button"

@@ -359,11 +359,6 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
       <div className="page-head">
         <div>
           <h1>{targeted ? 'New targeted test' : 'New diagnostic'}</h1>
-          <p className="sub">
-            {targeted
-              ? 'A short set on one skill, or on several. The student sits it alone on their link, against the clock, and it has its own report.'
-              : 'A live session: you put each question up for the student and fill the diagnostic form after. Their first one in a subject is their baseline.'}
-          </p>
         </div>
       </div>
 
@@ -509,8 +504,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
               />
             ) : (
               <p className="field-hint">
-                Choose the student first: the set is built from the questions they have not seen
-                yet.
+                Choose the student first.
               </p>
             )}
             {targetedProblem && studentId && <p className="field-hint">{targetedProblem}</p>}
@@ -556,7 +550,7 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           )}
           {targeted && (
             <p className="field-hint">
-              The student can start it from their link any time after this, and sits it alone.
+              The student can start it any time after this.
             </p>
           )}
         </div>
@@ -716,7 +710,7 @@ function PcField({
     ? 'Changing it moves this student’s sessions and reports to the PC you choose.'
     : typedBefore
       ? `Their first session with a PC chosen from the list — it was written down before as “${typedBefore}”.`
-      : 'Chosen now, at the student’s first session, and theirs from then on. The PC reads their sessions and is emailed each report.'
+      : 'Set once, at their first session.'
 
   return (
     <Field label="PC" required hint={hint}>
