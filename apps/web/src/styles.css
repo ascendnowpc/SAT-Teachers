@@ -2160,6 +2160,7 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .stage-form, .stage-submitted { color: var(--medium-fg); }
 .stage-generated { color: var(--sky-dark); }
 .stage-published { color: var(--ok-fg); }
+.stage-computed { color: var(--ok-fg); }
 
 /* Who the session was between, and the one way into it. Three cards, one row,
    and the row is shallow on purpose: it is a caption on the page, not the page. */
@@ -3076,3 +3077,219 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 @media (min-width: 900px) { .report-bluebook-edit { max-width: 1012px; } }
 .bluebook .board-table th, .bluebook .board-table td { padding-left: 12px; padding-right: 12px; }
 .bluebook .board-table th:first-child, .bluebook .board-table td:first-child { padding-left: 16px; }
+
+/* ------------------------------------- a student's and a PC's own pages */
+.person-cols { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 18px; }
+@media (min-width: 900px) { .person-cols { grid-template-columns: 1fr 1fr; } }
+.person-cols .card + .card { margin-top: 0; }
+.person-facts { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 16px; margin: 0; font-size: 14px; }
+.person-facts dt { color: var(--muted); font-size: 13px; font-weight: 500; }
+.person-facts dd { margin: 0; color: var(--ink); line-height: 1.5; min-width: 0; }
+.person-facts a { color: var(--sky-dark); font-weight: 600; text-decoration: none; }
+.person-facts a:hover { text-decoration: underline; }
+.person-pc { margin-top: 6px; max-width: 260px; }
+.person-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.board-table td.nowrap { white-space: nowrap; }
+.student-block-head h3 .cell-link-name { color: inherit; }
+@media (max-width: 560px) { .person-facts { grid-template-columns: 1fr; gap: 2px 0; } .person-facts dd { margin-bottom: 8px; } }
+
+/* ---------------------------------------------- the student's dashboard
+   After the reference the school asked for: soft colour on four figures,
+   white panels, short labels, nothing to read twice. */
+.dashboard { max-width: 1120px; }
+.dash-hello {
+  font-family: var(--font-display); font-weight: 500; letter-spacing: -0.02em;
+  font-size: clamp(26px, 3.4vw, 32px); margin: 4px 0 18px;
+}
+.dash-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (min-width: 860px) { .dash-stats { grid-template-columns: repeat(4, 1fr); } }
+.dash-stat {
+  border-radius: 18px; padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px;
+  min-height: 128px;
+}
+.dash-stat.is-violet { background: #ECEBFF; }
+.dash-stat.is-sky { background: #E3F1FC; }
+.dash-stat.is-mint { background: #E5F6E3; }
+.dash-stat.is-peach { background: #FDECE3; }
+.dash-stat-top { display: flex; align-items: center; gap: 10px; }
+.dash-stat-icon {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+  background: var(--ink); color: #fff; flex: none;
+}
+.dash-stat-label { font-size: 13.5px; color: var(--ink-2); font-weight: 500; }
+.dash-stat-bottom { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.dash-stat-value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.dash-stat-foot { font-size: 12.5px; }
+.dash-stat-foot a {
+  display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--ink); color: #fff;
+  text-decoration: none; font-weight: 500;
+}
+
+.dash-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; align-items: start; }
+.dash-col { display: grid; gap: 14px; min-width: 0; }
+.dash-after { margin-top: 10px; }
+.dash-list li:has(> :nth-child(3):last-child) { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (min-width: 860px) { .dash-grid { grid-template-columns: 1.6fr 1fr; } }
+.dash-panel { background: #fff; border-radius: 18px; padding: 18px 20px; border: 1px solid var(--border); min-width: 0; }
+.dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.dash-panel-head h2 { font-size: 16px; font-weight: 600; color: var(--ink); }
+.dash-panel-head a { font-size: 13px; color: var(--sky-dark); font-weight: 600; text-decoration: none; }
+.dash-empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+.dash-muted { color: var(--muted); font-size: 13px; }
+
+.dash-next {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 16px 18px; border-radius: 14px; background: var(--page);
+}
+.dash-next.is-ready { background: linear-gradient(135deg, var(--grad-from), var(--grad-mid) 60%, var(--grad-to)); color: #fff; }
+.dash-next-tag { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--sky-dark); }
+.dash-next.is-ready .dash-next-tag { color: var(--lime); }
+.dash-next-title { font-size: 19px; font-weight: 600; margin-top: 4px; }
+.dash-next-meta { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.dash-next.is-ready .dash-next-meta { color: var(--navy-200); }
+
+.dash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dash-list li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  padding: 10px 8px; border-radius: 12px;
+}
+.dash-list li:hover { background: var(--page); }
+.dash-dot { width: 10px; height: 10px; border-radius: 50%; }
+.dash-dot.is-violet { background: #8B7CF6; }
+.dash-dot.is-sky { background: var(--sky); }
+.dash-list-main { min-width: 0; display: flex; flex-direction: column; }
+.dash-list-main strong { font-size: 14.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-list-main span { font-size: 12.5px; color: var(--muted); }
+.dash-chip {
+  border: 1px solid var(--border-strong); background: #fff; color: var(--ink); border-radius: 999px;
+  padding: 5px 12px; font-size: 12.5px; font-weight: 500; cursor: pointer; text-decoration: none;
+  font-family: inherit; white-space: nowrap;
+}
+.dash-chip:hover { border-color: var(--navy-300); }
+
+.dash-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dash-links a {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 12px; background: var(--page);
+  color: var(--ink); font-weight: 500; font-size: 14px; text-decoration: none;
+}
+.dash-links a:hover { background: var(--navy-50); }
+.dash-links a span { color: var(--faint); }
+
+/* The bar's tabs as one pill group, as in the reference. */
+.student-nav { background: var(--page); border-radius: 999px; padding: 4px; }
+.student-nav-link.on { background: var(--ink); color: #fff; }
+.student-nav-link.on:hover { background: var(--ink); color: #fff; }
+
+@media (max-width: 640px) {
+  .dash-stat { min-height: 112px; padding: 14px; }
+  .dash-stat-value { font-size: 26px; }
+  .dash-panel { padding: 16px 14px; }
+}
+
+/* ------------------------------------------------------------- motion
+   Things arrive in the order they are read — figures, then panels, then
+   rows — and lift a little under the pointer. The global reduced-motion
+   rule above switches all of it off. */
+@keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(206, 225, 119, .55); } 60% { box-shadow: 0 0 0 10px rgba(206, 225, 119, 0); } }
+
+.dash-hello { animation: rise-in .5s var(--ease) both; }
+.dash-stat { animation: rise-in .55s var(--ease) both; transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.dash-stat:nth-child(1) { animation-delay: .05s; }
+.dash-stat:nth-child(2) { animation-delay: .1s; }
+.dash-stat:nth-child(3) { animation-delay: .15s; }
+.dash-stat:nth-child(4) { animation-delay: .2s; }
+.dash-stat:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px rgba(16, 20, 43, .35); }
+.dash-stat-icon { transition: transform .3s var(--ease); }
+.dash-stat:hover .dash-stat-icon { transform: rotate(-8deg) scale(1.08); }
+
+.dash-grid > *, .dash-col > * { animation: rise-in .55s var(--ease) both; }
+.dash-col > :nth-child(1) { animation-delay: .25s; }
+.dash-col > :nth-child(2) { animation-delay: .35s; }
+.dash-grid > .dash-panel { animation-delay: .3s; }
+.dash-list li { animation: rise-in .45s var(--ease) both; transition: background var(--t) var(--ease), transform var(--t) var(--ease); }
+.dash-list li:nth-child(1) { animation-delay: .4s; }
+.dash-list li:nth-child(2) { animation-delay: .45s; }
+.dash-list li:nth-child(3) { animation-delay: .5s; }
+.dash-list li:nth-child(4) { animation-delay: .55s; }
+.dash-list li:nth-child(5) { animation-delay: .6s; }
+.dash-list li:hover { transform: translateX(3px); }
+.dash-chip { transition: border-color var(--t) var(--ease), background var(--t) var(--ease), transform var(--t) var(--ease); }
+.dash-chip:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+.dash-chip:active { transform: scale(.96); }
+.dash-links a { transition: background var(--t) var(--ease), transform var(--t) var(--ease); }
+.dash-links a:hover { transform: translateX(3px); }
+.dash-links a span { transition: transform var(--t) var(--ease), color var(--t); }
+.dash-links a:hover span { transform: translate(2px, -2px); color: var(--sky-dark); }
+.dash-next { transition: transform var(--t) var(--ease); }
+.dash-next.is-ready .btn-lime { animation: glow 2.2s ease-out infinite; }
+.score-chip { animation: rise-in .4s var(--ease) both; }
+
+.student-nav-link { transition: background .25s var(--ease), color .25s var(--ease); }
+
+/* Reports and the report itself. */
+.student-tests .student-test { animation: rise-in .45s var(--ease) both; }
+.student-tests .student-test:nth-child(2) { animation-delay: .05s; }
+.student-tests .student-test:nth-child(3) { animation-delay: .1s; }
+.student-tests .student-test:nth-child(4) { animation-delay: .15s; }
+.student-tests .student-test:nth-child(n + 5) { animation-delay: .2s; }
+.student-test:hover { transform: translateY(-2px); }
+.student-test { transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease); }
+.rdoc { animation: rise-in .5s var(--ease) both; }
+.report-card { animation: rise-in .5s var(--ease) both; }
+
+/* Staff and admin pages: stat tiles and tables arrive, rows answer the pointer. */
+.stats > .stat { animation: rise-in .5s var(--ease) both; }
+.stats > .stat:nth-child(2) { animation-delay: .05s; }
+.stats > .stat:nth-child(3) { animation-delay: .1s; }
+.stats > .stat:nth-child(4) { animation-delay: .15s; }
+.page .board, .page > .card, .person-cols > .card { animation: rise-in .5s .12s var(--ease) both; }
+tr.row-link td { transition: background var(--t) var(--ease); }
+tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
+.btn { transition: background var(--t) var(--ease), border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease); }
+.btn:active:not(:disabled) { transform: scale(.97); }
+
+/* ----------------------------------------- the student's settings (0100) */
+.settings-main { max-width: 880px; }
+.settings-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+@media (min-width: 760px) { .settings-grid { grid-template-columns: 1fr 1fr; } }
+.settings-grid > * { animation: rise-in .5s var(--ease) both; }
+.settings-grid > :nth-child(2) { animation-delay: .08s; }
+.settings-facts { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px 14px; margin: 0; font-size: 14.5px; }
+.settings-facts dt { color: var(--muted); }
+.settings-facts dd { margin: 0; color: var(--ink); font-weight: 500; }
+.settings-note { margin-top: 16px; color: var(--muted); font-size: 13px; }
+.settings-form { display: grid; gap: 2px; }
+.settings-form .btn { margin-top: 6px; justify-self: start; }
+.settings-form input { letter-spacing: .3em; font-variant-numeric: tabular-nums; max-width: 200px; }
+
+/* ------------------------------------------------ staff screens, simplified
+   The same language as the student's dashboard: pastel figures, plain
+   headings, round cards, one dark pill for where you are. */
+.stats { gap: 12px; margin-bottom: 28px; }
+.stats > .stat {
+  border: 0; box-shadow: none; border-radius: 18px; padding: 18px 20px 20px; background: #ECEBFF;
+}
+.stats > .stat:nth-child(4n + 2) { background: #E3F1FC; }
+.stats > .stat:nth-child(4n + 3) { background: #E5F6E3; }
+.stats > .stat:nth-child(4n + 4) { background: #FDECE3; }
+.stats > .stat:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px rgba(16, 20, 43, .35); }
+.stat .k { font-size: 13.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+.stat .v { font-family: var(--font-ui); font-weight: 600; font-size: 30px; margin-top: 12px; }
+.stat-sub { color: var(--ink-2); opacity: .75; }
+
+.section-title {
+  font-size: 16px; font-weight: 600; letter-spacing: -0.01em; text-transform: none; color: var(--ink);
+}
+.card { border-radius: 18px; box-shadow: none; }
+.board { border-radius: 18px; box-shadow: none; }
+.board-table th { letter-spacing: .04em; }
+
+.side nav a { border-radius: 12px; }
+.side nav a.active { background: var(--ink); color: #fff; box-shadow: none; }
+.side nav a.active svg { color: #fff; }
+.side nav a.active::before { display: none; }
+
+.page-head h1 { letter-spacing: -0.02em; }
+.page-head .sub { font-size: 14px; }

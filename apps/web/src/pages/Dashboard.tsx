@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { StageBadge } from '../components/AdminUi'
 import { SessionCard } from '../components/SessionCard'
 import { useAuth } from '../context/AuthContext'
-import { newTeachers, newTeacherSince, NEW_TEACHER_DAYS, reportStage } from '../lib/admin'
+import { newTeachers, newTeacherSince, reportStage } from '../lib/admin'
 import { subjectLabel } from '../lib/constants'
 import { NEW_SESSION } from '../lib/sessions'
 import { loadPins } from '../lib/studentPins'
@@ -87,12 +87,10 @@ export function Dashboard() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Welcome back, {firstName}.</h1>
-          <p className="sub">
+          <h1>Hi, {firstName}</h1>
+          <p className="sub head-meta">
             <span className="badge badge-role">{profile.role === 'pc' ? 'PC' : profile.role}</span>
-            <span style={{ marginLeft: 8 }}>
-              Your ID is <strong className="num">{profile.display_id}</strong>
-            </span>
+            <span className="num">{profile.display_id}</span>
           </p>
         </div>
       </div>
@@ -100,13 +98,8 @@ export function Dashboard() {
       {arrived.length > 0 && (
         <div className="card card-pad newcomers" style={{ marginBottom: 22 }}>
           <div className="section-title">
-            {arrived.length} new teacher {arrived.length === 1 ? 'account' : 'accounts'} in the last{' '}
-            {NEW_TEACHER_DAYS} days
+            {arrived.length} new {arrived.length === 1 ? 'teacher' : 'teachers'} this week
           </div>
-          <p className="sub" style={{ marginBottom: 12, maxWidth: '62ch' }}>
-            They can already use the platform. If you do not recognise one, open it and suspend the
-            account.
-          </p>
           <ul className="newcomer-list" style={{ marginBottom: 14 }}>
             {arrived.slice(0, 3).map((p) => (
               <li key={p.id}>
@@ -157,13 +150,7 @@ export function Dashboard() {
         <div className="card">
           <div className="empty">
             <h3>No sessions scheduled</h3>
-            <p>
-              {isTeacher
-                ? 'Create a session with a student and send them the link — they need no account to open it.'
-                : isPc
-                  ? 'None of your students has a session booked.'
-                  : `Nothing booked yet. Give your teacher your ID — ${profile.display_id} — so they can schedule one.`}
-            </p>
+            <p>{isTeacher ? 'Book a session to get started.' : 'Nothing booked.'}</p>
             {isTeacher && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Link className="btn btn-primary" to={NEW_SESSION.diagnostic}>
@@ -187,19 +174,6 @@ export function Dashboard() {
       {isTeacher && (
         <div className="card card-pad">
           <div className="section-title">Question bank</div>
-          <h3 style={{ fontSize: 16.5, marginBottom: 6 }}>Keep the bank ahead of your sessions</h3>
-          <p
-            style={{
-              color: 'var(--muted)',
-              fontSize: 14.5,
-              fontWeight: 300,
-              marginBottom: 16,
-              maxWidth: '54ch',
-            }}
-          >
-            Every question lives in one of the level tests, and its level is that test's — so the
-            numbers above are the papers your students actually sit.
-          </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Link className="btn btn-primary" to="/questions/new">
               Add question
@@ -296,10 +270,7 @@ function PcHome() {
         <div className="card" style={{ marginBottom: 26 }}>
           <div className="empty">
             <h3>No reports yet</h3>
-            <p>
-              Each report on one of your students is emailed to you as a PDF the moment it is
-              generated, and it is listed here as well.
-            </p>
+            <p>Reports on your students appear here.</p>
           </div>
         </div>
       ) : (
@@ -356,7 +327,7 @@ function PcHome() {
         <div className="card" style={{ marginBottom: 26 }}>
           <div className="empty">
             <h3>No students yet</h3>
-            <p>A student becomes yours when a teacher books their first session with you as their PC.</p>
+            <p>Students assigned to you appear here.</p>
           </div>
         </div>
       ) : (

@@ -24,7 +24,7 @@ import type { Profile, Session, SessionReportRow, SessionStatus } from './types'
  * This is the single most useful column in the portal: a run of 'form' against
  * one teacher's name is the backlog, and nothing else in the product shows it.
  */
-export type ReportStage = 'none' | 'form' | 'submitted' | 'generated' | 'published'
+export type ReportStage = 'none' | 'form' | 'submitted' | 'generated' | 'published' | 'computed'
 
 export const STAGE_LABELS: Record<ReportStage, string> = {
   none: 'Not started',
@@ -32,6 +32,7 @@ export const STAGE_LABELS: Record<ReportStage, string> = {
   submitted: 'Form handed in',
   generated: 'Report generated',
   published: 'Published',
+  computed: 'Computed',
 }
 
 /**
@@ -59,9 +60,18 @@ function handedInSince(formSubmittedAt: string | null, generatedAt: string): boo
   return formSubmittedAt !== null && Date.parse(formSubmittedAt) > Date.parse(generatedAt)
 }
 
-/** A session that is finished and whose report has not been published. */
+/**
+ * A session that is finished and whose report is not out. A finished targeted
+ * test's report is computed from its answers the moment it ends (0062) — there
+ * is no write-up to owe — so it is never outstanding.
+ */
 export function isOutstanding(status: SessionStatus, stage: ReportStage): boolean {
-  return status === 'completed' && stage !== 'published'
+  return status === 'completed' && stage !== 'published' && stage !== 'computed'
+}
+
+/** A report that is out: published, or a finished targeted test's computed one. */
+export function isReportOut(stage: ReportStage): boolean {
+  return stage === 'published' || stage === 'computed'
 }
 
 export interface Tally {
@@ -97,8 +107,8 @@ function count(tally: Tally, session: Session, stage: ReportStage): void {
   tally.total += 1
   tally[session.status] += 1
   tally.answered += session.answered_count ?? 0
-  if (stage === 'published') tally.published += 1
-  if (stage === 'generated' || stage === 'published') tally.generated += 1
+  if (isReportOut(stage)) tally.published += 1
+  if (stage === 'generated' || isReportOut(stage)) tally.generated += 1
   if (isOutstanding(session.status, stage)) tally.outstanding += 1
 }
 
@@ -111,6 +121,15 @@ export function stagesBySession(reports: SessionReportRow[]): Stages {
 
 function stageOf(stages: Stages, sessionId: string): ReportStage {
   return stages.get(sessionId) ?? 'none'
+}
+
+/**
+ * Where a session's report has got. A targeted test has no write-up: its
+ * report is computed once it is over, and until then there is nothing.
+ */
+export function sessionStage(session: Pick<Session, 'id' | 'mode' | 'status'>, stages: Stages): ReportStage {
+  if (session.mode === 'targeted') return session.status === 'completed' ? 'computed' : 'none'
+  return stageOf(stages, session.id)
 }
 
 export interface PersonRow {
@@ -164,7 +183,7 @@ export function teacherRows(
   for (const s of sessions) {
     const row = rows.get(s.teacher_id)
     if (!row) continue
-    count(row.tally, s, stageOf(stages, s.id))
+    count(row.tally, s, sessionStage(s, stages))
     remember(row, s.student?.id ?? s.student_id, s.student?.full_name)
     mark(row, s, now)
   }
@@ -187,7 +206,7 @@ export function studentRows(
   for (const s of sessions) {
     const row = rows.get(s.student_id)
     if (!row) continue
-    count(row.tally, s, stageOf(stages, s.id))
+    count(row.tally, s, sessionStage(s, stages))
     remember(row, s.teacher?.id ?? s.teacher_id, s.teacher?.full_name)
     mark(row, s, now)
   }
@@ -227,7 +246,7 @@ export function pcRows(
   for (const s of sessions) {
     const row = rows.get(pcOf.get(s.student_id) ?? '')
     if (!row) continue
-    count(row.tally, s, stageOf(stages, s.id))
+    count(row.tally, s, sessionStage(s, stages))
     mark(row, s, now)
   }
 
@@ -249,7 +268,7 @@ function byActivity(a: PersonRow, b: PersonRow): number {
 /** The whole school in one line, for the top of the overview. */
 export function schoolTally(sessions: Session[], stages: Stages): Tally {
   const tally = emptyTally()
-  for (const s of sessions) count(tally, s, stageOf(stages, s.id))
+  for (const s of sessions) count(tally, s, sessionStage(s, stages))
   return tally
 }
 
@@ -356,7 +375,7 @@ export function sessionsByStudent(sessions: Session[], stages: Stages): StudentG
       groups.set(id, group)
     }
     group.sessions.push(s)
-    count(group.tally, s, stageOf(stages, s.id))
+    count(group.tally, s, sessionStage(s, stages))
     if (new Date(s.scheduled_at) > new Date(group.lastAt)) group.lastAt = s.scheduled_at
   }
 
@@ -375,7 +394,7 @@ export function sessionsByStudent(sessions: Session[], stages: Stages): StudentG
 /** Sessions whose write-up is unfinished, oldest first — the backlog, in order. */
 export function backlog(sessions: Session[], stages: Stages): Session[] {
   return sessions
-    .filter((s) => isOutstanding(s.status, stageOf(stages, s.id)))
+    .filter((s) => isOutstanding(s.status, sessionStage(s, stages)))
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
 }
 
@@ -383,4 +402,18 @@ export function backlog(sessions: Session[], stages: Stages): Session[] {
 export function rate(part: number, whole: number): number | null {
   if (whole <= 0) return null
   return Math.round((part / whole) * 100)
+}
+
+/**
+ * The sessions with a report to read, newest first: a lesson's once generated
+ * or published — when the PC is sent it — and a targeted test's once it is
+ * over (0098's rule, so the admin's list and the family's agree).
+ */
+export function readyReports(sessions: Session[], stages: Stages): Session[] {
+  return sessions
+    .filter((s) => {
+      const stage = sessionStage(s, stages)
+      return stage === 'generated' || isReportOut(stage)
+    })
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
 }

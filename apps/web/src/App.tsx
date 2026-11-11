@@ -3,7 +3,9 @@ import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
 import { AboutSat } from './pages/AboutSat'
 import { Account } from './pages/Account'
+import { AdminPc } from './pages/AdminPc'
 import { AdminSession } from './pages/AdminSession'
+import { AdminStudent } from './pages/AdminStudent'
 import { AdminTeacher } from './pages/AdminTeacher'
 import { AdminSettings } from './pages/AdminSettings'
 import { AdminUsers } from './pages/AdminUsers'
@@ -27,6 +29,7 @@ import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
 import { StudentReportView } from './pages/StudentReportView'
 import { StudentReports } from './pages/StudentReports'
+import { StudentSettings } from './pages/StudentSettings'
 
 export function App() {
   const { session, profile, loading, isTeacher, isAdmin } = useAuth()
@@ -55,6 +58,8 @@ export function App() {
   if (location.pathname === '/student') return <StudentHome />
   // The parent report, from the same account (0070).
   if (location.pathname === '/student/report') return <ParentReport />
+  // Their settings: a new PIN (0100).
+  if (location.pathname === '/student/settings') return <StudentSettings />
   // Every report the staff have written for them, and each one (0098).
   if (location.pathname.startsWith('/student/reports')) {
     return (
@@ -112,6 +117,8 @@ export function App() {
           <>
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/teachers/:id" element={<AdminTeacher />} />
+            <Route path="/admin/students/:id" element={<AdminStudent />} />
+            <Route path="/admin/pcs/:id" element={<AdminPc />} />
             <Route path="/admin/sessions/:id" element={<AdminSession />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             {/* The old overview counted sessions on a page that is not the

@@ -5,6 +5,7 @@ import {
   isNewTeacher,
   isSuspended,
   rate,
+  sessionStage,
   type PersonRow,
   type ReportStage,
   type Stages,
@@ -102,7 +103,7 @@ export function PeopleTable({
 }: {
   rows: PersonRow[]
   kind: 'teacher' | 'student'
-  /** Given for teachers, whose rows open a page of their own. */
+  /** Each row opens the person's own page: a teacher's or a student's. */
   href?: (profile: Profile) => string
   /** Given for students on an admin's page: the PC, and the control that changes it (0055). */
   pcCell?: (profile: Profile) => ReactNode
@@ -239,16 +240,20 @@ export function PcTable({
   rows,
   invites,
   busy,
+  href,
   onInvite,
   onToggle,
 }: {
   rows: PersonRow[]
   invites: Map<string, PcInvite>
+  /** Each row opens the PC's own page. */
+  href?: (profile: Profile) => string
   /** The PC an action is running for. */
   busy: string | null
   onInvite: (profile: Profile) => void
   onToggle: (profile: Profile) => void
 }) {
+  const navigate = useNavigate()
   return (
     <div className="board">
       <div className="board-scroll">
@@ -270,11 +275,22 @@ export function PcTable({
           <tbody>
             {rows.map(({ profile, tally, counterparts, lastAt }) => {
               const joining = inviteState(invites.get(profile.id) ?? null)
+              const to = href?.(profile)
               return (
-                <tr key={profile.id}>
+                <tr
+                  key={profile.id}
+                  className={to ? 'row-link' : undefined}
+                  onClick={to ? () => navigate(to) : undefined}
+                >
                   <td>
                     <div className="cell-strong">
-                      {profile.full_name || 'Unnamed'}
+                      {to ? (
+                        <Link className="cell-link-name" to={to} onClick={(e) => e.stopPropagation()}>
+                          {profile.full_name || 'Unnamed'}
+                        </Link>
+                      ) : (
+                        profile.full_name || 'Unnamed'
+                      )}
                       {isSuspended(profile) ? (
                         <span className="badge badge-bad">Suspended</span>
                       ) : (
@@ -320,7 +336,7 @@ export function PcTable({
                     <div className="cell-sub">{tally.published} published</div>
                   </td>
                   <td>{dash(shortDate(lastAt))}</td>
-                  <td className="row-actions">
+                  <td className="row-actions" onClick={(e) => e.stopPropagation()}>
                     {!isSuspended(profile) && (
                       <button
                         type="button"
@@ -436,7 +452,7 @@ export function SessionTable({
                     {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
                   </td>
                   <td>
-                    <StageBadge stage={stages.get(s.id) ?? 'none'} />
+                    <StageBadge stage={sessionStage(s, stages)} />
                   </td>
                 </tr>
               )

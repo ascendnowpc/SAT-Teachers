@@ -46,8 +46,8 @@ export function AdminSettings() {
           <h1>Settings</h1>
           <p className="sub">
             {cleanup
-              ? 'When old student data and recordings are deleted. Nothing is deleted while it is off.'
-              : 'How targeted tests are scored and judged, for each subject. A change applies straight away to every test, including ones already sat.'}
+              ? 'When old data is deleted.'
+              : 'How targeted tests are scored. Changes apply to every test.'}
           </p>
         </div>
       </div>
@@ -172,10 +172,7 @@ function SubjectSettings({ subject, label }: { subject: Subject; label: string }
       <section className="card card-pad">
         <div className="section-title">1 · Turning a score into a level score</div>
         <p className="settings-lead">
-          A targeted test can be 5 questions or 10, so its score is first put out of 10 — 3 right of
-          5 is 6 out of 10 — and then turned into a level score using the points below, so tests of
-          any size can be compared. Between two points the level score rises in a straight line;
-          above the last point it keeps rising at the same rate.
+          Each score out of 10 maps to a level score, so tests of any size compare.
         </p>
 
         <table className="settings-points">
@@ -256,8 +253,7 @@ function SubjectSettings({ subject, label }: { subject: Subject; label: string }
       <section className="card card-pad">
         <div className="section-title">2 · When a change counts</div>
         <p className="settings-lead">
-          Each targeted test is compared with the one before it on the same skill — or with the
-          diagnostic, for the first test. The change in level score is called:
+          Each test is compared with the one before on the same skill:
         </p>
 
         <ul className="settings-rules">
@@ -327,8 +323,7 @@ function SubjectSettings({ subject, label }: { subject: Subject; label: string }
           questions.
         </p>
         <p className="field-hint">
-          The teacher can change it for each test. Most skills hold 2 to 6 questions in the bank, so
-          a bigger set may come up short — the booking form says by how many.
+          Teachers can change it per test.
         </p>
       </section>
 

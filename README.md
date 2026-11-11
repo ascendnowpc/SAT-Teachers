@@ -598,12 +598,18 @@ see the question bank and not one session, not one form and not one report. `004
 | --- | --- |
 | **Users** | Teachers, students, PCs (added, sent a new link or suspended here, and changed on a student's row), and the queue of teacher accounts waiting to be verified |
 | **A teacher** | Their sessions, gathered under the student they were with, and the control that suspends the account |
+| **A student** | Everything about them: their ID and PIN (and a new PIN), their PC (and changing it) and their teachers, their SAT scores, every report written for them, write-ups outstanding and every session — with links on to their skill progress and suspending the account |
+| **A PC** | Whether they have joined, another link and suspending the account, every student they are PC to, every report emailed to them and whether it went, and their students' sessions |
 | **A session** | Complete: every question with its answer, time and diagnosis, the teacher's diagnostic form as they filled it in, the transcript and the model's reading of it, and the written summary — and the way into all of it: the console, the form, the transcript, generating, and the report's editor, where it is published (`0050`) |
 | **Sessions** | The teacher's own list, with a teacher filter added for the admin, who is the only seat that sees more than one |
 
 Sessions are listed in exactly one place. The portal opened with an overview that counted them
 again on a page that is not the sessions list, which is two readings of the same rows that can
 disagree — so that page is gone and Users counts only people.
+
+Every row on Users opens that person's page — a teacher's, a student's (`/admin/students/:id`) or a
+PC's (`/admin/pcs/:id`) — and every name on those pages opens its own, so an admin can go from a PC
+to their student to the student's teacher without going back to the list.
 
 A teacher's page is grouped by student rather than ordered by date, because nobody opens it asking
 "what did she do on the 4th". They ask how this teacher is getting on with this student, and that
@@ -1417,6 +1423,9 @@ show a broken picture. Neither holds a destructive statement, so both go through
 **Order, for `0090`.** Safe for the app being served: the new columns have defaults and
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
+
+**Order, for `0100`.** Safe at any time: one new function. Apply it with the app that has the
+student's **Settings** tab, where a student changes their own PIN.
 
 **Order, for `0099`.** Safe for the app being served: `save_bluebook_score` keeps its arguments and
 still lets staff record, and every new door is new. Apply it with the app that shows the form to the

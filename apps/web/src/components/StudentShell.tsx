@@ -7,7 +7,8 @@ import { Logo } from './Logo'
 /**
  * The frame of every page in a student's own account (0067, 0070, 0098): the
  * bar with who is signed in, and the three places a student or a parent goes —
- * the tests, every report the teachers have written, and the progress card.
+ * the tests, every report the teachers have written, the progress card, and
+ * their settings.
  */
 export function StudentShell({
   student,
@@ -41,6 +42,9 @@ export function StudentShell({
           </NavLink>
           <NavLink to="/student/report" end className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
             Progress
+          </NavLink>
+          <NavLink to="/student/settings" end className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
+            Settings
           </NavLink>
         </nav>
         <div className="student-bar-who">
