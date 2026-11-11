@@ -161,15 +161,12 @@ export function AdminRecording({
 
           {body.trim() && parsed && parsed.lines.length === 0 && (
             <Notice kind="info">
-              No Fathom timestamps in this — nothing reads as <code>12:34 - Name</code> or{' '}
-              <code>@12:34 - Name</code>. It saves,
-              but the report cannot line quotes up against questions without them.
+              No timestamps found (like <code>12:34 - Name</code>). Quotes won’t line up with questions.
             </Notice>
           )}
           {extraction && !stale && !unchanged && (
             <p className="step-text muted">
-              The recording was read on {formatUtc(extraction.created_at)}. Saving a change makes that
-              reading out of date, and generating the report again reads the new transcript first.
+              Saving a change means the recording is read again on the next report.
             </p>
           )}
 
@@ -194,8 +191,7 @@ export function AdminRecording({
         </>
       ) : !transcript ? (
         <p className="sub">
-          No transcript has been uploaded. The teacher's form cannot be handed in without one, so
-          this session's report cannot be generated yet.
+          No transcript yet.
         </p>
       ) : (
         <>
@@ -212,13 +208,11 @@ export function AdminRecording({
           </p>
           {extraction ? (
             <p className="sub" style={{ marginTop: 8 }}>
-              Read by <strong>{extraction.model}</strong> on {formatUtc(extraction.created_at)},
-              offset {extraction.offset_seconds}s. {extraction.drops.length} claim
-              {extraction.drops.length === 1 ? '' : 's'} dropped for want of a verbatim quote.
+              Read {formatUtc(extraction.created_at)}
             </p>
           ) : (
             <p className="sub" style={{ marginTop: 8 }}>
-              The recording has not been read by the model. Generating the report reads it first.
+              Not read yet — generating the report reads it.
             </p>
           )}
         </>
@@ -244,7 +238,7 @@ export function AdminRecording({
       {!report?.form_submitted_at ? (
         <div className="step-actions">
           <span className="muted">
-            A report is generated from the diagnostic form, and it has not been handed in yet.
+            Waiting for the diagnostic form.
           </span>
           <Link
             className="btn btn-ghost btn-sm"
@@ -307,8 +301,7 @@ export function AdminRecording({
           {gen.readingFailed && (
             <div className="step-actions">
               <span className="muted">
-                The recording could not be read. The report can still be generated from the form and
-                the answers.
+                The recording couldn’t be read.
               </span>
               <button
                 type="button"

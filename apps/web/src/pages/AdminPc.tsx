@@ -84,7 +84,7 @@ export function AdminPc() {
         <div className="card">
           <div className="empty">
             <h3>No such PC</h3>
-            <p>That account is not one this platform holds, or it is not a PC’s.</p>
+            <p>This account doesn’t exist.</p>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@ export function AdminPc() {
         <div className="card">
           <div className="empty">
             <h3>No students yet</h3>
-            <p>A teacher chooses a student’s PC at their first booking, or an admin does under Users → Students.</p>
+            <p>No students assigned yet.</p>
           </div>
         </div>
       ) : (
@@ -173,7 +173,7 @@ export function AdminPc() {
         <div className="card">
           <div className="empty">
             <h3>Nothing emailed yet</h3>
-            <p>A report is emailed to the PC when it is generated, or when a teacher sends it on.</p>
+            <p>No reports emailed yet.</p>
           </div>
         </div>
       ) : (
@@ -241,7 +241,6 @@ export function AdminPc() {
           <div className="section-head">
             <h2 className="section-title">Write-ups outstanding</h2>
           </div>
-          <p className="section-note">Their students’ sessions that have been sat and have no report out yet.</p>
           <SessionTable sessions={late} stages={stages} />
         </>
       )}
@@ -253,7 +252,7 @@ export function AdminPc() {
         <div className="card">
           <div className="empty">
             <h3>Nothing yet</h3>
-            <p>None of their students has a session, sat or booked.</p>
+            <p>No sessions yet.</p>
           </div>
         </div>
       ) : (

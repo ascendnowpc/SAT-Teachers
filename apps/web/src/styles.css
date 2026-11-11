@@ -3262,3 +3262,33 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
 .settings-form { display: grid; gap: 2px; }
 .settings-form .btn { margin-top: 6px; justify-self: start; }
 .settings-form input { letter-spacing: .3em; font-variant-numeric: tabular-nums; max-width: 200px; }
+
+/* ------------------------------------------------ staff screens, simplified
+   The same language as the student's dashboard: pastel figures, plain
+   headings, round cards, one dark pill for where you are. */
+.stats { gap: 12px; margin-bottom: 28px; }
+.stats > .stat {
+  border: 0; box-shadow: none; border-radius: 18px; padding: 18px 20px 20px; background: #ECEBFF;
+}
+.stats > .stat:nth-child(4n + 2) { background: #E3F1FC; }
+.stats > .stat:nth-child(4n + 3) { background: #E5F6E3; }
+.stats > .stat:nth-child(4n + 4) { background: #FDECE3; }
+.stats > .stat:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px rgba(16, 20, 43, .35); }
+.stat .k { font-size: 13.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+.stat .v { font-family: var(--font-ui); font-weight: 600; font-size: 30px; margin-top: 12px; }
+.stat-sub { color: var(--ink-2); opacity: .75; }
+
+.section-title {
+  font-size: 16px; font-weight: 600; letter-spacing: -0.01em; text-transform: none; color: var(--ink);
+}
+.card { border-radius: 18px; box-shadow: none; }
+.board { border-radius: 18px; box-shadow: none; }
+.board-table th { letter-spacing: .04em; }
+
+.side nav a { border-radius: 12px; }
+.side nav a.active { background: var(--ink); color: #fff; box-shadow: none; }
+.side nav a.active svg { color: #fff; }
+.side nav a.active::before { display: none; }
+
+.page-head h1 { letter-spacing: -0.02em; }
+.page-head .sub { font-size: 14px; }

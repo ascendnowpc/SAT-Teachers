@@ -42,7 +42,7 @@ export function AdminTeacher() {
         <div className="card">
           <div className="empty">
             <h3>No such teacher</h3>
-            <p>That account is not one this platform holds, or it is not a teacher's.</p>
+            <p>This account doesn’t exist.</p>
           </div>
         </div>
       </div>
@@ -100,10 +100,6 @@ export function AdminTeacher() {
           <div className="section-head">
             <h2 className="section-title">Write-ups outstanding</h2>
           </div>
-          <p className="section-note">
-            Sessions that have been sat and have no report out. They are listed again under the
-            student they were with.
-          </p>
           <SessionTable sessions={late} stages={stages} showTeacher={false} />
         </>
       )}

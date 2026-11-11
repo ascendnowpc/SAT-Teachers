@@ -84,10 +84,6 @@ export function AdminUsers() {
       <div className="page-head">
         <div>
           <h1>Users</h1>
-          <p className="sub">
-            Everyone on the platform, with what they have done beside them. A student is a roster row
-            their teacher typed in, so this is the whole roster rather than a list of accounts.
-          </p>
         </div>
       </div>
 
@@ -155,8 +151,7 @@ export function AdminUsers() {
       {tab === 'pcs' && <AddPc onAdded={reloadPcs} />}
       {tab === 'students' && unassigned > 0 && (
         <p className="prose list-note">
-          {unassigned} {unassigned === 1 ? 'student has' : 'students have'} no PC yet. Each gets one at
-          their next booking, or choose one here.
+          {unassigned} without a PC — choose one below.
         </p>
       )}
 
@@ -166,17 +161,14 @@ export function AdminUsers() {
         <div className="card">
           <div className="empty">
             <h3>No PCs yet</h3>
-            <p>
-              Add the first one above. Until there is one, no session can be booked: every student is
-              booked with their PC.
-            </p>
+            <p>Add one above. Sessions need a PC to be booked.</p>
           </div>
         </div>
       ) : shown.length === 0 ? (
         <div className="card">
           <div className="empty">
             <h3>Nobody matches</h3>
-            <p>Nothing here fits what you have typed. Widen it, or clear the search.</p>
+            <p>Try another search.</p>
           </div>
         </div>
       ) : tab === 'pcs' ? (
@@ -246,12 +238,7 @@ function AddPc({ onAdded }: { onAdded: () => Promise<void> }) {
         Add a PC
       </summary>
       <form className="fold-body form-measure" onSubmit={onSubmit} noValidate>
-        <p className="prose">
-          They are emailed a link that opens a page with this address filled in: they choose a
-          password and they are in, with nothing more to confirm. From then on they see the sessions
-          and reports of the students they are PC to. Teachers choose a student’s PC from this list
-          when they book the student’s first session.
-        </p>
+        <p className="prose">They get an email with a link to set their password.</p>
 
         {error && <Notice kind="error">{error}</Notice>}
         {result && <InviteResult result={result} again={false} />}

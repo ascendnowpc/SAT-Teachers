@@ -281,7 +281,7 @@ export function AdminSession() {
       {notStarted ? (
         <div className="card card-pad">
           <p className="sub">
-            The test has not started. The transcript and the report open up once it has been sat.
+            Not started yet.
           </p>
         </div>
       ) : isAdmin ? (
@@ -514,7 +514,7 @@ function RecordingRead({
         </>
       ) : (
         <p className="prose card-note">
-          The report has not been generated yet. It is emailed to you, as a PDF, the moment it is.
+          Not generated yet — you’ll get it by email.
         </p>
       )}
 

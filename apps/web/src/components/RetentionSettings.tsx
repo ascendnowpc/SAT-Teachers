@@ -132,15 +132,8 @@ export function RetentionSettings() {
       <section className="card card-pad">
         <div className="section-title">When old data is deleted</div>
         <p className="settings-lead">
-          A student is deleted with all their records — sessions, answers, reports, notes and PIN —
-          once nothing has been booked for them for the time below. A session's recording and its
-          reading are deleted sooner; the session and its scores stay. Nothing is deleted while the
-          clean-up is off.
-        </p>
-        <p className="settings-lead">
-          <strong>Reports are kept.</strong> Before anything is deleted, every report it was drawn
-          from — a lesson’s generated report, a targeted test’s — is saved as the PDF the PC is
-          sent, and only then does the rest go. They are listed under Saved reports below.
+          Inactive students and old recordings are deleted after the times below. Reports are always saved
+          first, as PDFs.
         </p>
         <div className="grid-2">
           <label className="field">
@@ -260,8 +253,7 @@ function SavedReports({
       <div className="section-title">Saved reports</div>
       {students.length === 0 ? (
         <p className="muted">
-          None yet. A report is saved here when the clean-up is about to delete what it was drawn
-          from.
+          None yet.
         </p>
       ) : (
         <table className="retention-table">

@@ -103,7 +103,7 @@ export function AdminStudent() {
         <div className="card">
           <div className="empty">
             <h3>No such student</h3>
-            <p>That is not a student on this platform’s roster.</p>
+            <p>This student doesn’t exist.</p>
           </div>
         </div>
       </div>
@@ -165,11 +165,6 @@ export function AdminStudent() {
               </button>
               {pinError && <div className="cell-sub overdue">{pinError}</div>}
             </dd>
-            <dt>Their account</dt>
-            <dd>
-              The Student tab of the sign-in page, with the ID and PIN. Their parent signs in the same way, to
-              their reports and their progress card.
-            </dd>
             <dt>Status</dt>
             <dd>{isSuspended(profile) ? `Suspended ${profile.suspended_at ? formatUtc(profile.suspended_at) : ''}` : 'Active'}</dd>
           </dl>
@@ -218,16 +213,11 @@ export function AdminStudent() {
       <div className="section-head">
         <h2 className="section-title">Reports</h2>
       </div>
-      <p className="section-note">
-        Every report written for them: a diagnostic or lesson report once it has been generated — when their PC is
-        emailed it — and each targeted test once it is over. These are the reports their account shows them and
-        their parent.
-      </p>
       {reports.length === 0 ? (
         <div className="card">
           <div className="empty">
             <h3>No reports yet</h3>
-            <p>A report shows here once a session’s write-up has been generated, or a targeted test is finished.</p>
+            <p>Reports appear after each session.</p>
           </div>
         </div>
       ) : (
@@ -239,7 +229,6 @@ export function AdminStudent() {
           <div className="section-head">
             <h2 className="section-title">Write-ups outstanding</h2>
           </div>
-          <p className="section-note">Sessions they have sat that have no report out yet.</p>
           <SessionTable sessions={late} stages={stages} showStudent={false} />
         </>
       )}
@@ -251,7 +240,7 @@ export function AdminStudent() {
         <div className="card">
           <div className="empty">
             <h3>Nothing booked</h3>
-            <p>They have no sessions yet, sat or booked.</p>
+            <p>No sessions yet.</p>
           </div>
         </div>
       ) : (

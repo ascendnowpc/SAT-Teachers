@@ -101,12 +101,7 @@ export function StudentProgress() {
           {student?.display_id && <span className="num muted">({student.display_id})</span>}
         </h1>
       </div>
-      <p className="muted">
-        SAT scores — official SATs and Bluebook practice tests — then progress on each skill a targeted test
-        has been set on: the baseline, every test since, and the sessions in between, whoever taught
-        them.
-        {student?.pc && <> PC: {student.pc}.</>}
-      </p>
+      {student?.pc && <p className="muted">PC: {student.pc}</p>}
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
       {bluebook && (isTeacher || isPc) && (
