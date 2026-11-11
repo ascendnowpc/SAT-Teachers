@@ -3293,3 +3293,76 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
 
 .page-head h1 { letter-spacing: -0.02em; }
 .page-head .sub { font-size: 14px; }
+
+/* -------------------------------------------- the student's progress page */
+.progress-main { max-width: 1120px; }
+.progress-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.progress-head .dash-hello { margin-bottom: 2px; }
+.progress-sub { color: var(--muted); font-size: 13.5px; }
+.progress-tabs { display: inline-flex; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 4px; }
+.progress-tabs button {
+  border: 0; background: transparent; padding: 7px 16px; border-radius: 999px; font: inherit; font-size: 14px;
+  font-weight: 500; color: var(--ink-2); cursor: pointer; transition: background .25s var(--ease), color .25s var(--ease);
+}
+.progress-tabs button.on { background: var(--ink); color: #fff; }
+.dash-stat-note { font-size: 12.5px; color: var(--ink-2); opacity: .8; }
+.progress-count {
+  display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px; margin-left: 8px;
+  border-radius: 999px; background: var(--page); color: var(--ink-2); font-size: 12px; font-weight: 600; vertical-align: 2px;
+}
+
+.progress-headline { background: linear-gradient(135deg, var(--grad-from), var(--grad-mid) 60%, var(--grad-to)); border: 0; color: #fff; }
+.progress-headline .progress-sub { color: var(--navy-200); }
+.progress-headline-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--lime); }
+.progress-headline-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 6px 0 2px; }
+.progress-headline-skill { font-size: 17px; font-weight: 600; }
+.progress-headline-score { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; }
+
+.skill-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.skill-bar { animation: rise-in .45s var(--ease) both; }
+.skill-bar:nth-child(2) { animation-delay: .05s; }
+.skill-bar:nth-child(3) { animation-delay: .1s; }
+.skill-bar:nth-child(n + 4) { animation-delay: .15s; }
+.skill-bar-top { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; margin-bottom: 6px; }
+.skill-bar-name { color: var(--ink); font-weight: 500; }
+.skill-bar-score { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.skill-bar-track { height: 8px; border-radius: 999px; background: var(--page); overflow: hidden; }
+.skill-bar-track span { display: block; height: 100%; border-radius: 999px; transform-origin: left; animation: grow .9s .2s var(--ease) both; }
+.skill-bar.rag-row-green .skill-bar-track span { background: var(--ok-fg); }
+.skill-bar.rag-row-amber .skill-bar-track span { background: var(--warn); }
+.skill-bar.rag-row-red .skill-bar-track span { background: var(--danger); }
+/* The rows' old coloured left border is not wanted on a bar. */
+.skill-bar.rag-row-green, .skill-bar.rag-row-amber, .skill-bar.rag-row-red { border-left: 0; }
+
+.progress-untested summary {
+  display: flex; align-items: center; cursor: pointer; list-style: none; font-size: 16px; font-weight: 600; color: var(--ink);
+}
+.progress-untested summary::-webkit-details-marker { display: none; }
+.progress-untested summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .25s var(--ease); }
+.progress-untested[open] summary::after { transform: rotate(180deg); }
+.untested-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; animation: fade .3s var(--ease) both; }
+.untested-chips span { padding: 5px 10px; border-radius: 999px; background: var(--page); color: var(--ink-2); font-size: 13px; }
+
+.progress-key { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; }
+.progress-empty { margin-top: 14px; }
+.progress-main .report-trends { gap: 6px; }
+.progress-main .report-trend { border: 0; background: var(--page); border-radius: 12px; }
+
+.sat-latest { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sat-latest-total { font-size: 38px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.sat-latest-parts { display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); text-align: right; }
+.sat-latest-parts b { color: var(--ink); font-size: 15px; margin-right: 4px; }
+.sat-history { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--border); display: grid; gap: 6px; font-size: 13.5px; }
+.sat-history li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; gap: 10px; }
+.sat-bands { margin-top: 12px; }
+.sat-bands summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--sky-dark); }
+.sat-bands[open] summary { margin-bottom: 10px; }
+
+@media print {
+  .progress-untested:not([open]) { display: none; }
+}
+.progress-main .report-trend { grid-template-columns: minmax(0, 1fr) minmax(70px, 120px) auto; gap: 12px; padding: 10px 12px; }
+.progress-main .report-trend .sparkline { width: 100%; height: auto; }
+.report-bluebook-edit { max-width: 1120px !important; padding: 0 20px 48px !important; }
+.report-bluebook-edit .card { border-radius: 18px; }
+@media (max-width: 640px) { .report-bluebook-edit { padding: 0 14px 40px !important; } }

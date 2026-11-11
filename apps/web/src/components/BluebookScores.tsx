@@ -87,11 +87,7 @@ export function BluebookScores({
         <div>
           <div className="section-title">SAT scores</div>
           <p className="muted">
-            {headline
-              ? `${headline}. Official SATs and Bluebook practice tests: total on 400–1600, each section on 200–800.`
-              : student
-                ? 'Your official SAT and Bluebook practice test scores. Add one from College Board’s score report — the PDF, or its text — or type it in.'
-                : 'Official SATs and College Board’s practice tests, sat in Bluebook. None recorded yet.'}
+            {headline ?? (student ? 'Add your SAT or Bluebook practice test score.' : 'None recorded yet.')}
           </p>
         </div>
         <span className="spring" />
