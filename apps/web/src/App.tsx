@@ -3,7 +3,9 @@ import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
 import { AboutSat } from './pages/AboutSat'
 import { Account } from './pages/Account'
+import { AdminPc } from './pages/AdminPc'
 import { AdminSession } from './pages/AdminSession'
+import { AdminStudent } from './pages/AdminStudent'
 import { AdminTeacher } from './pages/AdminTeacher'
 import { AdminSettings } from './pages/AdminSettings'
 import { AdminUsers } from './pages/AdminUsers'
@@ -112,6 +114,8 @@ export function App() {
           <>
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/teachers/:id" element={<AdminTeacher />} />
+            <Route path="/admin/students/:id" element={<AdminStudent />} />
+            <Route path="/admin/pcs/:id" element={<AdminPc />} />
             <Route path="/admin/sessions/:id" element={<AdminSession />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             {/* The old overview counted sessions on a page that is not the

@@ -3076,3 +3076,18 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 @media (min-width: 900px) { .report-bluebook-edit { max-width: 1012px; } }
 .bluebook .board-table th, .bluebook .board-table td { padding-left: 12px; padding-right: 12px; }
 .bluebook .board-table th:first-child, .bluebook .board-table td:first-child { padding-left: 16px; }
+
+/* ------------------------------------- a student's and a PC's own pages */
+.person-cols { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 18px; }
+@media (min-width: 900px) { .person-cols { grid-template-columns: 1fr 1fr; } }
+.person-cols .card + .card { margin-top: 0; }
+.person-facts { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 16px; margin: 0; font-size: 14px; }
+.person-facts dt { color: var(--muted); font-size: 13px; font-weight: 500; }
+.person-facts dd { margin: 0; color: var(--ink); line-height: 1.5; min-width: 0; }
+.person-facts a { color: var(--sky-dark); font-weight: 600; text-decoration: none; }
+.person-facts a:hover { text-decoration: underline; }
+.person-pc { margin-top: 6px; max-width: 260px; }
+.person-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.board-table td.nowrap { white-space: nowrap; }
+.student-block-head h3 .cell-link-name { color: inherit; }
+@media (max-width: 560px) { .person-facts { grid-template-columns: 1fr; gap: 2px 0; } .person-facts dd { margin-bottom: 8px; } }

@@ -8,6 +8,7 @@ import {
   isNewTeacher,
   newTeachers,
   rate,
+  readyReports,
   reportStage,
   schoolTally,
   pcRows,
@@ -250,6 +251,24 @@ describe('backlog', () => {
     ]
     const stages = stagesBySession([report('done', { status: 'published' })])
     expect(backlog(sessions, stages).map((s) => s.id)).toEqual(['old', 'new'])
+  })
+})
+
+describe('readyReports', () => {
+  it('is every lesson report generated or published and every finished targeted test, newest first', () => {
+    const sessions = [
+      session('published', 't1', 's1', '2026-05-01T09:00:00Z'),
+      session('generated', 't1', 's1', '2026-05-03T09:00:00Z'),
+      session('draft', 't1', 's1', '2026-05-05T09:00:00Z'),
+      session('test', 't1', 's1', '2026-05-07T09:00:00Z', 'completed', { mode: 'targeted' }),
+      session('test-ahead', 't1', 's1', '2026-07-01T09:00:00Z', 'scheduled', { mode: 'targeted' }),
+    ]
+    const stages = stagesBySession([
+      report('published', { status: 'published' }),
+      report('generated', { generated_at: '2026-05-03T12:00:00Z' }),
+      report('draft', {}),
+    ])
+    expect(readyReports(sessions, stages).map((s) => s.id)).toEqual(['test', 'generated', 'published'])
   })
 })
 

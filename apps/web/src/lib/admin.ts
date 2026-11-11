@@ -384,3 +384,21 @@ export function rate(part: number, whole: number): number | null {
   if (whole <= 0) return null
   return Math.round((part / whole) * 100)
 }
+
+/**
+ * The sessions with a report to read, newest first: a lesson's once generated
+ * or published — when the PC is sent it — and a targeted test's once it is
+ * over (0098's rule, so the admin's list and the family's agree).
+ */
+export function readyReports(sessions: Session[], stages: Stages): Session[] {
+  return sessions
+    .filter((s) =>
+      s.mode === 'targeted'
+        ? s.status === 'completed'
+        : (() => {
+            const stage = stageOf(stages, s.id)
+            return stage === 'generated' || stage === 'published'
+          })(),
+    )
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+}
