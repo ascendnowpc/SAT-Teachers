@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { PracticeList } from '../components/PracticeList'
+import { CountUp } from '../components/Motion'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
+import { byDay, dayLabel } from '../lib/bluebook'
 import { subjectLabel } from '../lib/constants'
+import { PRACTICE_RESOURCES } from '../lib/satGuide'
 import {
   percentRight,
   splitTests,
@@ -13,34 +15,24 @@ import {
   studentStats,
   type StudentHome as Home,
   type StudentTest,
-  type TestStanding,
 } from '../lib/studentAccount'
 import { loadStudentHome, loadStudentReports, studentTestTitle } from '../lib/studentApi'
 import { rememberEntry } from '../lib/studentEntry'
 import type { StudentReportEntry } from '../lib/studentReports'
-import { ReportRow } from './StudentReports'
+import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 
 /**
- * The student's own page, once they have signed in with their ID and PIN
- * (0067): what to do next, how they are getting on, and every test they have.
- *
- * A student opens this to answer one question — "what am I meant to be doing?"
- * — so the page answers it before anything else: the test they can start now,
- * or the next one and when it opens, as the one thing above the fold with the
- * one button on it. Their standing comes next, from their own tests and
- * nothing else, then the full list, then somewhere to go when there is
- * nothing booked.
- *
- * Opening a test hands its entry key to the tab (0066) and goes to its link,
- * so the test runs on exactly the screen it runs on from a link — the student
- * has already said who they are, so it asks nothing more.
+ * The student's dashboard (0067): four figures, the next test, and their
+ * results — one glance, no reading. Opening a test hands its entry key to the
+ * tab (0066) and goes to its link, so it asks nothing more.
  */
 export function StudentHome() {
   const navigate = useNavigate()
   const [key] = useState(() => storedStudentKey())
   const [home, setHome] = useState<Home | null>(null)
   const [reports, setReports] = useState<StudentReportEntry[] | null>(null)
+  const [sat, setSat] = useState<{ total: number; taken_on: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [signedOut, setSignedOut] = useState(false)
 
@@ -49,11 +41,14 @@ export function StudentHome() {
     try {
       setHome(await loadStudentHome(key))
       setError(null)
-      // The reports are a second door: one that fails (before 0098 is
-      // applied, say) costs the page its reports section, not the tests.
+      // On the side: a failure costs the page a figure, not the tests.
       loadStudentReports(key)
         .then((l) => setReports(l.reports))
         .catch(() => setReports(null))
+      void supabase.rpc('student_bluebook_scores', { p_key: key }).then(({ data }) => {
+        const rows = byDay((data ?? []) as { total: number; taken_on: string }[])
+        setSat(rows[rows.length - 1] ?? null)
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not load your tests.'
       if (/signed out/i.test(message)) {
@@ -67,8 +62,7 @@ export function StudentHome() {
 
   useEffect(() => {
     void load()
-    // A test opened early by the teacher, or results just shared, show up
-    // without a refresh.
+    // A test opened early, or results just shared, show up without a refresh.
     const t = setInterval(() => void load(), 30_000)
     return () => clearInterval(t)
   }, [load])
@@ -76,18 +70,17 @@ export function StudentHome() {
   const sessions = useMemo(() => home?.sessions ?? [], [home])
   const { ahead, done } = useMemo(() => splitTests(sessions), [sessions])
   const stats = useMemo(() => studentStats(sessions), [sessions])
+  const reportFor = useMemo(() => new Set((reports ?? []).map((r) => r.session_id)), [reports])
 
   // What to do next: the one a student can get on with, else the soonest.
   const next = useMemo(
-    () => ahead.find((t) => standingOf(t).kind === 'live')
-      ?? ahead.find((t) => standingOf(t).kind === 'open')
-      ?? ahead[0]
-      ?? null,
+    () =>
+      ahead.find((t) => standingOf(t).kind === 'live') ??
+      ahead.find((t) => standingOf(t).kind === 'open') ??
+      ahead[0] ??
+      null,
     [ahead],
   )
-
-  // Which tests have a report to open, by session.
-  const reportFor = useMemo(() => new Set((reports ?? []).map((r) => r.session_id)), [reports])
 
   if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
@@ -98,95 +91,114 @@ export function StudentHome() {
 
   const first = home?.student.full_name.split(' ')[0]
   const rest = ahead.filter((t) => t.id !== next?.id)
+  const pct = percentRight(stats.marked)
 
   return (
     <StudentShell student={home?.student}>
-      <main className="student-main">
-        <div className="student-greet">
-          <div>
-            <h1>{first ? `Hi, ${first}` : 'Your tests'}</h1>
-            <p>Here is what is next, and how you are getting on.</p>
-          </div>
-        </div>
+      <main className="student-main dashboard">
+        <h1 className="dash-hello">{first ? `Hi, ${first}` : 'Your dashboard'}</h1>
 
         {error && <Notice kind="error">{error}</Notice>}
         {!home && !error && <p className="muted">Loading…</p>}
 
         {home && (
           <>
-            <NextUp test={next} onOpen={open} />
-
-            {(stats.completed > 0 || stats.ahead > 0) && (
-              <dl className="student-stats">
-                <Stat value={String(stats.completed)} label="Tests done" />
-                <Stat
-                  value={percentRight(stats.marked) === null ? '—' : String(percentRight(stats.marked))}
-                  unit={percentRight(stats.marked) === null ? undefined : '%'}
-                  label="Answers right"
-                />
-                <Stat value={String(stats.ahead)} label="Still to sit" />
-              </dl>
-            )}
-
-            {reports && reports.length > 0 && (
-              <Section
-                title="Latest reports"
-                count={
-                  <Link className="student-section-link" to="/student/reports">
-                    See all {reports.length}
-                  </Link>
+            <div className="dash-stats">
+              <StatCard tone="violet" icon={<IconCheck />} label="Tests done" value={String(stats.completed)} />
+              <StatCard tone="sky" icon={<IconTarget />} label="Accuracy" value={pct === null ? '—' : `${pct}%`} />
+              <StatCard tone="mint" icon={<IconClock />} label="To do" value={String(stats.ahead)} />
+              <StatCard
+                tone="peach"
+                icon={<IconStar />}
+                label="SAT score"
+                value={sat ? String(sat.total) : '—'}
+                foot={
+                  <Link to="/student/report#sat-scores">{sat ? dayLabel(sat.taken_on) : 'Add a score'}</Link>
                 }
-              >
-                <ul className="student-tests">
-                  {reports.slice(0, 3).map((r) => (
-                    <ReportRow key={r.session_id} report={r} />
-                  ))}
-                </ul>
-              </Section>
-            )}
+              />
+            </div>
 
-            {rest.length > 0 && (
-              <Section title="Also coming up" count={`${rest.length} ${rest.length === 1 ? 'test' : 'tests'}`}>
-                <ul className="student-tests">
-                  {rest.map((t) => (
-                    <TestRow key={t.id} test={t} onOpen={() => open(t)} />
-                  ))}
-                </ul>
-              </Section>
-            )}
+            <div className="dash-grid">
+              <div className="dash-col">
+                <Panel title="Up next">
+                  <NextUp test={next} onOpen={open} />
+                  {rest.length > 0 && (
+                    <ul className="dash-list dash-after">
+                      {rest.slice(0, 4).map((t) => (
+                        <li key={t.id}>
+                          <span className={`dash-dot ${t.subject === 'mathematics' ? 'is-sky' : 'is-violet'}`} />
+                          <div className="dash-list-main">
+                            <strong>{studentTestTitle(t)}</strong>
+                            <span>{formatUtc(t.scheduled_at)}</span>
+                          </div>
+                          <button type="button" className="dash-chip" onClick={() => open(t)}>
+                            Open
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Panel>
 
-            {done.length > 0 && (
-              <Section title="Completed" count={`${done.length} ${done.length === 1 ? 'test' : 'tests'}`}>
-                <ul className="student-tests">
-                  {done.map((t) => (
-                    <TestRow
-                      key={t.id}
-                      test={t}
-                      onOpen={() => open(t)}
-                      report={reportFor.has(t.id) ? `/student/reports/${t.id}` : null}
-                    />
-                  ))}
-                </ul>
-              </Section>
-            )}
-
-            <Section title="SAT scores">
-              <div className="student-sat-cta">
-                <div>
-                  <strong>Sat the SAT or a Bluebook practice test?</strong>
-                  <span>Add your score from College Board’s score report — your teacher and PC see it too.</span>
-                </div>
-                <Link className="btn btn-primary btn-sm" to="/student/report#sat-scores">
-                  Add a score
-                </Link>
+                <Panel
+                  title="Results"
+                  action={reports && reports.length > 0 ? <Link to="/student/reports">All reports</Link> : null}
+                >
+                  {done.length === 0 ? (
+                    <p className="dash-empty">Your scores show here after each test.</p>
+                  ) : (
+                    <ul className="dash-list">
+                      {done.slice(0, 5).map((t) => {
+                        const s = standingOf(t)
+                        return (
+                          <li key={t.id}>
+                            <span className={`dash-dot ${t.subject === 'mathematics' ? 'is-sky' : 'is-violet'}`} />
+                            <div className="dash-list-main">
+                              <strong>{studentTestTitle(t)}</strong>
+                              <span>
+                                {subjectLabel(t.subject)} · {dayLabel(t.scheduled_at.slice(0, 10))}
+                              </span>
+                            </div>
+                            {s.kind === 'results' ? (
+                              <span className={`score-chip${tone(s.right, s.of)}`}>
+                                {s.right}
+                                <span className="of">/{s.of}</span>
+                              </span>
+                            ) : (
+                              <span className="dash-muted">Soon</span>
+                            )}
+                            {reportFor.has(t.id) ? (
+                              <Link className="dash-chip" to={`/student/reports/${t.id}`}>
+                                Report
+                              </Link>
+                            ) : s.kind === 'results' ? (
+                              <button type="button" className="dash-chip" onClick={() => open(t)}>
+                                {s.answers ? 'Answers' : 'Score'}
+                              </button>
+                            ) : (
+                              <span />
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </Panel>
               </div>
-            </Section>
 
-            <Section title="Practise on your own">
-              <PracticeList cards />
-            </Section>
-
-            <p className="student-foot">Times are shown in UTC.</p>
+              <Panel title="Practice">
+                <ul className="dash-links">
+                  {PRACTICE_RESOURCES.map((r) => (
+                    <li key={r.href}>
+                      <a href={r.href} target="_blank" rel="noreferrer">
+                        {r.label}
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            </div>
           </>
         )}
       </main>
@@ -194,184 +206,99 @@ export function StudentHome() {
   )
 }
 
-function Section({ title, count, children }: { title: string; count?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="student-section">
-      <div className="student-section-head">
+    <section className="dash-panel">
+      <div className="dash-panel-head">
         <h2>{title}</h2>
-        {count && <span className="student-section-count">{count}</span>}
+        {action}
       </div>
       {children}
     </section>
   )
 }
 
-function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
+function StatCard({
+  tone,
+  icon,
+  label,
+  value,
+  foot,
+}: {
+  tone: 'violet' | 'sky' | 'mint' | 'peach'
+  icon: ReactNode
+  label: string
+  value: string
+  foot?: ReactNode
+}) {
   return (
-    <div className="stat-tile">
-      <dt className="stat-label">{label}</dt>
-      <dd className="stat-num">
-        {value}
-        {unit && <small>{unit}</small>}
-      </dd>
+    <div className={`dash-stat is-${tone}`}>
+      <div className="dash-stat-top">
+        <span className="dash-stat-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="dash-stat-label">{label}</span>
+      </div>
+      <div className="dash-stat-bottom">
+        <CountUp className="dash-stat-value" value={value} />
+        {foot && <div className="dash-stat-foot">{foot}</div>}
+      </div>
     </div>
   )
 }
 
-/**
- * The one thing to do next, or the reason there is nothing: the test a student
- * can start now in full colour, the next one still to open in a quiet card,
- * and an invitation to practise where there is neither.
- */
+/** The next test, with the one button on it. */
 function NextUp({ test, onOpen }: { test: StudentTest | null; onOpen: (t: StudentTest) => void }) {
-  if (!test) {
-    return (
-      <section className="next-up is-quiet">
-        <div className="next-up-tag">
-          <span className="next-up-dot" />
-          Nothing booked
-        </div>
-        <h2>You are all caught up</h2>
-        <p className="next-up-meta">
-          Your teacher will add your next test. Until then, the practice below is the best use of your time.
-        </p>
-      </section>
-    )
-  }
-
+  if (!test) return <p className="dash-empty">You’re all caught up.</p>
   const standing = standingOf(test)
   const ready = standing.kind === 'open' || standing.kind === 'live'
-  const meta = [
-    subjectLabel(test.subject),
-    test.mode === 'targeted' ? 'Practice test' : 'Diagnostic',
-    test.set_size ? `${test.set_size} questions` : null,
-  ].filter(Boolean) as string[]
-
   return (
-    <section className={`next-up${ready ? '' : ' is-quiet'}`}>
-      <div className="next-up-tag">
-        <span className="next-up-dot" />
-        {standing.kind === 'live' ? 'In progress' : standing.kind === 'open' ? 'Open now' : 'Up next'}
+    <div className={`dash-next${ready ? ' is-ready' : ''}`}>
+      <div>
+        <div className="dash-next-tag">
+          {standing.kind === 'live' ? 'In progress' : ready ? 'Open now' : `Opens ${formatUtc(test.scheduled_at)}`}
+        </div>
+        <div className="dash-next-title">{studentTestTitle(test)}</div>
+        <div className="dash-next-meta">
+          {subjectLabel(test.subject)} · {test.mode === 'targeted' ? 'Practice test' : 'Diagnostic'}
+          {test.set_size ? ` · ${test.set_size} questions` : ''}
+        </div>
       </div>
-      <h2>{studentTestTitle(test)}</h2>
-      <div className="next-up-meta">
-        {meta.map((m) => (
-          <span key={m}>{m}</span>
-        ))}
-        <span>
-          {ready ? 'Opened ' : 'Opens '}
-          {formatUtc(test.scheduled_at)}
-        </span>
-      </div>
-      <div className="next-up-actions">
-        <button
-          type="button"
-          className={ready ? 'btn-lime' : 'btn btn-primary'}
-          onClick={() => onOpen(test)}
-        >
-          {standing.kind === 'live' ? 'Carry on' : ready ? 'Start test' : 'Open the waiting room'}
-        </button>
-        <span className="next-up-note">
-          {ready
-            ? 'Find a quiet spot — the clock starts when you do.'
-            : 'You can open it now to check your link works.'}
-        </span>
-      </div>
-    </section>
+      <button type="button" className={ready ? 'btn-lime' : 'btn btn-ghost btn-sm'} onClick={() => onOpen(test)}>
+        {standing.kind === 'live' ? 'Continue' : ready ? 'Start' : 'Open'}
+      </button>
+    </div>
   )
 }
 
-function TestRow({ test, onOpen, report = null }: { test: StudentTest; onOpen: () => void; report?: string | null }) {
-  const standing = standingOf(test)
-  const sub = [
-    subjectLabel(test.subject),
-    test.mode === 'targeted' ? 'practice test' : 'diagnostic',
-    test.set_size ? `${test.set_size} questions` : null,
-    formatUtc(test.scheduled_at),
-  ].filter(Boolean) as string[]
-
-  return (
-    <li className="student-test">
-      <span className={`test-icon${standing.kind === 'results' || standing.kind === 'waiting' ? ' is-done' : test.subject === 'mathematics' ? ' is-math' : ''}`} aria-hidden="true">
-        <TestMark standing={standing} subject={test.subject} />
-      </span>
-      <div className="student-test-main">
-        <div className="student-test-title">{studentTestTitle(test)}</div>
-        <div className="student-test-sub">{sub.join(' · ')}</div>
-      </div>
-      <div className="student-test-side">
-        {standing.kind === 'upcoming' && (
-          <>
-            <span className="badge badge-neutral">Not open yet</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onOpen}>
-              Open
-            </button>
-          </>
-        )}
-        {standing.kind === 'open' && (
-          <>
-            <span className="badge badge-sky">Open now</span>
-            <button type="button" className="btn btn-primary btn-sm" onClick={onOpen}>
-              Start
-            </button>
-          </>
-        )}
-        {standing.kind === 'live' && (
-          <>
-            <span className="badge badge-sky">In progress</span>
-            <button type="button" className="btn btn-primary btn-sm" onClick={onOpen}>
-              Continue
-            </button>
-          </>
-        )}
-        {standing.kind === 'results' && (
-          <>
-            <span className={`score-chip${scoreTone(standing.right, standing.of)}`}>
-              {standing.right}
-              <span className="of">/{standing.of}</span>
-            </span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onOpen}>
-              {standing.answers ? 'See answers' : 'See score'}
-            </button>
-          </>
-        )}
-        {standing.kind === 'waiting' && <span className="badge badge-neutral">Results coming soon</span>}
-        {report && (
-          <Link className="btn btn-primary btn-sm" to={report}>
-            Report
-          </Link>
-        )}
-      </div>
-    </li>
-  )
-}
-
-/** Green at three quarters, amber at half, and plain below it. */
-function scoreTone(right: number, of: number): string {
+/** Green at three quarters, amber at half, and red below it. */
+function tone(right: number, of: number): string {
   if (of <= 0) return ''
   const share = right / of
   if (share >= 0.75) return ''
   return share >= 0.5 ? ' is-mid' : ' is-low'
 }
 
-function TestMark({ standing, subject }: { standing: TestStanding; subject: StudentTest['subject'] }) {
-  if (standing.kind === 'results' || standing.kind === 'waiting') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 6 9 17l-5-5" />
-      </svg>
-    )
-  }
-  if (subject === 'mathematics') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <path d="M4 7h7M7.5 3.5v7M13.5 17h7M13.5 7h7M15 14.5l4 5M19 14.5l-4 5" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4" />
-    </svg>
-  )
-}
+const svg = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+const IconCheck = () => (
+  <svg {...svg}>
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+const IconTarget = () => (
+  <svg {...svg}>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+const IconClock = () => (
+  <svg {...svg}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 8v4l3 2" />
+  </svg>
+)
+const IconStar = () => (
+  <svg {...svg}>
+    <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+  </svg>
+)

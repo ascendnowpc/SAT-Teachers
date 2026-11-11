@@ -1424,6 +1424,9 @@ show a broken picture. Neither holds a destructive statement, so both go through
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
 
+**Order, for `0100`.** Safe at any time: one new function. Apply it with the app that has the
+student's **Settings** tab, where a student changes their own PIN.
+
 **Order, for `0099`.** Safe for the app being served: `save_bluebook_score` keeps its arguments and
 still lets staff record, and every new door is new. Apply it with the app that shows the form to the
 PC and the student — before it, the database refuses them.

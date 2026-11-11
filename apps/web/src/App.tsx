@@ -29,6 +29,7 @@ import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
 import { StudentReportView } from './pages/StudentReportView'
 import { StudentReports } from './pages/StudentReports'
+import { StudentSettings } from './pages/StudentSettings'
 
 export function App() {
   const { session, profile, loading, isTeacher, isAdmin } = useAuth()
@@ -57,6 +58,8 @@ export function App() {
   if (location.pathname === '/student') return <StudentHome />
   // The parent report, from the same account (0070).
   if (location.pathname === '/student/report') return <ParentReport />
+  // Their settings: a new PIN (0100).
+  if (location.pathname === '/student/settings') return <StudentSettings />
   // Every report the staff have written for them, and each one (0098).
   if (location.pathname.startsWith('/student/reports')) {
     return (

@@ -48,6 +48,18 @@ export async function loadStudentSessionReport(key: string, sessionId: string): 
   return data as StudentReportBundle
 }
 
+export type PinChange =
+  | { ok: true }
+  | { ok: false; reason: 'wrong' | 'invalid' | 'same' }
+  | { ok: false; reason: 'locked'; until: string }
+
+/** A new PIN, given the current one (0100); this device stays signed in, the rest are signed out. */
+export async function changeStudentPin(key: string, current: string, next: string): Promise<PinChange> {
+  const { data, error } = await supabase.rpc('student_change_pin', { p_key: key, p_current: current, p_new: next })
+  if (error) throw new Error(error.message)
+  return data as PinChange
+}
+
 export async function studentSignOut(key: string): Promise<void> {
   // Best effort: the browser forgets the key either way, and the server's
   // copy runs out on its own.
