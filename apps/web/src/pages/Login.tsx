@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
 import { Field, Input, Notice } from '../components/ui'
-import { useAuth } from '../context/AuthContext'
+import { STUDENT_ON_STAFF_SIDE, useAuth } from '../context/AuthContext'
 import { PinInput } from '../components/PinInput'
 import { cleanPin, signInMessage, storeStudentKey } from '../lib/studentAccount'
 import { studentSignIn } from '../lib/studentApi'
@@ -97,7 +97,16 @@ function StaffSignIn({ tabs }: { tabs: ReactNode }) {
       }
     >
       <form onSubmit={onSubmit} noValidate>
-        {error && <Notice kind="error">{error}</Notice>}
+        {error === STUDENT_ON_STAFF_SIDE ? (
+          <Notice kind="info">
+            {error}{' '}
+            <Link to="/login?as=student" replace>
+              Go to the Student tab
+            </Link>
+          </Notice>
+        ) : (
+          error && <Notice kind="error">{error}</Notice>
+        )}
 
         <Field label="Email" required>
           <Input
@@ -129,6 +138,9 @@ function StaffSignIn({ tabs }: { tabs: ReactNode }) {
 
 function StudentSignIn({ tabs }: { tabs: ReactNode }) {
   const navigate = useNavigate()
+  // Sent here from the staff side, where an old student login was signed out.
+  const [params] = useSearchParams()
+  const moved = params.get('moved') === '1'
   const [studentId, setStudentId] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -168,6 +180,9 @@ function StudentSignIn({ tabs }: { tabs: ReactNode }) {
     >
       <form onSubmit={onSubmit} noValidate>
         {error && <Notice kind="error">{error}</Notice>}
+        {moved && !error && (
+          <Notice kind="info">Students now sign in here, with your student ID and PIN. Your teacher has your PIN.</Notice>
+        )}
 
         <Field label="Student ID" required hint="It looks like BATO26-1.">
           <Input

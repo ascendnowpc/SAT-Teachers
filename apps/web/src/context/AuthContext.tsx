@@ -40,6 +40,10 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null)
 
+/** What a student is told when they try the staff sign-in. */
+export const STUDENT_ON_STAFF_SIDE =
+  'This is a student account. Sign in on the Student tab with your student ID and PIN.'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -84,11 +88,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     })
     if (error) throw new Error(error.message)
+    // The staff side is for staff. A student signs in on the Student tab with
+    // their ID and PIN (0067); a login of theirs from before that is turned away.
+    const { data: who } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
+    if ((who as { role?: string } | null)?.role === 'student') {
+      await supabase.auth.signOut()
+      throw new Error(STUDENT_ON_STAFF_SIDE)
+    }
   }, [])
 
   const signUp = useCallback<AuthValue['signUp']>(async ({ email, password, fullName, role }) => {

@@ -1,6 +1,6 @@
 import { normaliseStudentId, readableEntryError } from './studentEntry'
 import type { TargetedResult } from './targetedResult'
-import { row, rows, supabase } from './supabase'
+import { supabase } from './supabase'
 import { fromTargeted, type TargetedPayload } from './targetedPayload'
 import type { OptionLabel, Session, SessionItem, TargetedInfo } from './types'
 
@@ -77,98 +77,6 @@ export interface SessionGateway {
 /** Turns a PostgREST error into something worth putting on a screen. */
 function fail(error: { message: string } | null): void {
   if (error) throw new Error(error.message)
-}
-
-const SESSION_SELECT =
-  '*, teacher:profiles!sessions_teacher_id_fkey(id,full_name,display_id),' +
-  ' student:profiles!sessions_student_id_fkey(id,full_name,display_id,pc)'
-
-const ITEM_SELECT = '*, questions(*, question_options(*))'
-
-/** The signed-in student, reading through RLS and calling their own RPCs. */
-export function accountGateway(sessionId: string): SessionGateway {
-  return {
-    kind: 'account',
-    key: `session:${sessionId}`,
-    sessionId,
-
-    async load() {
-      const [s, i] = await Promise.all([
-        supabase.from('sessions').select(SESSION_SELECT).eq('id', sessionId).maybeSingle(),
-        supabase
-          .from('session_items')
-          .select(ITEM_SELECT)
-          .eq('session_id', sessionId)
-          .order('sequence_no'),
-      ])
-      fail(s.error)
-      fail(i.error)
-      return { session: row<Session>(s.data), items: rows<SessionItem>(i.data) }
-    },
-
-    async start() {
-      fail((await supabase.rpc('start_session_as_student', { p_session: sessionId })).error)
-    },
-
-    // A targeted test runs on its link, where the clocks are; this door
-    // refuses one (0062), so there is nothing here to advance.
-    async advance() {
-      return false
-    },
-
-    async skip() {
-      throw new Error('A targeted test runs on its link.')
-    },
-
-    async markViewed(itemId) {
-      await supabase.rpc('mark_item_viewed', { p_item: itemId })
-    },
-
-    async markDecided(itemId) {
-      await supabase.rpc('mark_item_decided', { p_item: itemId })
-    },
-
-    async saveDraft({ itemId, option, eliminated, confidence }) {
-      // Best effort: a dropped draft costs the teacher a second of staleness,
-      // and interrupting the student to say so would cost more than that.
-      await supabase.rpc('save_draft', {
-        p_item: itemId,
-        p_option: option,
-        p_eliminated: eliminated,
-        p_confidence: confidence,
-      })
-    },
-
-    async submit({ itemId, option, eliminated, confidence }) {
-      fail(
-        (
-          await supabase.rpc('submit_answer', {
-            p_item: itemId,
-            p_option: option,
-            p_eliminated: eliminated,
-            p_confidence: confidence,
-            // Asked for in the lesson, where the teacher can hear the answer —
-            // not typed into a box while a clock runs.
-            p_reasoning: null,
-          })
-        ).error,
-      )
-    },
-
-    async submitEntry() {
-      // A lesson is never set a pool question (0060), and only a pool question
-      // is typed at. Reaching here is a bug, not something a student did.
-      throw new Error('a lesson has no question to type an answer to')
-    },
-
-    async finish() {
-      fail((await supabase.rpc('finish_session_as_student', { p_session: sessionId })).error)
-    },
-
-    async result() {
-      return null
-    },
-  }
 }
 
 /**

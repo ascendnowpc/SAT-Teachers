@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAuth } from './context/AuthContext'
@@ -18,7 +19,6 @@ import { Paper } from './pages/Paper'
 import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
 import { SessionReport } from './pages/SessionReport'
-import { Exam } from './pages/Exam'
 import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
@@ -89,6 +89,11 @@ export function App() {
   // Signed in, but the profile row from the signup trigger has not arrived yet.
   if (!profile) return <div className="center-fill">Setting up your account…</div>
 
+  // A student's login from before 0067. The staff app is not theirs: they are
+  // signed out and sent to the Student tab, where their ID and PIN open their
+  // own account.
+  if (profile.role === 'student') return <StudentOnStaffSide />
+
   // Signed in while still on the sign-in page: on to wherever they were going
   // when they were sent to it. The sign-in page asks for the same thing, but
   // this router can win the race to render first, and "/login" is not one of
@@ -99,10 +104,6 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to={onward} replace />} />
-
-      {/* The exam sits outside the shell on purpose: while a paper is open the
-          student should see the paper and nothing else. */}
-      <Route path="/exam/:id" element={<Exam />} />
 
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
@@ -145,4 +146,12 @@ export function App() {
       </Route>
     </Routes>
   )
+}
+
+function StudentOnStaffSide() {
+  const { signOut } = useAuth()
+  useEffect(() => {
+    void signOut().finally(() => window.location.replace('/login?as=student&moved=1'))
+  }, [signOut])
+  return <div className="center-fill">Taking you to the student sign-in…</div>
 }
