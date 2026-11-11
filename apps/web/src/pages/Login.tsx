@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { AuthLayout } from '../components/AuthLayout'
 import { Field, Input, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
+import { PinInput } from '../components/PinInput'
 import { cleanPin, signInMessage, storeStudentKey } from '../lib/studentAccount'
 import { studentSignIn } from '../lib/studentApi'
 
@@ -180,16 +181,15 @@ function StudentSignIn({ tabs }: { tabs: ReactNode }) {
           />
         </Field>
 
-        <Field label="PIN" required hint="4 digits.">
-          <Input
-            type="password"
-            inputMode="numeric"
-            autoComplete="current-password"
-            value={pin}
-            onChange={(e) => setPin(cleanPin(e.target.value))}
-            required
-          />
-        </Field>
+        <div className="field">
+          <span className="label">
+            PIN
+            <span className="req" aria-hidden="true">
+              *
+            </span>
+          </span>
+          <PinInput value={pin} onChange={(v) => setPin(cleanPin(v))} />
+        </div>
 
         <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}

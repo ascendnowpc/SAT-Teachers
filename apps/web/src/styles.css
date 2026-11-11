@@ -3383,3 +3383,23 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
 .how-scored { border-radius: 14px; }
 @media (min-width: 860px) { .dash-stats.dash-stats-3 { grid-template-columns: repeat(3, 1fr); } }
 .dash-stats + .student-section { margin-top: 22px; }
+
+/* ------------------------------------------------------- a PIN, in boxes */
+.pin-boxes { display: flex; gap: 10px; }
+.pin-box {
+  width: 56px; height: 60px; padding: 0; text-align: center;
+  font: 600 24px/1 var(--font-ui); color: var(--ink); font-variant-numeric: tabular-nums;
+  background: #fff; border: 1.5px solid var(--border-strong); border-radius: 14px;
+  caret-color: var(--sky-dark);
+  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.pin-box:hover { border-color: var(--navy-200); }
+.pin-box:focus { outline: none; border-color: var(--sky); box-shadow: var(--focus-ring); transform: translateY(-1px); }
+.pin-box.is-filled { border-color: var(--ink); animation: pop .2s var(--ease); }
+.pin-boxes.is-invalid .pin-box { border-color: var(--danger); }
+/* Autofill paints the box yellow; keep it white. */
+.pin-box:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text-fill-color: var(--ink); }
+.settings-form .pin-box { width: 48px; height: 52px; font-size: 20px; letter-spacing: 0; max-width: none; }
+@media (max-width: 380px) { .pin-boxes { gap: 8px; } .pin-box { width: 50px; height: 56px; } }
+.pin-box[type='password'] { font-size: 34px; }
+.settings-form .pin-box[type='password'] { font-size: 28px; }

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { StudentShell } from '../components/StudentShell'
-import { Field, Input, Notice } from '../components/ui'
+import { PinInput } from '../components/PinInput'
+import { Notice } from '../components/ui'
 import { storeStudentKey, storedStudentKey } from '../lib/studentAccount'
 import { changeStudentPin, loadStudentReports } from '../lib/studentApi'
 import { formatUtc } from '../lib/time'
@@ -94,9 +95,6 @@ function ChangePin({ pinKey }: { pinKey: string }) {
     setBusy(false)
   }
 
-  const digits = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    set(e.target.value.replace(/\D/g, '').slice(0, 4))
-
   return (
     <section className="dash-panel">
       <div className="dash-panel-head">
@@ -108,37 +106,36 @@ function ChangePin({ pinKey }: { pinKey: string }) {
       <form className="settings-form" onSubmit={submit} noValidate>
         {done && <Notice kind="ok">PIN changed. Other devices have been signed out.</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
-        <Field label="Current PIN">
-          <Input
-            type={show ? 'text' : 'password'}
-            inputMode="numeric"
-            autoComplete="current-password"
-            value={current}
-            onChange={digits(setCurrent)}
-          />
-        </Field>
-        <Field label="New PIN" hint="Four digits.">
-          <Input
-            type={show ? 'text' : 'password'}
-            inputMode="numeric"
-            autoComplete="new-password"
-            value={next}
-            onChange={digits(setNext)}
-          />
-        </Field>
-        <Field label="New PIN again" hint={mismatch ? 'The two don’t match.' : undefined}>
-          <Input
-            type={show ? 'text' : 'password'}
-            inputMode="numeric"
-            autoComplete="new-password"
+        <PinField label="Current PIN">
+          <PinInput label="Current PIN" value={current} onChange={setCurrent} masked={!show} />
+        </PinField>
+        <PinField label="New PIN">
+          <PinInput label="New PIN" value={next} onChange={setNext} masked={!show} autoComplete="new-password" />
+        </PinField>
+        <PinField label="New PIN again" hint={mismatch ? 'The two don’t match.' : undefined}>
+          <PinInput
+            label="New PIN again"
             value={again}
-            onChange={digits(setAgain)}
+            onChange={setAgain}
+            masked={!show}
+            autoComplete="new-password"
+            invalid={mismatch}
           />
-        </Field>
+        </PinField>
         <button type="submit" className="btn btn-primary" disabled={!ready}>
           {busy ? 'Saving…' : 'Save new PIN'}
         </button>
       </form>
     </section>
+  )
+}
+
+function PinField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="field">
+      <span className="label">{label}</span>
+      {children}
+      {hint && <span className="hint">{hint}</span>}
+    </div>
   )
 }
