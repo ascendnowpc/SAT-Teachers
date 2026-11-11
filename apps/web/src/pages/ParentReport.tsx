@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
 import { StudentShell } from '../components/StudentShell'
+import { CountUp } from '../components/Motion'
 import { Notice } from '../components/ui'
 import { DomainBands } from '../components/DomainBands'
-import { bluebookHeadline, byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
+import { byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
 import { skillLabel, subjectLabel } from '../lib/constants'
 import {
   buildParentReport,
@@ -68,10 +69,20 @@ export function ParentReport() {
     () => (report && subject && report.subjects[subject] ? buildParentReport(subject, report.subjects[subject]!) : null),
     [report, subject],
   )
+  const cells = useMemo(() => (built ? built.map.flatMap((sec) => sec.skills) : []), [built])
+  const tested = cells.filter((c) => c.rag !== null)
+  const focus = tested
+    .filter((c) => c.rag !== 'green')
+    .sort((a, b) => share(a) - share(b))
+  const strong = tested.filter((c) => c.rag === 'green').sort((a, b) => share(b) - share(a))
+  const untested = cells.filter((c) => c.rag === null)
+  const count = (r: Rag) => tested.filter((c) => c.rag === r).length
 
   if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
   const subjects = report ? (Object.keys(report.subjects) as Subject[]) : []
+  const sat = report?.bluebook && report.bluebook.length > 0 ? byDay(report.bluebook) : []
+  const latest = sat[sat.length - 1] ?? null
 
   return (
     <StudentShell
@@ -82,29 +93,28 @@ export function ParentReport() {
         </button>
       }
     >
-      <main className="report-main">
+      <main className="student-main dashboard progress-main">
         {error && <Notice kind="error">{error}</Notice>}
         {!report && !error && <p className="muted">Loading…</p>}
 
         {report && (
-          <article className="report-card" aria-label="Progress report">
-            <div className="report-head">
+          <>
+            <div className="progress-head">
               <div>
-                <div className="report-kicker">SAT progress report</div>
-                <h1>{report.student.full_name}</h1>
-                <div className="report-meta">
-                  <span className="num">{report.student.display_id}</span> · {longDate(report.at)}
-                </div>
+                <h1 className="dash-hello">Progress</h1>
+                <p className="progress-sub">
+                  {report.student.full_name} · {longDate(report.at)}
+                </p>
               </div>
               {subjects.length > 1 && (
-                <div className="report-subjects no-print" role="tablist" aria-label="Subject">
+                <div className="progress-tabs no-print" role="tablist" aria-label="Subject">
                   {subjects.map((s) => (
                     <button
                       key={s}
                       type="button"
                       role="tab"
                       aria-selected={s === subject}
-                      className={`btn btn-sm ${s === subject ? 'btn-primary' : 'btn-ghost'}`}
+                      className={s === subject ? 'on' : ''}
                       onClick={() => setSubject(s)}
                     >
                       {subjectLabel(s)}
@@ -114,80 +124,90 @@ export function ParentReport() {
               )}
             </div>
 
-            {/* The whole SAT, on its own scale: above the subjects (0088). */}
-            {report.bluebook && report.bluebook.length > 0 && <BluebookSection rows={report.bluebook} />}
+            <div className="dash-stats">
+              <StatCard tone="peach" label="SAT score" value={latest ? String(latest.total) : '—'} foot={latest ? dayLabel(latest.taken_on) : 'Not added yet'} />
+              <StatCard tone="mint" label="Strong" value={String(count('green'))} foot="skills" />
+              <StatCard tone="sky" label="Getting there" value={String(count('amber'))} foot="skills" />
+              <StatCard tone="violet" label="Needs work" value={String(count('red'))} foot="skills" />
+            </div>
 
-            {subjects.length === 0 && (
-              <p className="muted">
-                {report.bluebook && report.bluebook.length > 0
-                  ? 'The skill map fills in after their first session.'
-                  : 'No tests yet. The report fills in after the first one.'}
-              </p>
-            )}
-
-            {built && subject && (
-              <>
-                <section className="report-headline">
-                  <div className="report-label">{subjectLabel(subject)} · headline</div>
-                  {built.headline ? (
-                    <>
-                      <div className="report-hero">
-                        <span className="report-hero-skill">{built.headline.skill}</span>
-                        <span className="report-hero-score num">{built.headline.scores}</span>
+            {subjects.length === 0 ? (
+              <section className="dash-panel progress-empty">
+                <p className="dash-empty">Your progress shows here after your first test.</p>
+              </section>
+            ) : (
+              <div className="dash-grid">
+                <div className="dash-col">
+                  {built?.headline && (
+                    <section className="dash-panel progress-headline">
+                      <div className="progress-headline-label">Latest change</div>
+                      <div className="progress-headline-row">
+                        <span className="progress-headline-skill">{built.headline.skill}</span>
+                        <span className="progress-headline-score num">{built.headline.scores}</span>
                       </div>
-                      <div className="report-hero-over">{built.headline.over}</div>
-                    </>
-                  ) : (
-                    <p className="muted">No targeted tests yet — the skill map below shows the diagnostic.</p>
+                      <div className="progress-sub">{built.headline.over}</div>
+                    </section>
                   )}
-                </section>
 
-                <section className="report-section">
-                  <div className="report-section-head">
-                    <h2>Skills</h2>
-                    <div className="rag-legend">
-                      {(['green', 'amber', 'red'] as Rag[]).map((r) => (
-                        <span key={r} className={`rag rag-${r}`}>
-                          <RagIcon rag={r} />
-                          {RAG_LABEL[r]}
-                        </span>
-                      ))}
-                      <span className="rag rag-none">Not tested yet</span>
-                    </div>
-                  </div>
-                  {built.map.map((sec) => (
-                    <div key={sec.section} className="report-skill-group">
-                      <div className="report-group-label">{sec.label}</div>
-                      <ul className="report-skills">
-                        {sec.skills.map((c) => (
-                          <SkillRow key={c.skill} cell={c} />
+                  <Panel title="Focus on" note={focus.length > 0 ? `${focus.length}` : undefined}>
+                    {focus.length === 0 ? (
+                      <p className="dash-empty">{tested.length === 0 ? 'Nothing tested yet.' : 'Nothing below strong — well done.'}</p>
+                    ) : (
+                      <ul className="skill-bars">
+                        {focus.map((c) => (
+                          <SkillBar key={c.skill} cell={c} />
                         ))}
                       </ul>
-                    </div>
-                  ))}
-                </section>
+                    )}
+                  </Panel>
 
-                {built.lines.length > 0 && (
-                  <section className="report-section">
-                    <h2>Trend</h2>
-                    <p className="report-note">Each targeted test on a skill, first to latest, scored out of 10.</p>
-                    <ul className="report-trends">
-                      {built.lines.map((l) => (
-                        <TrendRow key={`${l.section}/${l.skill ?? ''}`} line={l} />
-                      ))}
-                    </ul>
-                  </section>
-                )}
+                  {strong.length > 0 && (
+                    <Panel title="Strengths" note={`${strong.length}`}>
+                      <ul className="skill-bars">
+                        {strong.map((c) => (
+                          <SkillBar key={c.skill} cell={c} />
+                        ))}
+                      </ul>
+                    </Panel>
+                  )}
 
-                <p className="report-foot">
-                  Scores are right answers out of the questions reached. Strong is{' '}
-                  {Math.round(RAG_CUTOFFS.green * 100)}% or more, getting there{' '}
-                  {Math.round(RAG_CUTOFFS.amber * 100)}–{Math.round(RAG_CUTOFFS.green * 100) - 1}%, needs work below{' '}
-                  {Math.round(RAG_CUTOFFS.amber * 100)}%, from the latest session that asked the skill.
-                </p>
-              </>
+                  {untested.length > 0 && (
+                    <details className="dash-panel progress-untested">
+                      <summary>
+                        <span>Not tested yet</span>
+                        <span className="progress-count">{untested.length}</span>
+                      </summary>
+                      <div className="untested-chips">
+                        {untested.map((c) => (
+                          <span key={c.skill}>{c.label}</span>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+
+                <div className="dash-col">
+                  {built && built.lines.length > 0 && (
+                    <Panel title="Trend">
+                      <ul className="report-trends">
+                        {built.lines.map((l) => (
+                          <TrendRow key={`${l.section}/${l.skill ?? ''}`} line={l} />
+                        ))}
+                      </ul>
+                    </Panel>
+                  )}
+                  {sat.length > 0 && <BluebookSection rows={sat} />}
+                  <p className="progress-key">
+                    <span className="rag rag-green">Strong {Math.round(RAG_CUTOFFS.green * 100)}%+</span>
+                    <span className="rag rag-amber">
+                      Getting there {Math.round(RAG_CUTOFFS.amber * 100)}–{Math.round(RAG_CUTOFFS.green * 100) - 1}%
+                    </span>
+                    <span className="rag rag-red">Needs work</span>
+                  </p>
+                </div>
+              </div>
             )}
-          </article>
+          </>
         )}
       </main>
       {report && bluebook && (
@@ -195,14 +215,57 @@ export function ParentReport() {
           <BluebookScores api={bluebook} studentName={report.student.full_name} onChanged={() => void load()} />
         </div>
       )}
-
-      {report && (
-        <p className="report-more no-print">
-          Every diagnostic and targeted test report, in full, is under{' '}
-          <Link to="/student/reports">Reports</Link>.
-        </p>
-      )}
     </StudentShell>
+  )
+}
+
+function share(c: SkillCell): number {
+  return c.latest && c.latest.of > 0 ? c.latest.right / c.latest.of : 0
+}
+
+function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section className="dash-panel">
+      <div className="dash-panel-head">
+        <h2>
+          {title}
+          {note && <span className="progress-count">{note}</span>}
+        </h2>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function StatCard({ tone, label, value, foot }: { tone: 'violet' | 'sky' | 'mint' | 'peach'; label: string; value: string; foot: string }) {
+  return (
+    <div className={`dash-stat is-${tone}`}>
+      <div className="dash-stat-top">
+        <span className="dash-stat-label">{label}</span>
+      </div>
+      <div className="dash-stat-bottom">
+        <CountUp className="dash-stat-value" value={value} />
+        <span className="dash-stat-note">{foot}</span>
+      </div>
+    </div>
+  )
+}
+
+/** One skill: its name, a bar of how much was right, and the count. */
+function SkillBar({ cell }: { cell: SkillCell }) {
+  const pct = Math.round(share(cell) * 100)
+  return (
+    <li className={`skill-bar rag-row-${cell.rag ?? 'none'}`}>
+      <div className="skill-bar-top">
+        <span className="skill-bar-name">{cell.label}</span>
+        <span className="skill-bar-score num">
+          {cell.latest!.right}/{cell.latest!.of}
+        </span>
+      </div>
+      <div className="skill-bar-track" role="img" aria-label={`${pct}% right, ${cell.rag ? RAG_LABEL[cell.rag] : ''}`}>
+        <span style={{ width: `${Math.max(pct, 4)}%` }} />
+      </div>
+    </li>
   )
 }
 
@@ -217,62 +280,46 @@ function BluebookSection({ rows }: { rows: BluebookRow[] }) {
   const last = sorted[sorted.length - 1]
   const bands = latestDomains(rows)
   return (
-    <section className="report-headline report-bluebook">
-      <div className="report-label">SAT scores · on the SAT’s own scale</div>
-      <div className="report-hero">
-        <span className="report-hero-skill">{last.official ? last.test_name : 'Latest total'}</span>
-        <span className="report-hero-score num">{last.total}</span>
-        <span className="report-hero-over">
-          of 1600{last.total_percentile ? ` · ${ordinal(last.total_percentile)} percentile` : ''}
-        </span>
+    <section className="dash-panel">
+      <div className="dash-panel-head">
+        <h2>SAT scores</h2>
+        <a className="no-print" href="#sat-scores">Add or edit</a>
       </div>
-      <div className="report-hero-over">
-        {bluebookHeadline(rows)} · Reading and Writing {last.reading_writing}, Math {last.math}
+      <div className="sat-latest">
+        <div>
+          <div className="sat-latest-total num">{last.total}</div>
+          <div className="progress-sub">
+            {last.official ? last.test_name : 'Latest'} · of 1600
+            {last.total_percentile ? ` · ${ordinal(last.total_percentile)} percentile` : ''}
+          </div>
+        </div>
+        <div className="sat-latest-parts">
+          <span>
+            <b className="num">{last.reading_writing}</b> Reading &amp; Writing
+          </span>
+          <span>
+            <b className="num">{last.math}</b> Math
+          </span>
+        </div>
       </div>
       {sorted.length > 1 && (
-        <ul className="report-bluebook-list">
-          {sorted.map((r) => (
+        <ul className="sat-history">
+          {[...sorted].reverse().map((r) => (
             <li key={`${r.taken_on}/${r.test_name}`}>
               <span>{dayLabel(r.taken_on)}</span>
-              <span className="muted">
-                {r.test_name}
-                {r.official ? ' · official' : ''}
-              </span>
-              <span className="num">{r.total}</span>
+              <span className="muted">{r.test_name}</span>
+              <b className="num">{r.total}</b>
             </li>
           ))}
         </ul>
       )}
       {bands && bands.domains && (
-        <div className="report-bluebook-bands">
-          <div className="report-note">
-            By domain, from the {bands.test_name} report: College Board’s performance band for each.
-          </div>
+        <details className="sat-bands">
+          <summary>By domain</summary>
           <DomainBands domains={bands.domains} />
-        </div>
+        </details>
       )}
     </section>
-  )
-}
-
-function SkillRow({ cell }: { cell: SkillCell }) {
-  return (
-    <li className={`report-skill rag-row-${cell.rag ?? 'none'}`}>
-      <span className="report-skill-name">{cell.label}</span>
-      {cell.rag && cell.latest ? (
-        <span className="report-skill-state">
-          <span className={`rag rag-${cell.rag}`}>
-            <RagIcon rag={cell.rag} />
-            {RAG_LABEL[cell.rag]}
-          </span>
-          <span className="num report-skill-score">
-            {cell.latest.right} of {cell.latest.of}
-          </span>
-        </span>
-      ) : (
-        <span className="report-skill-state muted">Not tested yet</span>
-      )}
-    </li>
   )
 }
 
@@ -318,16 +365,6 @@ function Sparkline({ points }: { points: ProgressPoint[] }) {
           </title>
         </circle>
       ))}
-    </svg>
-  )
-}
-
-function RagIcon({ rag }: { rag: Rag }) {
-  return (
-    <svg className="rag-icon" viewBox="0 0 12 12" width={12} height={12} aria-hidden="true">
-      {rag === 'green' && <path d="M2.5 6.3 5 8.6l4.5-5" fill="none" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />}
-      {rag === 'amber' && <path d="M2.5 6h7" fill="none" strokeWidth={1.8} strokeLinecap="round" />}
-      {rag === 'red' && <path d="m3 3 6 6M9 3 3 9" fill="none" strokeWidth={1.8} strokeLinecap="round" />}
     </svg>
   )
 }

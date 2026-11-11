@@ -108,12 +108,12 @@ export function StudentProgress() {
         <BluebookScores api={bluebook} studentName={student?.full_name ?? null} />
       )}
 
-      <div className="mode-pick" role="group" aria-label="Subject">
+      <div className="progress-tabs subject-tabs" role="group" aria-label="Subject">
         {SUBJECTS.map((s) => (
           <button
             key={s.value}
             type="button"
-            className={`mode-opt ${subject === s.value ? 'on' : ''}`}
+            className={subject === s.value ? 'on' : ''}
             onClick={() => setSubject(s.value)}
           >
             {s.label}

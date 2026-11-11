@@ -432,8 +432,7 @@ export function ReportEdit() {
                 Find it
               </button>
               <span className="muted">
-                seconds into the recording — Fathom starts before the lesson does, and this is what
-                lines the quotes up with the right questions.
+                seconds in — where the lesson starts in the recording.
               </span>
             </div>
 
@@ -547,8 +546,7 @@ export function ReportEdit() {
           </div>
 
           <p className="muted read-note">
-            Every line below names the questions it came from. Click one to put it in the box it
-            belongs to — then edit it into your own words, or ignore it and write your own.
+            Click a line to add it to its box, then edit it.
           </p>
         </div>
       )}

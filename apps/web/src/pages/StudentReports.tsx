@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { CountUp } from '../components/Motion'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { subjectLabel } from '../lib/constants'
@@ -63,42 +64,34 @@ export function StudentReports() {
 
   return (
     <StudentShell student={list?.student}>
-      <main className="student-main">
-        <div className="student-greet">
-          <div>
-            <h1>Reports</h1>
-            <p>
-              Every report written for {list ? list.student.full_name.split(' ')[0] : 'you'} — diagnostics and
-              targeted tests — the same ones your PC is sent.
-            </p>
-          </div>
-        </div>
+      <main className="student-main dashboard">
+        <h1 className="dash-hello">Reports</h1>
 
         {error && <Notice kind="error">{error}</Notice>}
         {!list && !error && <p className="muted">Loading…</p>}
 
         {list && (
           <>
-            <dl className="student-stats">
-              <div className="stat-tile">
-                <dt className="stat-label">Reports</dt>
-                <dd className="stat-num">{reports.length}</dd>
+            <div className="dash-stats dash-stats-3">
+              <div className="dash-stat is-violet">
+                <span className="dash-stat-label">All reports</span>
+                <div className="dash-stat-bottom">
+                  <CountUp className="dash-stat-value" value={String(reports.length)} />
+                </div>
               </div>
-              <div className="stat-tile">
-                <dt className="stat-label">Diagnostics &amp; lessons</dt>
-                <dd className="stat-num">{counts.lesson}</dd>
+              <div className="dash-stat is-sky">
+                <span className="dash-stat-label">Diagnostics</span>
+                <div className="dash-stat-bottom">
+                  <CountUp className="dash-stat-value" value={String(counts.lesson)} />
+                </div>
               </div>
-              <div className="stat-tile">
-                <dt className="stat-label">Targeted tests</dt>
-                <dd className="stat-num">{counts.targeted}</dd>
+              <div className="dash-stat is-mint">
+                <span className="dash-stat-label">Targeted tests</span>
+                <div className="dash-stat-bottom">
+                  <CountUp className="dash-stat-value" value={String(counts.targeted)} />
+                </div>
               </div>
-            </dl>
-
-            {list.student.pc && (
-              <p className="student-reports-pc">
-                Your PC is <strong>{list.student.pc}</strong>. They receive each of these reports too.
-              </p>
-            )}
+            </div>
 
             {reports.length === 0 ? (
               <section className="next-up is-quiet student-section">
@@ -106,10 +99,9 @@ export function StudentReports() {
                   <span className="next-up-dot" />
                   No reports yet
                 </div>
-                <h2>Reports appear here as they are written</h2>
+                <h2>Nothing here yet</h2>
                 <p className="next-up-meta">
-                  A diagnostic’s report shows up once your teacher has generated it, and a targeted test’s the moment
-                  you finish it.
+                  They appear after each test.
                 </p>
               </section>
             ) : (
@@ -119,7 +111,7 @@ export function StudentReports() {
                     {(
                       [
                         ['all', 'All'],
-                        ['lesson', 'Diagnostics & lessons'],
+                        ['lesson', 'Diagnostics'],
                         ['targeted', 'Targeted tests'],
                       ] as [ReportFilter, string][]
                     ).map(([value, label]) => (
@@ -163,7 +155,6 @@ export function StudentReports() {
               </section>
             )}
 
-            <p className="student-foot">Times are shown in UTC.</p>
           </>
         )}
       </main>

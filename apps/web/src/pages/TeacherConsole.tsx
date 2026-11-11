@@ -389,8 +389,7 @@ function BeforeTheStart() {
     <div className="card card-pad level-control">
       <div className="section-title">Next question</div>
       <p className="step-text muted">
-        Nothing goes up on their screen until you show it. Choosing their questions — from any of
-        the three tests — and ending the session all open up once the test has started.
+        Start the test to show the first question.
       </p>
     </div>
   )
