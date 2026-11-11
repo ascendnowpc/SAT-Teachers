@@ -8,7 +8,7 @@ import { SuspendAccount } from '../components/SuspendAccount'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useSchool } from '../hooks/useSchool'
-import { backlog, isSuspended, rate, readyReports, studentRows, type Stages } from '../lib/admin'
+import { backlog, isSuspended, rate, readyReports, sessionStage, studentRows, type Stages } from '../lib/admin'
 import { signedInBluebook } from '../lib/bluebookApi'
 import { skillList, skillsOn, subjectLabel } from '../lib/constants'
 import { supabase } from '../lib/supabase'
@@ -295,11 +295,7 @@ function ReportList({
                   </td>
                   <td>{s.teacher?.full_name ?? '—'}</td>
                   <td>
-                    {targeted ? (
-                      <span className="badge badge-sky">Computed</span>
-                    ) : (
-                      <StageBadge stage={stages.get(s.id) ?? 'none'} />
-                    )}
+                    <StageBadge stage={sessionStage(s, stages)} />
                   </td>
                   <td className="row-actions">
                     <Link className="btn btn-primary btn-sm" to={`/sessions/${s.id}/report`}>

@@ -8,7 +8,7 @@ import { StudentIdNote } from '../components/StudentAccess'
 import { CopyButton, Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLiveSession } from '../hooks/useLiveSession'
-import { reportStage, STAGE_LABELS } from '../lib/admin'
+import { reportStage, sessionStage, STAGE_LABELS, stagesBySession } from '../lib/admin'
 import { diagnosisLabel, sectionLabel, skillLabel } from '../lib/constants'
 import { loadExtraction, type ContextExtractionRow } from '../lib/contextExtraction'
 import { rowsFrom, type DiagnosticRow } from '../lib/diagnostic'
@@ -82,7 +82,8 @@ export function AdminSession() {
     () => rowsFrom(notes, session?.subject ?? 'english'),
     [notes, session],
   )
-  const stage = reportStage(meta)
+  // A targeted test's report is computed once it is over; it has no write-up.
+  const stage = session ? sessionStage(session, stagesBySession(meta ? [meta] : [])) : reportStage(meta)
 
   if (loading) return <div className="page page-loading">Loading…</div>
 

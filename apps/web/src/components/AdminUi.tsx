@@ -5,6 +5,7 @@ import {
   isNewTeacher,
   isSuspended,
   rate,
+  sessionStage,
   type PersonRow,
   type ReportStage,
   type Stages,
@@ -451,7 +452,7 @@ export function SessionTable({
                     {s.answered_count > 0 ? s.answered_count : <span className="dash">—</span>}
                   </td>
                   <td>
-                    <StageBadge stage={stages.get(s.id) ?? 'none'} />
+                    <StageBadge stage={sessionStage(s, stages)} />
                   </td>
                 </tr>
               )

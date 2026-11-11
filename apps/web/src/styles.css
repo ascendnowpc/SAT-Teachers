@@ -2160,6 +2160,7 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .stage-form, .stage-submitted { color: var(--medium-fg); }
 .stage-generated { color: var(--sky-dark); }
 .stage-published { color: var(--ok-fg); }
+.stage-computed { color: var(--ok-fg); }
 
 /* Who the session was between, and the one way into it. Three cards, one row,
    and the row is shallow on purpose: it is a caption on the page, not the page. */

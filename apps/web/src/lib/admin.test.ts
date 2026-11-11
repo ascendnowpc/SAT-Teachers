@@ -9,6 +9,7 @@ import {
   newTeachers,
   rate,
   readyReports,
+  sessionStage,
   reportStage,
   schoolTally,
   pcRows,
@@ -251,6 +252,29 @@ describe('backlog', () => {
     ]
     const stages = stagesBySession([report('done', { status: 'published' })])
     expect(backlog(sessions, stages).map((s) => s.id)).toEqual(['old', 'new'])
+  })
+})
+
+describe('targeted tests have no write-up', () => {
+  const sessions = [
+    session('lesson', 't1', 's1', '2026-05-01T09:00:00Z'),
+    session('test', 't1', 's1', '2026-05-02T09:00:00Z', 'completed', { mode: 'targeted' }),
+    session('test-ahead', 't1', 's1', '2026-07-01T09:00:00Z', 'scheduled', { mode: 'targeted' }),
+  ]
+  const stages = stagesBySession([])
+
+  it('a finished one is computed, and one still to come is nothing yet', () => {
+    expect(sessionStage(sessions[1], stages)).toBe('computed')
+    expect(sessionStage(sessions[2], stages)).toBe('none')
+    expect(sessionStage(sessions[0], stages)).toBe('none')
+  })
+
+  it('is never outstanding, and counts as a report out', () => {
+    expect(isOutstanding('completed', 'computed')).toBe(false)
+    const [row] = studentRows([profile('s1', 'student')], sessions, stages)
+    expect(row.tally.outstanding).toBe(1)
+    expect(row.tally.published).toBe(1)
+    expect(backlog(sessions, stages).map((s) => s.id)).toEqual(['lesson'])
   })
 })
 
