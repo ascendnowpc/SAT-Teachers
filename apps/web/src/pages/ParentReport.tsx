@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useLocation } from 'react-router-dom'
+import { BluebookScores } from '../components/BluebookScores'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { DomainBands } from '../components/DomainBands'
@@ -15,6 +16,7 @@ import {
 } from '../lib/parentReport'
 import type { ProgressLine, ProgressPoint } from '../lib/progress'
 import { storeStudentKey, storedStudentKey } from '../lib/studentAccount'
+import { studentBluebook } from '../lib/bluebookApi'
 import { loadStudentReport } from '../lib/studentApi'
 import type { Subject } from '../lib/types'
 
@@ -31,28 +33,36 @@ export function ParentReport() {
   const [signedOut, setSignedOut] = useState(false)
   const [subject, setSubject] = useState<Subject | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!key) return
-    let active = true
-    loadStudentReport(key)
-      .then((r) => {
-        if (!active) return
-        setReport(r)
-        const subjects = Object.keys(r.subjects) as Subject[]
-        setSubject((s) => s ?? (subjects.includes('english') ? 'english' : subjects[0] ?? null))
-      })
-      .catch((err: unknown) => {
-        if (!active) return
-        const message = err instanceof Error ? err.message : 'Could not load the report.'
-        if (/signed out/i.test(message)) {
-          storeStudentKey(null)
-          setSignedOut(true)
-        } else setError(message)
-      })
-    return () => {
-      active = false
+    try {
+      const r = await loadStudentReport(key)
+      setReport(r)
+      const subjects = Object.keys(r.subjects) as Subject[]
+      setSubject((s) => s ?? (subjects.includes('english') ? 'english' : subjects[0] ?? null))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not load the report.'
+      if (/signed out/i.test(message)) {
+        storeStudentKey(null)
+        setSignedOut(true)
+      } else setError(message)
     }
   }, [key])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // The student, or their parent, adds a Bluebook score here (0099).
+  const bluebook = useMemo(() => (key ? studentBluebook(key) : null), [key])
+
+  // "Add your SAT score" on the home page lands on the form.
+  const location = useLocation()
+  useEffect(() => {
+    if (report && location.hash === '#sat-scores') {
+      document.getElementById('sat-scores')?.scrollIntoView({ block: 'start' })
+    }
+  }, [report, location.hash])
 
   const built = useMemo(
     () => (report && subject && report.subjects[subject] ? buildParentReport(subject, report.subjects[subject]!) : null),
@@ -179,13 +189,19 @@ export function ParentReport() {
             )}
           </article>
         )}
-        {report && (
-          <p className="report-more no-print">
-            Every diagnostic and targeted test report, in full, is under{' '}
-            <Link to="/student/reports">Reports</Link>.
-          </p>
-        )}
       </main>
+      {report && bluebook && (
+        <div className="report-bluebook-edit no-print">
+          <BluebookScores api={bluebook} studentName={report.student.full_name} onChanged={() => void load()} />
+        </div>
+      )}
+
+      {report && (
+        <p className="report-more no-print">
+          Every diagnostic and targeted test report, in full, is under{' '}
+          <Link to="/student/reports">Reports</Link>.
+        </p>
+      )}
     </StudentShell>
   )
 }

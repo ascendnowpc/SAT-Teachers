@@ -170,6 +170,18 @@ export function StudentHome() {
               </Section>
             )}
 
+            <Section title="SAT scores">
+              <div className="student-sat-cta">
+                <div>
+                  <strong>Sat the SAT or a Bluebook practice test?</strong>
+                  <span>Add your score from College Board’s score report — your teacher and PC see it too.</span>
+                </div>
+                <Link className="btn btn-primary btn-sm" to="/student/report#sat-scores">
+                  Add a score
+                </Link>
+              </div>
+            </Section>
+
             <Section title="Practise on your own">
               <PracticeList cards />
             </Section>

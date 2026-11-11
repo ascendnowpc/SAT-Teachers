@@ -19,6 +19,7 @@ import {
   type ProgressLine,
   type StudentProgress as Progress,
 } from '../lib/progress'
+import { signedInBluebook } from '../lib/bluebookApi'
 import { loadConfig, loadProgress } from '../lib/progressApi'
 import { row, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -29,13 +30,14 @@ import type { Profile, Subject } from '../lib/types'
  * targeted test, with the sessions between — every teacher's (0063).
  *
  * Staff read it and write about it here: the private note and the summary the
- * PC is given. The PC reads it and writes nothing: a test shows as soon as it
+ * PC is given. The PC reads it and writes only a Bluebook score for their own
+ * student (0099): a test shows as soon as it
  * is completed, its computed verdict with it, and the teacher's wording and
  * summary only once they are shared — student_progress sends nothing else.
  */
 export function StudentProgress() {
   const { id } = useParams<{ id: string }>()
-  const { isTeacher, isAdmin, profile } = useAuth()
+  const { isTeacher, isAdmin, isPc, profile } = useAuth()
   const [student, setStudent] = useState<Profile | null>(null)
   const [subject, setSubject] = useState<Subject>('english')
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -70,6 +72,19 @@ export function StudentProgress() {
   }, [id, subject])
 
   const lines = useMemo(() => (progress ? progressLines(progress) : []), [progress])
+  // Staff for any student, the PC for their own (0099): the database decides.
+  const bluebook = useMemo(
+    () =>
+      id
+        ? signedInBluebook({
+            studentId: id,
+            me: profile?.id ?? null,
+            isAdmin,
+            audience: isTeacher ? 'staff' : 'pc',
+          })
+        : null,
+    [id, profile?.id, isAdmin, isTeacher],
+  )
   const completed = progress?.sessions.filter((s) => s.status === 'completed').length ?? 0
 
   if (!id) return <div className="page">No such student.</div>
@@ -94,13 +109,9 @@ export function StudentProgress() {
       </p>
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
-      <BluebookScores
-        studentId={id}
-        studentName={student?.full_name ?? null}
-        staff={isTeacher}
-        me={profile?.id ?? null}
-        isAdmin={isAdmin}
-      />
+      {bluebook && (isTeacher || isPc) && (
+        <BluebookScores api={bluebook} studentName={student?.full_name ?? null} />
+      )}
 
       <div className="mode-pick" role="group" aria-label="Subject">
         {SUBJECTS.map((s) => (

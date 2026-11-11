@@ -54,7 +54,7 @@ npm run dev                                    # http://localhost:5173
 | **Practice pool** | Questions by skill, outside the three tests, that a targeted test draws on and a lesson never shows (`0060`) |
 | **A typed answer** | A question with no options, where the student writes the answer — a quarter of the SAT's maths is written that way. `.1764`, `3/17` and `1/2` for `.5` all count (`0073`) |
 | **College Board's bank** | 3,688 questions out of the SAT Suite Question Bank export, in the practice pools: 1,844 Reading and Writing and 1,844 Maths, each with its skill, its difficulty, its key and College Board's own rationale (`0074`–`0085`). The English ones read as text, passage left and question right, with a picture only of a chart or a table (`0091`, `0092`) |
-| **SAT scores** | A student's official SATs and Bluebook practice tests — total, Reading and Writing, Math, their percentiles and the eight domains' performance bands — read off College Board's score report or typed, on the student's progress page and the parent card (`0088`, `0090`) |
+| **SAT scores** | A student's official SATs and Bluebook practice tests — total, Reading and Writing, Math, their percentiles and the eight domains' performance bands — read off College Board's score report or typed, by staff, the student's PC, or the student and their parent from the student's account (`0088`, `0090`, `0099`) |
 
 ## English is three tests
 
@@ -1122,9 +1122,15 @@ wrong answer right.
 
 Students sit the SAT in Bluebook — the official test at a test centre, and College Board's full
 practice tests on their own — and the score report is what tells a parent where they are on the
-scale colleges read. A teacher records it (`0088`, `0090`) on the student's progress page
-(`/students/:id/progress`), under **SAT scores**, above the subjects because it is the whole SAT:
-**Add a score**, then the report's PDF, or its text pasted, or the scores typed.
+scale colleges read. Anyone with the student records it (`0088`, `0090`, `0099`), under **SAT
+scores** — **Add a score**, then the report's PDF, or its text pasted, or the scores typed:
+
+- **a teacher or an admin**, for any student, on the student's progress page (`/students/:id/progress`),
+  above the subjects because it is the whole SAT;
+- **the student's PC**, for their own students, on the same page;
+- **the student, or their parent** signed in with the student's ID and PIN, on the **Progress** tab
+  of the student's account (`/student/report`), under the progress card. **SAT scores → Add a
+  score** on the student's home page goes straight there.
 
 **The report it is built for** is College Board's own *Your SAT Score Report*. From it come the
 test (*Test administration: SAT May 02, 2026* → an official SAT, *SAT May 2026*) and the day it was
@@ -1157,10 +1163,16 @@ The tests read the real report's text in both orders the app meets it — pdf.js
 viewer's copy — with the student's name, locator, scores, percentiles and ranges changed and the
 layout as printed (`lib/fixtures/sat-score-report.*.txt`).
 
-`save_bluebook_score` checks the scale again — a percentile is 1 to 99, a domain one of the eight
-and its band two scores in tens, the lower first — refuses a day still to come and the same test
-twice on one day, and is staff's: any teacher, any student, as with progress. The teacher who
-recorded a score or an admin deletes it. The PC reads their own students' and changes nothing. The
+The database checks the scale again — a percentile is 1 to 99, a domain one of the eight and its
+band two scores in tens, the lower first — and refuses a day still to come and the same test twice
+on one day. The checks live in one internal function, `bluebook_record`, behind all three doors:
+`save_bluebook_score` (staff for any student, a PC for their own) and
+`student_save_bluebook_score(key, …)` (the student, through their key). Each score keeps who
+recorded it as a role — teacher, admin, pc or student — and every list says so ("Added by your PC").
+Whoever recorded a score deletes it, and an admin deletes any; nobody deletes somebody else's, so a
+student cannot take back their teacher's score (`delete_bluebook_score`,
+`student_delete_bluebook_score`). The student's account lists theirs through
+`student_bluebook_scores(key)`, with who added each and which are theirs to delete. The
 parent card leads with the latest test — an official SAT by its name, with its percentile — and the
 line from the first ("1240 → 1350 over 2 tests"), then the domains' bands from the latest report
 that gave them, with nothing about who recorded any of it. A student the clean-up deletes takes
@@ -1405,6 +1417,10 @@ show a broken picture. Neither holds a destructive statement, so both go through
 **Order, for `0090`.** Safe for the app being served: the new columns have defaults and
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
+
+**Order, for `0099`.** Safe for the app being served: `save_bluebook_score` keeps its arguments and
+still lets staff record, and every new door is new. Apply it with the app that shows the form to the
+PC and the student — before it, the database refuses them.
 
 **Order, for `0098`.** Safe at any time: three new functions and nothing changed. Apply it before
 or with the app that shows Reports — the home page asks for the list on the side, so the app
