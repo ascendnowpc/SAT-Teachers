@@ -27,7 +27,7 @@ export function SessionCard({
   const counterpart = isTeacher ? s.student : s.teacher
 
   return (
-    <Link className="sess-card" to={isTeacher ? `/sessions/${s.id}` : `/exam/${s.id}`}>
+    <Link className="sess-card" to={`/sessions/${s.id}`}>
       <div className="when">
         <div className="d">{when.day}</div>
         <div className="m">{when.month}</div>
