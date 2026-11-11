@@ -463,3 +463,15 @@ export function dayLabel(day: string): string {
   if (Number.isNaN(d.getTime())) return day
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
+
+/** Who recorded a score, as a role (0099). Null on a row read before 0099. */
+export type RecordedBy = 'teacher' | 'admin' | 'pc' | 'student'
+
+/** "Added by …", as whoever is looking would say it: the student, the PC, or staff. */
+export function addedBy(role: RecordedBy | null, audience: 'staff' | 'pc' | 'student'): string {
+  if (role === null) return 'Staff'
+  if (audience === 'student') {
+    return { student: 'You', teacher: 'Your teacher', admin: 'Ascend Now', pc: 'Your PC' }[role]
+  }
+  return { student: 'The student', teacher: 'A teacher', admin: 'An admin', pc: audience === 'pc' ? 'You' : 'The PC' }[role]
+}

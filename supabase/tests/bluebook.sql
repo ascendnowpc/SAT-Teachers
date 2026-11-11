@@ -1,13 +1,14 @@
 -- ============================================================================
---  A Bluebook score (0088)
+--  A Bluebook score (0088, 0090, 0099)
 --
 --    psql "$DATABASE_URL" -f supabase/tests/bluebook.sql
 --
 --  What has to hold:
 --
 --  Recording one
---    * staff record a score — any teacher, any student; a PC, a student and
---      anon cannot, and nobody writes the table but through the function
+--    * staff record a score — any teacher, any student; a signed-in student
+--      role and anon cannot through the staff door, and nobody writes the
+--      table but through the functions
 --    * College Board's scale: a section 200 to 800 in tens; the total the two
 --      sections added; not a day still to come; one test once a day
 --    * an official SAT keeps its percentiles and its domains' bands (0090);
@@ -23,8 +24,20 @@
 --    * the teacher who recorded it or an admin; not another teacher, not the PC
 --    * a student deleted takes their scores with them
 --
+--  The PC and the student record one too (0099)
+--    * the PC records for their own students, and not another PC's
+--    * the student records their own through their key, under the same checks
+--    * each score says who recorded it, as a role; staff scores before 0099
+--      say teacher or admin
+--    * the student's list carries every score with who added it, and which
+--      are theirs to delete
+--    * the PC deletes what they recorded, not a teacher's; the student
+--      deletes what they added, not a teacher's or the PC's; a made-up key
+--      does nothing
+--
 --  The grants
---    * both functions are signed in only
+--    * the staff doors are signed in only; the student's three doors are
+--      open signed out (the key is the check); bluebook_record is internal
 --
 --  Every row must read PASS. Cleans up after itself.
 -- ============================================================================
@@ -161,16 +174,18 @@ begin
   return query select '1 recording'::text, 'the table itself refuses a band that is not two scores'::text,
     'refused'::text, txt, __verdict(txt = 'refused');
 
-  perform __as(pc.id);
-  begin perform save_bluebook_score(stu.id, 'Practice Test 6', current_date, 1250, 620, 630); txt := 'saved';
-  exception when others then txt := 'refused'; end;
-  return query select '1 recording'::text, 'the PC cannot record one'::text, 'refused'::text, txt, __verdict(txt = 'refused');
-
+  -- A student has no sign-in of their own (0067): one signed in with the
+  -- student role still cannot use the staff door. Theirs is the key (§5).
   perform __as(stu.id);
   begin perform save_bluebook_score(stu.id, 'Practice Test 6', current_date, 1600, 800, 800); txt := 'saved';
   exception when others then txt := 'refused'; end;
-  return query select '1 recording'::text, 'nor can a student, of their own'::text, 'refused'::text, txt,
+  return query select '1 recording'::text, 'a signed-in student role cannot use the staff door'::text, 'refused'::text, txt,
     __verdict(txt = 'refused');
+
+  perform __as(null, 'anon');
+  begin perform save_bluebook_score(stu.id, 'Practice Test 6', current_date, 1600, 800, 800); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '1 recording'::text, 'nor can anon'::text, 'refused'::text, txt, __verdict(txt = 'refused');
 
   perform __as(t_id);
   begin
@@ -244,6 +259,99 @@ begin
   return query select '3 deleting'::text, 'a student deleted takes their scores with them'::text, '0'::text, n::text,
     __verdict(n = 0);
 
+  -- ============ 5. the PC and the student record one too (0099) ============
+  perform __as(null, 'postgres');
+  select string_agg(distinct recorded_by, ',') into txt from bluebook_scores where student_id = stu.id;
+  return query select '5 who'::text, 'a staff score says it was a teacher''s'::text, 'teacher'::text,
+    coalesce(txt, '(none)'), __verdict(txt = 'teacher');
+
+  perform __as(pc.id);
+  b4 := save_bluebook_score(stu.id, 'Practice Test 7', current_date - 2, 1400, 700, 700);
+  select recorded_by || ' ' || (created_by = pc.id)::text into txt from bluebook_scores where id = b4;
+  return query select '5 PC'::text, 'the PC records one for their own student'::text, 'pc true'::text,
+    coalesce(txt, '(none)'), __verdict(txt = 'pc true');
+
+  perform __as(pc2.id);
+  begin perform save_bluebook_score(stu.id, 'Practice Test 8', current_date, 1400, 700, 700); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '5 PC'::text, 'and not for another PC''s student'::text, 'refused'::text, txt,
+    __verdict(txt = 'refused');
+
+  perform __as(pc.id);
+  begin perform save_bluebook_score(stu.id, 'Practice Test 8', current_date, 1410, 700, 700); txt := 'saved';
+  exception when others then txt := 'refused'; end;
+  return query select '5 PC'::text, 'under the same checks: a wrong total is refused'::text, 'refused'::text, txt,
+    __verdict(txt = 'refused');
+
+  perform __as(null, 'anon');
+  declare s_own uuid;
+  begin
+    s_own := student_save_bluebook_score(skey, 'Practice Test 9', current_date - 1, 1450, 720, 730, 'report');
+    perform __as(null, 'postgres');
+    select recorded_by || ' ' || read_from || ' ' || (created_by = stu.id)::text into txt from bluebook_scores where id = s_own;
+    return query select '5 student'::text, 'the student records their own through their key'::text,
+      'student report true'::text, coalesce(txt, '(none)'), __verdict(txt = 'student report true');
+
+    perform __as(null, 'anon');
+    begin perform student_save_bluebook_score(skey, 'Practice Test 9', current_date - 1, 1450, 720, 730); txt := 'saved';
+    exception when others then txt := sqlerrm; end;
+    return query select '5 student'::text, 'under the same checks: the same test twice is refused'::text,
+      'this test is already recorded for that day'::text, txt,
+      __verdict(txt = 'this test is already recorded for that day');
+    begin perform student_save_bluebook_score(skey, 'Practice Test 10', current_date + 5, 1450, 720, 730); txt := 'saved';
+    exception when others then txt := sqlerrm; end;
+    return query select '5 student'::text, 'and a day still to come'::text,
+      'a test cannot be sat on a day still to come'::text, txt,
+      __verdict(txt = 'a test cannot be sat on a day still to come');
+    begin perform student_save_bluebook_score('not-a-key', 'Practice Test 10', current_date, 1450, 720, 730); txt := 'saved';
+    exception when others then txt := sqlerrm; end;
+    return query select '5 student'::text, 'a made-up key records nothing'::text, 'signed out'::text, txt,
+      __verdict(txt = 'signed out');
+
+    j := student_bluebook_scores(skey);
+    select string_agg((e->>'recorded_by') || ':' || (e->>'mine'), ',' order by e->>'taken_on') into txt
+      from jsonb_array_elements(j) e;
+    return query select '5 list'::text, 'the student''s list: who added each, and which are theirs'::text,
+      'teacher:false,pc:false,student:true'::text, coalesce(txt, '(none)'),
+      __verdict(txt = 'teacher:false,pc:false,student:true');
+    return query select '5 list'::text, 'with no one''s id'::text, 'absent'::text,
+      (case when position(t_id::text in j::text) > 0 or position(pc.id::text in j::text) > 0
+              or position('created_by' in j::text) > 0 then 'present' else 'absent' end),
+      __verdict(position(t_id::text in j::text) = 0 and position(pc.id::text in j::text) = 0
+                and position('created_by' in j::text) = 0);
+
+    -- Deleting: each their own.
+    select (e->>'id')::uuid into b1 from jsonb_array_elements(j) e where e->>'recorded_by' = 'teacher' limit 1;
+    begin perform student_delete_bluebook_score(skey, b1); txt := 'deleted';
+    exception when others then txt := 'refused'; end;
+    return query select '5 delete'::text, 'the student cannot delete a teacher''s score'::text, 'refused'::text, txt,
+      __verdict(txt = 'refused');
+    begin perform student_delete_bluebook_score(skey, b4); txt := 'deleted';
+    exception when others then txt := 'refused'; end;
+    return query select '5 delete'::text, 'nor the PC''s'::text, 'refused'::text, txt, __verdict(txt = 'refused');
+
+    perform __as(pc.id);
+    begin perform delete_bluebook_score(s_own); txt := 'deleted';
+    exception when others then txt := 'refused'; end;
+    return query select '5 delete'::text, 'the PC cannot delete the student''s'::text, 'refused'::text, txt,
+      __verdict(txt = 'refused');
+    perform delete_bluebook_score(b4);
+    perform __as(null, 'postgres');
+    select count(*) into n from bluebook_scores where id = b4;
+    return query select '5 delete'::text, 'the PC deletes what they recorded'::text, '0'::text, n::text, __verdict(n = 0);
+
+    perform __as(null, 'anon');
+    begin perform student_delete_bluebook_score('not-a-key', s_own); txt := 'deleted';
+    exception when others then txt := sqlerrm; end;
+    return query select '5 delete'::text, 'a made-up key deletes nothing'::text, 'signed out'::text, txt,
+      __verdict(txt = 'signed out');
+    perform student_delete_bluebook_score(skey, s_own);
+    perform __as(null, 'postgres');
+    select count(*) into n from bluebook_scores where id = s_own;
+    return query select '5 delete'::text, 'the student deletes what they added'::text, '0'::text, n::text,
+      __verdict(n = 0);
+  end;
+
   -- ============ 4. grants ============
   for txt in select unnest(array['save_bluebook_score(uuid,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)',
                                  'delete_bluebook_score(uuid)']) loop
@@ -254,6 +362,19 @@ begin
       __verdict(not has_function_privilege('anon', 'public.'||txt, 'execute')
                 and has_function_privilege('authenticated', 'public.'||txt, 'execute'));
   end loop;
+
+  for txt in select unnest(array['student_save_bluebook_score(text,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)',
+                                 'student_delete_bluebook_score(text,uuid)', 'student_bluebook_scores(text)']) loop
+    return query select '4 grants'::text, txt || ' — signed out too'::text, 'anon'::text,
+      (case when has_function_privilege('anon', 'public.'||txt, 'execute') then 'anon' else 'nobody' end),
+      __verdict(has_function_privilege('anon', 'public.'||txt, 'execute'));
+  end loop;
+  return query select '4 grants'::text, 'bluebook_record — internal'::text, 'nobody signed in'::text,
+    (case when has_function_privilege('anon', 'public.bluebook_record(uuid,uuid,text,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)', 'execute')
+            or has_function_privilege('authenticated', 'public.bluebook_record(uuid,uuid,text,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)', 'execute')
+          then 'somebody' else 'nobody signed in' end),
+    __verdict(not has_function_privilege('anon', 'public.bluebook_record(uuid,uuid,text,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)', 'execute')
+              and not has_function_privilege('authenticated', 'public.bluebook_record(uuid,uuid,text,text,date,integer,integer,integer,text,boolean,integer,integer,integer,jsonb)', 'execute'));
 
   return query select '4 grants'::text, 'bluebook_domains_ok(jsonb) — internal'::text, 'nobody signed in'::text,
     (case when has_function_privilege('anon', 'public.bluebook_domains_ok(jsonb)', 'execute')
@@ -267,6 +388,8 @@ begin
     __verdict(to_regprocedure('public.save_bluebook_score(uuid,text,date,integer,integer,integer,text)') is null);
 
   -- Cleanup.
+  perform __as(null, 'postgres');
+  delete from student_login_keys where student_id = stu.id;
   delete from bluebook_scores where student_id = stu.id;
   delete from profiles where id in (stu.id, t_id, x_id, ad_id, pc.id, pc2.id);
   delete from auth.users where id in (t_id, x_id, ad_id);

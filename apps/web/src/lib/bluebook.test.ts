@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  addedBy,
   bluebookHeadline,
   bluebookProblem,
   change,
@@ -340,5 +341,18 @@ describe('the trend', () => {
 describe('dayLabel', () => {
   it('writes the day sat as a day, with no time or zone', () => {
     expect(dayLabel('2025-10-12')).toBe('12 Oct 2025')
+  })
+})
+
+describe('addedBy', () => {
+  it('says who added a score as the person looking would say it', () => {
+    expect(addedBy('student', 'student')).toBe('You')
+    expect(addedBy('teacher', 'student')).toBe('Your teacher')
+    expect(addedBy('pc', 'student')).toBe('Your PC')
+    expect(addedBy('pc', 'pc')).toBe('You')
+    expect(addedBy('pc', 'staff')).toBe('The PC')
+    expect(addedBy('student', 'staff')).toBe('The student')
+    expect(addedBy('admin', 'staff')).toBe('An admin')
+    expect(addedBy(null, 'staff')).toBe('Staff')
   })
 })
