@@ -181,3 +181,61 @@ export function reportEmail(input: ReportEmailInput): Email {
 
   return { subject, html, text }
 }
+
+// ---------------------------------------------- the parent's progress report --
+
+export interface ParentReportEmailInput {
+  studentName: string
+  pcName: string
+  parentName: string | null
+  /** The PC's own lines, first in the mail. */
+  note: string | null
+  /** Each subject's one-sentence headline, as the report prints it: "Math: Algebra improved …". */
+  headlines: string[]
+  /** The PDF is attached. False when it could not be made, and the mail says so. */
+  attached: boolean
+}
+
+/**
+ * The Section Progress Report, to a parent, from the student's PC (0103): the
+ * PC's note, each subject's headline, and the PDF. No link into the platform:
+ * a parent has no login, and the report is the PDF.
+ */
+export function parentReportEmail(input: ParentReportEmailInput): Email {
+  const first = input.parentName?.trim().split(/\s+/)[0] || null
+  const pcFirst = input.pcName.trim().split(/\s+/)[0] || input.pcName
+  const subject = `${input.studentName}: SAT progress by section`
+  const greeting = first ? `Hello ${first},` : 'Hello,'
+  const lead = `Here is ${input.studentName}'s SAT progress, domain by domain, from their check-ins with us.`
+  const attachedLine = input.attached
+    ? 'The full report is attached as a PDF: one page for each subject.'
+    : 'The PDF could not be attached this time; please ask me and I will send it again.'
+  const noteLines = input.note?.trim() ? input.note.trim().split(/\r?\n/) : []
+
+  const html = frame(`
+    <p style="margin:0 0 14px">${escapeHtml(greeting)}</p>
+    ${noteLines.length > 0 ? `<p style="margin:0 0 14px">${noteLines.map(escapeHtml).join('<br>')}</p>` : ''}
+    <p style="margin:0 0 12px">${escapeHtml(lead)}</p>
+    ${input.headlines.map((h) => `<p style="margin:0 0 10px;font-weight:600">${escapeHtml(h)}</p>`).join('')}
+    <p style="margin:12px 0 20px">${escapeHtml(attachedLine)}</p>
+    <p style="margin:0 0 4px">${escapeHtml(pcFirst)}</p>
+    <p style="margin:0;color:${FAINT};font-size:13px">${escapeHtml(input.pcName)} · Performance coach, Ascend Now. Level scores measure our check-ins only; they are not a predicted SAT score.</p>
+  `)
+
+  const text = [
+    greeting,
+    '',
+    ...(noteLines.length > 0 ? [...noteLines, ''] : []),
+    lead,
+    '',
+    ...input.headlines,
+    '',
+    attachedLine,
+    '',
+    pcFirst,
+    `${input.pcName} · Performance coach, Ascend Now`,
+    'Level scores measure our check-ins only; they are not a predicted SAT score.',
+  ].join('\n')
+
+  return { subject, html, text }
+}

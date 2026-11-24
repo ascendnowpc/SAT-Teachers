@@ -68,13 +68,14 @@ export async function loadStudentGoal(key: string): Promise<StudentGoal | null> 
   return (data as StudentGoal | null) ?? null
 }
 
-/** Sets all three at once; all three empty forgets the goal (0101). */
+/** Sets them all at once, until the PC confirms them; all empty forgets the goal (0101). */
 export async function saveStudentGoal(key: string, goal: StudentGoal): Promise<StudentGoal | null> {
   const { data, error } = await supabase.rpc('student_set_goal', {
     p_key: key,
     p_target_rw: goal.target_rw,
     p_target_math: goal.target_math,
     p_next_test_on: goal.next_test_on,
+    p_reg_on: goal.registration_deadline_on ?? null,
   })
   if (error) throw new Error(error.message)
   return (data as StudentGoal | null) ?? null

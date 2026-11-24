@@ -9,14 +9,12 @@ import { Notice } from '../components/ui'
 import { byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
 import { latestSat, type StudentGoal } from '../lib/goal'
 import { asProgress, RAG_CUTOFFS, type StudentReport } from '../lib/parentReport'
-import type { StudentProgress } from '../lib/progress'
 import { storeStudentKey, storedStudentKey } from '../lib/studentAccount'
 import { studentBluebook } from '../lib/bluebookApi'
 import { loadStudentGoal, loadStudentReport } from '../lib/studentApi'
-import { measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
+import { EMPTY_PROGRESS, measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
 import type { Subject } from '../lib/types'
 
-const EMPTY: StudentProgress = { sessions: [], targeted: [], items: [], config: null, summaries: [], overrides: [] }
 
 /**
  * The student's progress (0070), opened from their account: the SAT by its
@@ -75,7 +73,7 @@ export function ParentReport() {
     if (!report) return out
     for (const s of SUBJECT_ORDER) {
       const payload = report.subjects[s]
-      out[s] = measureSubject(s, payload ? asProgress(payload) : EMPTY, sat)
+      out[s] = measureSubject(s, payload ? asProgress(payload) : EMPTY_PROGRESS, sat)
     }
     return out
   }, [report, sat])
@@ -85,7 +83,7 @@ export function ParentReport() {
   const subject: Subject =
     asked === 'english' || asked === 'mathematics'
       ? asked
-      : (SUBJECT_ORDER.map((s) => ({ s, at: measures[s]?.latest?.at ?? '' }))
+      : (SUBJECT_ORDER.map((s) => ({ s, at: measures[s]?.latestAt ?? '' }))
           .filter((x) => x.at)
           .sort((a, b) => b.at.localeCompare(a.at))[0]?.s ?? 'english')
 

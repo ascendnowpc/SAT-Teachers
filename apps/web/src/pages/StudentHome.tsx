@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { CountUp } from '../components/Motion'
+import { GoalCalendar } from '../components/GoalCalendar'
 import { GoalBar } from '../components/StudentGoal'
+import { RagChip } from '../components/SubjectProgress'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { byDay, dayLabel, type BluebookRow } from '../lib/bluebook'
 import { latestSat, toGo, type StudentGoal } from '../lib/goal'
-import type { ReportSubject, StudentReport } from '../lib/parentReport'
+import { asProgress, type ReportSubject, type StudentReport } from '../lib/parentReport'
 import { PRACTICE_RESOURCES } from '../lib/satGuide'
 import {
   percentRight,
@@ -27,7 +29,15 @@ import {
 } from '../lib/studentApi'
 import { rememberEntry } from '../lib/studentEntry'
 import type { StudentReportEntry } from '../lib/studentReports'
-import { percent, SUBJECT_ORDER, SUBJECT_VIEW, testBySection } from '../lib/subjectProgress'
+import {
+  measureSubject,
+  percent,
+  strongestAndWeakest,
+  SUBJECT_ORDER,
+  SUBJECT_VIEW,
+  testBySection,
+  type SubjectMeasure,
+} from '../lib/subjectProgress'
 import { supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Subject } from '../lib/types'
@@ -47,6 +57,8 @@ export function StudentHome() {
   const [detail, setDetail] = useState<StudentReport | null>(null)
   const [sat, setSat] = useState<BluebookRow[]>([])
   const [goal, setGoal] = useState<StudentGoal | null>(null)
+  // Only once it has loaded does "no goal" mean "set them now".
+  const [goalLoaded, setGoalLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signedOut, setSignedOut] = useState(false)
 
@@ -63,7 +75,10 @@ export function StudentHome() {
         .then(setDetail)
         .catch(() => setDetail(null))
       loadStudentGoal(key)
-        .then(setGoal)
+        .then((g) => {
+          setGoal(g)
+          setGoalLoaded(true)
+        })
         .catch(() => undefined)
       void supabase.rpc('student_bluebook_scores', { p_key: key }).then(({ data }) => {
         setSat(byDay((data ?? []) as BluebookRow[]))
@@ -89,6 +104,15 @@ export function StudentHome() {
   const sessions = useMemo(() => home?.sessions ?? [], [home])
   const reportFor = useMemo(() => new Set((reports ?? []).map((r) => r.session_id)), [reports])
   const latest = useMemo(() => latestSat(sat), [sat])
+  // Each subject by domain, for its strengths and weaknesses.
+  const measures = useMemo(() => {
+    const out: Partial<Record<Subject, SubjectMeasure>> = {}
+    for (const s of SUBJECT_ORDER) {
+      const payload = detail?.subjects[s]
+      if (payload) out[s] = measureSubject(s, asProgress(payload))
+    }
+    return out
+  }, [detail])
 
   if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
@@ -109,7 +133,7 @@ export function StudentHome() {
 
         {home && (
           <>
-            <GoalBar pinKey={key} goal={goal} sat={latest} onSaved={setGoal} />
+            <GoalBar pinKey={key} goal={goal} sat={latest} onSaved={setGoal} onboarding={goalLoaded} />
 
             <div className="subject-cols">
               {SUBJECT_ORDER.map((s) => (
@@ -118,6 +142,7 @@ export function StudentHome() {
                   subject={s}
                   tests={sessions.filter((t) => t.subject === s)}
                   items={detail?.subjects[s]?.items ?? null}
+                  measure={measures[s] ?? null}
                   satScore={latest ? (s === 'english' ? latest.rw : latest.math) : null}
                   target={s === 'english' ? (goal?.target_rw ?? null) : (goal?.target_math ?? null)}
                   reportFor={reportFor}
@@ -126,21 +151,24 @@ export function StudentHome() {
               ))}
             </div>
 
-            <section className="dash-panel dash-practice">
-              <div className="dash-panel-head">
-                <h2>More practice</h2>
-              </div>
-              <ul className="dash-links">
-                {PRACTICE_RESOURCES.map((r) => (
-                  <li key={r.href}>
-                    <a href={r.href} target="_blank" rel="noreferrer">
-                      {r.label}
-                      <span aria-hidden="true">↗</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div className="home-bottom">
+              <GoalCalendar goal={goal} tests={sessions} />
+              <section className="dash-panel dash-practice">
+                <div className="dash-panel-head">
+                  <h2>More practice</h2>
+                </div>
+                <ul className="dash-links">
+                  {PRACTICE_RESOURCES.map((r) => (
+                    <li key={r.href}>
+                      <a href={r.href} target="_blank" rel="noreferrer">
+                        {r.label}
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
           </>
         )}
       </main>
@@ -153,6 +181,7 @@ function SubjectColumn({
   subject,
   tests,
   items,
+  measure,
   satScore,
   target,
   reportFor,
@@ -161,6 +190,7 @@ function SubjectColumn({
   subject: Subject
   tests: StudentTest[]
   items: ReportSubject['items'] | null
+  measure: SubjectMeasure | null
   satScore: number | null
   target: number | null
   reportFor: Set<string>
@@ -206,6 +236,8 @@ function SubjectColumn({
           foot={target !== null ? `Goal ${target}${gap ? ` · ${gap.toLowerCase()}` : ''}` : undefined}
         />
       </div>
+
+      {measure && measure.tests > 0 && <DomainStanding measure={measure} />}
 
       <div className="subject-block">
         <h3>Last test</h3>
@@ -256,6 +288,29 @@ function SubjectColumn({
         </div>
       )}
     </section>
+  )
+}
+
+/** Strengths and weaknesses by domain: each of the four, where it stands now, the strongest and the weakest named. */
+function DomainStanding({ measure }: { measure: SubjectMeasure }) {
+  const { strongest, weakest } = strongestAndWeakest(measure)
+  return (
+    <div className="subject-block">
+      <h3>By domain</h3>
+      <ul className="home-domains">
+        {measure.sections.map((s) => (
+          <li key={s.section}>
+            <span className="home-domain-name">
+              {s.label}
+              {s === strongest && <em className="home-domain-tag is-strong">Strongest</em>}
+              {s === weakest && <em className="home-domain-tag is-weak">Focus</em>}
+            </span>
+            <span className="home-domain-score num">{s.latest ? `${s.latest.right}/${s.latest.of}` : '—'}</span>
+            <RagChip rag={s.rag} small />
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

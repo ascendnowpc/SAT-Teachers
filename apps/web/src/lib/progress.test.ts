@@ -470,7 +470,7 @@ describe('a test on several skills', () => {
 
 describe('the default size (0089)', () => {
   it('is twelve questions, as Ascend Now chose from the brief’s 10 to 15', () => {
-    expect(defaultConfig('english').default_set_size).toBe(12)
-    expect(defaultConfig('mathematics').default_set_size).toBe(12)
+    expect(defaultConfig('english').default_set_size).toBe(10)
+    expect(defaultConfig('mathematics').default_set_size).toBe(10)
   })
 })

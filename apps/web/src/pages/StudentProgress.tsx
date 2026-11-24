@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
+import { DomainDashboard, useBothSubjects } from '../components/DomainDashboard'
+import { GoalPanel } from '../components/StudentGoal'
 import { IconBack } from '../components/icons'
 import {
   ProgressLineView,
@@ -20,9 +22,8 @@ import {
   type StudentProgress as Progress,
 } from '../lib/progress'
 import { signedInBluebook } from '../lib/bluebookApi'
-import { dayLabel } from '../lib/bluebook'
-import { goalTotal, type StudentGoal } from '../lib/goal'
 import { loadConfig, loadProgress } from '../lib/progressApi'
+import { EMPTY_PROGRESS, measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
 import { row, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Profile, Subject } from '../lib/types'
@@ -57,18 +58,6 @@ export function StudentProgress() {
       .then(({ data }) => setStudent(row<Profile>(data)))
   }, [id])
 
-  // The student's own goal (0101): staff read every one, a PC their own students'.
-  const [goal, setGoal] = useState<StudentGoal | null>(null)
-  useEffect(() => {
-    if (!id) return
-    void supabase
-      .from('student_goals')
-      .select('target_rw, target_math, next_test_on')
-      .eq('student_id', id)
-      .maybeSingle()
-      .then(({ data }) => setGoal(row<StudentGoal>(data)))
-  }, [id])
-
   useEffect(() => {
     if (!id) return
     let active = true
@@ -101,12 +90,20 @@ export function StudentProgress() {
   )
   const completed = progress?.sessions.filter((s) => s.status === 'completed').length ?? 0
 
+  // The eight domains, both subjects at once (F7).
+  const both = useBothSubjects(id)
+  const measures = useMemo(() => {
+    const out: Partial<Record<Subject, SubjectMeasure>> = {}
+    for (const s of SUBJECT_ORDER) out[s] = measureSubject(s, both.progress[s] ?? EMPTY_PROGRESS)
+    return out
+  }, [both.progress])
+
   if (!id) return <div className="page">No such student.</div>
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to="/sessions">
-        <IconBack /> Sessions
+      <Link className="back-link" to="/students">
+        <IconBack /> Students
       </Link>
 
       <div className="page-head">
@@ -116,7 +113,17 @@ export function StudentProgress() {
         </h1>
       </div>
       {student?.pc && <p className="muted">PC: {student.pc}</p>}
-      {goal && <p className="muted">Their goal: {goalLine(goal)}</p>}
+      <GoalPanel studentId={id} canEdit={isAdmin || (isPc && !!student && student.pc_id === profile?.id)} />
+
+      <section className="staff-domains">
+        <div className="staff-domains-head">
+          <h2>Domains</h2>
+          <Link className="btn btn-ghost btn-sm" to={`/students/${id}/section-report`}>
+            Section Progress Report
+          </Link>
+        </div>
+        {both.loading ? <div className="page-loading">Loading…</div> : <DomainDashboard measures={measures} />}
+      </section>
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
       {bluebook && (isTeacher || isPc) && (
@@ -208,15 +215,4 @@ function SkillCard({
       )}
     </section>
   )
-}
-
-/** "Reading & Writing 700 · Math 750 (1450) · next SAT 5 Dec 2026" — what the student set (0101). */
-function goalLine(g: StudentGoal): string {
-  const parts: string[] = []
-  if (g.target_rw !== null) parts.push(`Reading & Writing ${g.target_rw}`)
-  if (g.target_math !== null) parts.push(`Math ${g.target_math}`)
-  const total = goalTotal(g)
-  const scores = parts.length > 0 ? `${parts.join(' · ')}${total !== null ? ` (${total})` : ''}` : null
-  const next = g.next_test_on ? `next SAT ${dayLabel(g.next_test_on)}` : null
-  return [scores, next].filter(Boolean).join(' · ')
 }

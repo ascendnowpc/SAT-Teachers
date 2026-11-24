@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   countdownLabel,
+  gapFlag,
+  registrationLabel,
   daysUntil,
   goalProblem,
   goalTotal,
@@ -79,5 +81,27 @@ describe('the latest SAT', () => {
     ]
     expect(latestSat(rows)).toEqual({ total: 1350, rw: 650, math: 700, on: '2026-05-02' })
     expect(latestSat([])).toBeNull()
+  })
+})
+
+describe('the registration deadline and the flag (0101)', () => {
+  it('is on or before the test', () => {
+    expect(goalProblem('', '', '2026-12-05', '2026-11-24', '2026-11-20')).toBeNull()
+    expect(goalProblem('', '', '2026-12-05', '2026-11-24', '2026-12-10')).toMatch(/before the test/)
+  })
+
+  it('reads in words, urgent in the last week', () => {
+    expect(registrationLabel('2026-11-27', '2026-11-24')).toEqual({ text: 'Registration closes in 3 days', urgent: true })
+    expect(registrationLabel('2026-12-20', '2026-11-24')).toEqual({ text: 'Registration closes in 26 days', urgent: false })
+    expect(registrationLabel('2026-11-20', '2026-11-24')?.text).toBe('Registration deadline passed')
+    expect(registrationLabel(null, '2026-11-24')).toBeNull()
+  })
+
+  it('flags each half still short of its goal in the last month', () => {
+    const goal = { target_rw: 700, target_math: 750, next_test_on: '2026-12-05', registration_deadline_on: null }
+    expect(gapFlag(goal, { rw: 650, math: 760 }, '2026-11-24')).toEqual({ days: 11, parts: [{ name: 'Reading & Writing', gap: 50 }] })
+    expect(gapFlag(goal, { rw: 650, math: 700 }, '2026-10-01')).toBeNull()
+    expect(gapFlag(goal, { rw: 720, math: 760 }, '2026-11-24')).toBeNull()
+    expect(gapFlag(goal, null, '2026-11-24')).toBeNull()
   })
 })

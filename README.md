@@ -46,8 +46,12 @@ npm run dev                                    # http://localhost:5173
 | **Branding** | Logo and colour tokens taken from the operations dashboard, so both apps look like one product |
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
-| **Parent report** | The student's **Progress** page, opened with the student's ID and PIN: English and Math apart, and inside each its four SAT sections measured one by one — how many tests asked it, each test's score from the first to the latest as columns, where it stands, and every skill on its own line (`0070`) |
-| **The student's goal** | The score a student aims for in Reading & Writing and in Math, and the day of their next SAT — set by the student or their parent, across the top of their home and Progress pages, with the latest SAT and the days left; staff and the PC read it (`0101`) |
+| **Parent report** | The student's **Progress** page, opened with the student's ID and PIN: English and Math apart, and inside each its four SAT domains measured one by one — the diagnostic baseline, then each check-in that asked it as columns with the lessons between, the change in level points with its verdict, the sessions spent, and every skill on its own line (`0070`) |
+| **The student's goals** | "Let's set our goals" on joining: the SAT date, its registration deadline, and a target for Reading & Writing and for Math. The PC confirms them, and from then on only the PC changes them, every version kept. Across the top of the student's home and Progress pages, with the latest SAT, the gap and the days left — flagged in the last month (`0101`) |
+| **Check-ins** | A new targeted test starts at 10 questions (3 easy, 3 medium, 4 hard, easiest first), a minute a question in English and a minute and a half in Math (`0102`) |
+| **Domain dashboard** | On a student's progress page, for staff and their PC: the eight domains of both subjects — baseline, latest, change since the baseline with its verdict, sessions spent and where it stands (`lib/progress domainLine`) |
+| **Section Progress Report** | The parent's one-page-per-subject report: a headline sentence, the four domains with baseline, latest, change and colour in words, sessions spent, patterns in plain words, what happens next, and the goal and gap. The PC downloads it as a PDF or emails it to the parent with a note (`0103`) |
+| **My students** | One list for a PC (their students), a teacher (the students they teach) or an admin (everyone): next SAT and registration deadline, goal against the latest score, and the domains improving or stuck (`0104`) |
 | **Every report, for the family** | The student's account lists every diagnostic, lesson and targeted test report and opens each one in full — the report the PC is sent, drawn by the same function (`0098`) |
 | **More practice** | Khan Academy, Bluebook's practice tests, OnePrep and UWorld, linked on the student's page and on About the SAT (`lib/satGuide.ts`) |
 | **Data clean-up** | A student is deleted with all their records after 12 months with nothing booked, and a recording after 90 days — **off until an admin turns it on**, under Settings → Data clean-up, which lists by name what it would delete (`0071`). **Every report is saved as a PDF first**, and nothing it was drawn from goes until it is (`0087`) |
@@ -902,37 +906,74 @@ answers and explanations, as after a lesson; level scores and verdicts stay with
 **The parent report** (`0070`, `/student/report`). Inside the student's account — a parent opens it
 with the student's ID and PIN, and needs no login of their own — **Progress** reads the SAT by its
 parts, never as one number. English and Math are two cards at the top that switch between them,
-each with its tests, its latest SAT section score and how many sections need practice; a subject
-never sat still shows, as four sections not tested yet. Inside a subject: tests taken, questions
-answered, right overall and the SAT section score against the student's goal, a tally of its skills
-by colour, and then **one card per section**, in College Board's order — Information and Ideas,
-Craft and Structure, Expression of Ideas, Standard English Conventions; Algebra, Advanced Math,
-Problem-Solving and Data Analysis, Geometry and Trigonometry. Each card says how many tests have
-asked that section and how many questions, its latest and first score and the change between them
-(with the computed verdict where a targeted test gives one), the SAT's own band for the domain from
-the latest score report that has one, **a column for each test, first to latest**, every one of
-its skills on its own line — tests, latest score, a strip of tiny columns, colour and word — and
-one line on what to do next: on track, practise more, or not tested yet. A section's or skill's
-colour is its latest test that asked it, at the cut-offs (green 70%+, amber 40–69%, red below)
-suggested in one place, `RAG_CUTOFFS` in `lib/parentReport.ts`; every colour carries its word. The
-measures are `lib/subjectProgress.ts`, from the rows `student_report(key)` returns — the same
-numbers as the staff's progress page: `student_progress`'s body moved into `progress_payload`
-(internal), cut down to no question id, difficulty, timing, teacher or shared wording
-(`student_report.sql`). Printed, both subjects come out, each on its own page.
+each with its tests, its latest SAT section score and how many domains need practice; a subject
+never sat still shows, as four domains not tested yet. Inside a subject: tests taken, questions
+answered, right overall and the SAT section score against the goal, a tally of its skills by
+colour, and then **one card per domain**, in College Board's order — Information and Ideas, Craft
+and Structure, Expression of Ideas, Standard English Conventions; Algebra, Advanced Math,
+Problem-Solving and Data Analysis, Geometry and Trigonometry.
 
-**The student's home page** puts English and Math side by side, each with its own tests done,
-accuracy, tests to do and SAT section score, **its last test split by section** (a lesson's by what
-the teacher revealed, a targeted test's by every question reached — the same rule as its score), what
-is up next and its earlier results. A link on each goes to that subject's Progress.
+Each card is the domain's **line** (`domainLine` in `lib/progress.ts`): the diagnostic baseline,
+then every check-in (targeted test) that asked the domain — whatever else it asked, each made of
+that domain's questions alone — as columns, with the lessons between marked in the gaps. A lesson
+is teaching, not a measurement, so it is counted between points and never plotted. The card gives
+the baseline and latest on the level scale with the raw score beside them, the change in level
+points with its computed verdict (Improved, Minimal change, Declined — the admin's thresholds,
+0061), the sessions spent since the baseline, the SAT's own band for the domain from the latest
+score report that has one, every skill on its own line (the skill's line: tests, latest score, a
+strip of tiny columns, colour and word), and one line on what to do next. A domain's or skill's
+colour is its latest point, at the cut-offs (green 70%+, amber 40–69%, red below) in
+`RAG_CUTOFFS`, `lib/parentReport.ts`; every colour carries its word. The measures are
+`lib/subjectProgress.ts`, from `student_report(key)`'s rows (`student_report.sql`). Printed, both
+subjects come out, each on its own page.
 
-**The goal** (`0101`). Across the top of both pages: the score the student aims for in Reading and
-Writing and in Math (200–800 in tens; the total is the two added, never stored), the latest SAT
-and how far it is from the goal, and the day of their next SAT with the days left. The student — or
-their parent, on the student's account — sets it with `student_set_goal(key, rw, math, next_on)`;
-either target or the day may be empty, a day already gone is refused, and all three empty forgets
-it. `student_goal(key)` reads it. Staff read every student's and a PC their own students' (RLS on
-`student_goals`); the staff's progress page shows it under the student's name. Nobody else writes
-it, and it goes with the student when the clean-up deletes them (`student_goal.sql`).
+**The student's home page** opens on their goals (below), then English and Math side by side,
+each with its own tests done, accuracy, tests to do and SAT section score, **each domain's
+standing with the strongest and the one to focus on named**, its last test split by section (a
+lesson's by what the teacher revealed, a targeted test's by every question reached — the same
+rule as its score), what is up next and its earlier results. Under them, **a calendar** from this
+month to the SAT: the registration deadline, the test day and the check-ins booked between, each
+with the days to go (`lib/calendar.ts`).
+
+**The goals** (`0101`). A student with none opens their home page on **"Let's set our goals"**: the
+SAT date, its registration deadline, and the score they aim for in Reading and Writing and in Math
+(200–800 in tens; the total is the two added, never stored). They — or their parent, on the
+student's account — set them with `student_set_goal(key, rw, math, next_on, reg_on)`, until **their
+PC confirms them**: the PC (their own students) or an admin, with `set_student_goal(student, …)`
+on the staff progress page — *Confirm as they are*, or *Change*, which confirms too. From then on
+the student reads them and only the PC changes them, and every version is kept in
+`student_goal_history` with who set it. Across the top of the student's pages: the goal, the
+latest SAT and the gap, the next SAT and the days left, and the registration deadline, urgent in
+its last week; in the last 30 days before the test, each half still short of its goal is flagged
+in points to go. Staff read every student's goals; a PC their own students' (`student_goal.sql`).
+
+**The domain dashboard** (staff and the student's PC, `/students/:id/progress`). Above the skill
+lines, the eight domains of both subjects on one screen: baseline, latest level, change since the
+baseline with its verdict, sessions spent and where it stands — the same lines as the student's
+cards. A **Section Progress Report** button beside it opens the parent's report.
+
+**The Section Progress Report** (`0103`, `/students/:id/section-report`). Parents do not open the
+platform, so the report leaves it, one page per subject: a headline in one sentence ("Algebra
+improved from 24 to 40 over 4 sessions; Problem-Solving and Data Analysis has not moved after 4
+sessions."), the four domains with baseline, latest and change and the colour in words, the
+sessions spent on each, two or three patterns in plain words (long against short questions,
+running out of time, answering too fast, easy against hard — each only with enough questions to
+say it), what happens next (the domains the tutor will focus on, and what is untested), and the
+goal, the latest score and the gap. The level score sits beside the raw one with a note that it
+is **not a predicted SAT score**, and nothing on it predicts one. `lib/sectionReport.ts` decides
+every word; the page and the emailed PDF (`_shared/sectionPdf.ts`) only lay it out.
+
+**Download PDF** is the browser's Save as PDF, which prints just the pages. **Email to parent**
+goes through the PC, as the scope asks: the PC (or an admin) keeps the parent's name and email on
+the student (`set_parent_contact`, `student_parents`), writes a note that is printed first, and
+`email_parent_report` sends the report as a PDF — to the address stored there, never one in the
+request — and logs every send, sent or failed, in `parent_report_emails` (`section_report.sql`).
+
+**My students** (`0104`, `/students`, in the staff menu). A PC sees the students assigned to them,
+a teacher the students they teach, an admin everyone (`students_overview()`): the next SAT and its
+registration deadline, the goal (and whether it waits for the PC to confirm), the latest SAT and
+the points to go, and the domains improving and stuck — from the same functions as every
+progress page. Soonest SAT first, with a search (`students_overview.sql`).
 
 **Every report, for the family** (`0098`, `/student/reports`). The student's account has three tabs
 now — **My tests**, **Reports** and **Progress** — and Reports lists every report written for the
@@ -1387,7 +1428,7 @@ and `_shared/` files it imports into `dist/edge/<function>/` for a deploy throug
 API, which resolves files flat (`node tools/bundle-edge-function.mjs manage_pc` does one). The files
 are found by following the imports, not listed by hand.
 
-**Mail.** Three functions send mail — the new-teacher notice, a PC's link and a report to a PC —
+**Mail.** Four functions send mail — the new-teacher notice, a PC's link, a report to a PC and the Section Progress Report to a parent —
 and they all send it one way (`_shared/send.ts`). Supabase's own mailer cannot do it: it sends its
 auth templates and nothing else, carries no attachment, and without a custom SMTP server refuses
 every address outside the project's team. So the functions speak SMTP themselves, with an **app
@@ -1414,6 +1455,7 @@ supabase functions deploy notify_pc_report --no-verify-jwt   # the database call
 supabase functions deploy manage_pc                          # an admin's browser calls it, signed in
 supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
 supabase functions deploy archive_reports --no-verify-jwt    # the clean-up calls it, with no token (0087)
+supabase functions deploy email_parent_report                # a PC's browser calls it, signed in (0103)
 
 # once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
@@ -1448,9 +1490,15 @@ show a broken picture. Neither holds a destructive statement, so both go through
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
 
-**Order, for `0101`.** Safe at any time: one new table and two new functions. Apply it **before or
-with** the app that shows the goal — the pages read it on the side, so they still load without it,
-but the goal would read as not set and saving it would fail.
+**Order, for `0101`–`0104`.** All four are safe for the app being served before them: new tables
+and functions, and `0102` only moves a default an admin had not changed. Apply them **before or
+with** the app that uses them — its pages read the goals and the overview on the side, so they
+load without them, but goals would read as not set and could not be saved. Then deploy the new
+function, which the PC's **Email to parent** calls signed in:
+
+```bash
+supabase functions deploy email_parent_report
+```
 
 **Order, for `0100`.** Safe at any time: one new function. Apply it with the app that has the
 student's **Settings** tab, where a student changes their own PIN.

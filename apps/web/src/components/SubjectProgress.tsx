@@ -4,9 +4,7 @@ import { toGo } from '../lib/goal'
 import { RAG_LABEL, type Rag } from '../lib/parentReport'
 import { VERDICT_LABELS } from '../lib/progress'
 import {
-  attemptKind,
   percent,
-  signedPoints,
   SUBJECT_VIEW,
   type Attempt,
   type SectionMeasure,
@@ -17,9 +15,9 @@ import type { Subject } from '../lib/types'
 
 /**
  * One subject of the SAT, read by its parts (the progress page): a row of
- * figures for the subject, then one card for each of its four sections —
- * every test that asked it, first to latest, as columns; where it stands; and
- * each of its skills on its own line.
+ * figures for the subject, then one card for each of its four domains — the
+ * diagnostic baseline and every check-in that asked it, as columns with the
+ * lessons between; where it stands; and each of its skills on its own line.
  */
 export function SubjectView({
   measure,
@@ -45,7 +43,7 @@ export function SubjectView({
       </header>
 
       <div className="subject-figures">
-        <Figure label="Tests taken" value={String(measure.attempts.length)} />
+        <Figure label="Tests taken" value={String(measure.tests)} note={measure.lessons > 0 ? `and ${plural(measure.lessons, 'lesson')}` : undefined} />
         <Figure label="Questions answered" value={String(measure.answered)} />
         <Figure label="Right overall" value={overall === null ? '—' : `${overall}%`} />
         <Figure
@@ -70,7 +68,7 @@ export function SubjectView({
       </div>
 
       <div className="subject-sections-head">
-        <h3>By section</h3>
+        <h3>By domain</h3>
         <span className="dash-muted">
           {tested} of {measure.sections.length} tested
         </span>
@@ -94,10 +92,21 @@ function Figure({ label, value, note }: { label: string; value: string; note?: s
   )
 }
 
-/** One section: its standing, its tests as columns, and its skills. */
+/** "Baseline only", "Baseline + 2 check-ins", "2 check-ins". */
+export function pointsSummary(attempts: Attempt[]): string {
+  if (attempts.length === 0) return 'Not tested yet'
+  const base = attempts[0].mode === 'diagnostic'
+  const checkIns = attempts.length - (base ? 1 : 0)
+  if (base && checkIns === 0) return 'Baseline only'
+  const ci = plural(checkIns, 'check-in')
+  return base ? `Baseline + ${ci}` : ci
+}
+
+/** One domain: its standing, its line as columns, and its skills. */
 export function SectionCard({ section }: { section: SectionMeasure }) {
   const s = section
   const asked = s.attempts.length > 0
+  const step = nextStep(s.rag)
   return (
     <article className={`section-card${asked ? '' : ' is-untested'}`}>
       <header className="section-card-head">
@@ -106,7 +115,7 @@ export function SectionCard({ section }: { section: SectionMeasure }) {
           <div className="section-card-meta">
             {asked ? (
               <>
-                <b>{plural(s.attempts.length, 'test')}</b> · {plural(s.answered, 'question')}
+                <b>{pointsSummary(s.attempts)}</b> · {plural(s.answered, 'question')}
               </>
             ) : (
               'Not tested yet'
@@ -120,28 +129,35 @@ export function SectionCard({ section }: { section: SectionMeasure }) {
         <>
           <dl className="section-card-figures">
             <div>
-              <dt>Latest</dt>
+              <dt>Baseline</dt>
               <dd>
-                <span className="num">{percent(s.latest)}%</span>
+                <span className="num">{Math.round(s.first!.level)}</span>
                 <small className="num">
-                  {s.latest!.right}/{s.latest!.of}
+                  {s.first!.right}/{s.first!.of} right
                 </small>
               </dd>
             </div>
             <div>
-              <dt>First</dt>
+              <dt>Latest</dt>
               <dd>
-                <span className="num">{percent(s.first)}%</span>
+                <span className="num">{Math.round(s.latest!.level)}</span>
                 <small className="num">
-                  {s.first!.right}/{s.first!.of}
+                  {s.latest!.right}/{s.latest!.of} right
                 </small>
               </dd>
             </div>
             <div>
               <dt>Change</dt>
               <dd>
-                <span className="num">{s.change === null ? '—' : signedPoints(s.change)}</span>
-                <small>{s.change === null ? 'one test so far' : s.verdict ? VERDICT_LABELS[s.verdict] : 'points'}</small>
+                <span className="num">{s.levelChange === null ? '—' : signed(s.levelChange)}</span>
+                <small>{s.verdict ? VERDICT_LABELS[s.verdict] : 'one test so far'}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Sessions</dt>
+              <dd>
+                <span className="num">{s.sessions}</span>
+                <small>since the baseline</small>
               </dd>
             </div>
             {s.band && (
@@ -166,14 +182,22 @@ export function SectionCard({ section }: { section: SectionMeasure }) {
         ))}
       </ul>
 
-      <footer className={`section-card-next is-${nextStep(s.rag)}`}>{NEXT_WORDS[nextStep(s.rag)]}</footer>
+      <footer className={`section-card-next is-${step}`}>
+        {NEXT_WORDS[step]}
+        {asked && s.sinceLast > 0 && (
+          <span className="section-card-since">
+            {' '}
+            {plural(s.sinceLast, 'session')} since the last test on it.
+          </span>
+        )}
+      </footer>
     </article>
   )
 }
 
 const NEXT_WORDS = {
   on_track: 'On track — keep it up with mixed practice.',
-  practise: 'Practise more — ask your teacher for a practice test on this section.',
+  practise: 'Practise more — ask your teacher for a check-in on this domain.',
   untested: 'Not tested yet — it will show here after a test that asks it.',
 } as const
 
@@ -191,7 +215,7 @@ function SkillRow({ skill }: { skill: SkillMeasure }) {
       <div className="section-skill-name">
         <span>{k.label}</span>
         <small>
-          {asked ? plural(k.attempts.length, 'test') : 'Not tested'}
+          {asked ? pointsSummary(k.attempts) : 'Not tested'}
           {k.verdict && <> · {VERDICT_LABELS[k.verdict]}</>}
         </small>
       </div>
@@ -223,10 +247,18 @@ export function RagChip({ rag, small }: { rag: Rag | null; small?: boolean }) {
 /** At most this many columns: the latest ones. */
 const MAX_COLUMNS = 8
 
+/** "Baseline", "Check-in 1", … — what the column is. */
+function pointName(attempts: Attempt[], n: number): string {
+  const base = attempts[0]?.mode === 'diagnostic'
+  if (base && n === 0) return 'Baseline'
+  return `Check-in ${base ? n : n + 1}`
+}
+
 /**
- * A section's tests, first to latest, as columns of how much was right — one
- * series, so no legend: the column's cap carries its score, the axis its turn
- * and day, and hover or focus the whole of it.
+ * A domain's line as columns — the baseline, then each check-in — with the
+ * lessons between marked in the gap. One series, so no legend: the cap
+ * carries the score, the axis its name and day, and hover or focus the whole
+ * of it, level score included.
  */
 export function AttemptsChart({ attempts, label }: { attempts: Attempt[]; label: string }) {
   const shown = attempts.slice(-MAX_COLUMNS)
@@ -234,24 +266,31 @@ export function AttemptsChart({ attempts, label }: { attempts: Attempt[]; label:
   return (
     <figure className="attempts-chart">
       <figcaption>
-        Each test, first to latest
+        From the baseline, each check-in
         {offset > 0 && <span className="dash-muted"> · the last {MAX_COLUMNS} of {attempts.length}</span>}
       </figcaption>
       <div className="attempts-plot" role="list" aria-label={`${label}: score on each test`}>
         {shown.map((a, i) => {
           const pct = percent(a) ?? 0
-          const n = offset + i + 1
-          const words = `${ordinalWord(n)} test, ${attemptKind(a.mode).toLowerCase()} on ${dayLabel(a.at.slice(0, 10))}: ${a.right} of ${a.of} right, ${pct}%`
+          const n = offset + i
+          const name = pointName(attempts, n)
+          const day = dayLabel(a.at.slice(0, 10))
+          const between = n > 0 && a.sessionsBefore > 0 ? `${plural(a.sessionsBefore, 'session')} before it` : null
+          const words = `${name}, ${day}: ${a.right} of ${a.of} right, ${pct}%, level ${Math.round(a.level)}${between ? `; ${between}` : ''}`
           return (
             <div key={a.sessionId} className="attempt-col" role="listitem" tabIndex={0} aria-label={words}>
-              <span className="attempt-tip" role="tooltip">
-                <b>
-                  {ordinalWord(n)} · {attemptKind(a.mode)}
-                </b>
-                <span>{dayLabel(a.at.slice(0, 10))}</span>
-                <span className="num">
-                  {a.right} of {a.of} right · {pct}%
+              {between && (
+                <span className="attempt-between" aria-hidden="true" title={between}>
+                  +{a.sessionsBefore}
                 </span>
+              )}
+              <span className="attempt-tip" role="tooltip">
+                <b>{name}</b>
+                <span>{day}</span>
+                <span className="num">
+                  {a.right} of {a.of} right · {pct}% · level {Math.round(a.level)}
+                </span>
+                {between && <span>{between}</span>}
               </span>
               <span className="attempt-track" style={{ ['--h' as string]: `${Math.max(pct, 2)}%` } as CSSProperties}>
                 <span className="attempt-bar" />
@@ -260,13 +299,18 @@ export function AttemptsChart({ attempts, label }: { attempts: Attempt[]; label:
                 </span>
               </span>
               <span className="attempt-x">
-                <b>{ordinal(n)}</b>
+                <b>{name}</b>
                 <span>{shortDay(a.at)}</span>
               </span>
             </div>
           )
         })}
       </div>
+      {shown.some((a, i) => offset + i > 0 && a.sessionsBefore > 0) && (
+        <p className="attempts-note">
+          <span className="attempt-between is-key">+n</span> lessons between two tests
+        </p>
+      )}
     </figure>
   )
 }
@@ -274,7 +318,8 @@ export function AttemptsChart({ attempts, label }: { attempts: Attempt[]; label:
 /** A skill's tests as tiny columns, in a 60px strip. */
 function MiniColumns({ attempts, label }: { attempts: Attempt[]; label: string }) {
   const shown = attempts.slice(-6)
-  const words = shown.map((a, i) => `${ordinal(attempts.length - shown.length + i + 1)}: ${a.right}/${a.of}`).join(', ')
+  const offset = attempts.length - shown.length
+  const words = shown.map((a, i) => `${pointName(attempts, offset + i)}: ${a.right}/${a.of}`).join(', ')
   return (
     <span className="mini-cols" role="img" aria-label={`${label}, each test: ${words}`} title={words}>
       {shown.map((a) => (
@@ -319,7 +364,7 @@ export function SubjectSwitch({
             </span>
             <span className="subject-tab-facts">
               <span>
-                <b className="num">{m ? m.attempts.length : 0}</b> tests
+                <b className="num">{m ? m.tests : 0}</b> tests
               </span>
               <span>
                 <b className="num">{score ?? '—'}</b> SAT
@@ -335,15 +380,10 @@ export function SubjectSwitch({
   )
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
-  return `${n}${s}`
-}
-
-function ordinalWord(n: number): string {
-  return ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'][n - 1] ?? `${ordinal(n)}`
+export function signed(n: number): string {
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0'
 }
 
 function shortDay(at: string): string {

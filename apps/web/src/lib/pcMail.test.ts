@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appBase, escapeHtml, inviteEmail, reportEmail } from './pcMail'
+import { appBase, escapeHtml, inviteEmail, parentReportEmail, reportEmail } from './pcMail'
 
 describe('inviteEmail', () => {
   const input = {
@@ -118,5 +118,37 @@ describe('reportEmail for a targeted test', () => {
     expect(mail.subject).toBe('Targeted test: Tia Targeted — English, 20 Oct 2026')
     expect(mail.text).toContain("Tia Targeted's English targeted test, set by Malya Rao")
     expect(mail.text).not.toContain('generated')
+  })
+})
+
+describe('the parent’s progress report (0103)', () => {
+  const mail = parentReportEmail({
+    studentName: 'Amarra Test',
+    pcName: 'Priya Coach',
+    parentName: 'Dana Test',
+    note: 'Two more sessions on percentages.\nSee you Thursday.',
+    headlines: ['Math: Algebra improved from 24 to 40 over 4 sessions.'],
+    attached: true,
+  })
+
+  it('leads with the PC’s note and each subject’s headline, and has the PDF', () => {
+    expect(mail.subject).toBe('Amarra Test: SAT progress by section')
+    expect(mail.text.split('\n').slice(0, 4)).toEqual(['Hello Dana,', '', 'Two more sessions on percentages.', 'See you Thursday.'])
+    expect(mail.text).toContain('Math: Algebra improved from 24 to 40 over 4 sessions.')
+    expect(mail.text).toContain('attached as a PDF')
+    expect(mail.html).toContain('Two more sessions on percentages.<br>See you Thursday.')
+  })
+
+  it('never predicts a score, and links nothing a parent cannot open', () => {
+    expect(mail.text).toContain('not a predicted SAT score')
+    expect(mail.html).not.toContain('href=')
+  })
+
+  it('escapes what a person typed', () => {
+    const m = parentReportEmail({ studentName: 'A <b>', pcName: 'P', parentName: null, note: '<script>', headlines: [], attached: false })
+    expect(m.html).not.toContain('<script>')
+    expect(m.html).toContain('&lt;script&gt;')
+    expect(m.text).toContain('Hello,')
+    expect(m.text).toContain('could not be attached')
   })
 })

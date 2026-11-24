@@ -8,11 +8,20 @@
  * section's figures and the skill map cannot disagree: a skill's latest
  * attempt here is the one its colour there comes from.
  */
-import { SECTIONS, SKILLS } from './constants'
-import { latestDomains, SAT_DOMAINS, type Band, type BluebookRow } from './bluebook'
-import { ragFor, type Rag } from './parentReport'
-import { progressLines, reached, type ProgressItem, type StudentProgress, type Verdict } from './progress'
-import type { SessionMode, Subject } from './types'
+import { SECTIONS, SKILLS } from './constants.ts'
+import { latestDomains, SAT_DOMAINS, type Band, type BluebookRow } from './bluebook.ts'
+import { ragFor, type Rag } from './parentReport.ts'
+import {
+  domainLine,
+  progressLine,
+  reached,
+  sessionsSpent,
+  type ProgressItem,
+  type ProgressLine,
+  type StudentProgress,
+  type Verdict,
+} from './progress.ts'
+import type { SessionMode, Subject } from './types.ts'
 
 /** What the student's pages call each subject, and the half of the SAT it is. */
 export const SUBJECT_VIEW: Record<Subject, { name: string; sat: string; tone: 'violet' | 'sky' }> = {
@@ -22,17 +31,25 @@ export const SUBJECT_VIEW: Record<Subject, { name: string; sat: string; tone: 'v
 
 export const SUBJECT_ORDER: Subject[] = ['english', 'mathematics']
 
-/** One test's go at a part: how much of what it asked there was right. */
+/**
+ * One point on a part's line: the diagnostic baseline, or a check-in (a
+ * targeted test) that asked it — how much of what it asked there was right,
+ * and that on the level scale.
+ */
 export interface Attempt {
   sessionId: string
   at: string
   mode: SessionMode
   right: number
   of: number
+  /** The level score (0061's 20 / 30 / 40 scale) — never a predicted SAT score. */
+  level: number
+  /** Lessons and diagnostics since the point before. */
+  sessionsBefore: number
 }
 
 export interface Measure {
-  /** Oldest first. */
+  /** Oldest first: the baseline, then each check-in. */
   attempts: Attempt[]
   first: Attempt | null
   latest: Attempt | null
@@ -43,13 +60,17 @@ export interface Measure {
   rag: Rag | null
   /** Percentage points, the latest attempt against the first; null with fewer than two. */
   change: number | null
+  /** Level points, the latest against the baseline; null with fewer than two. */
+  levelChange: number | null
+  /** The computed verdict of the last step (0063): Improved, Minimal change, Declined. */
+  verdict: Verdict | null
+  /** Sessions from the baseline to the latest point: every lesson and check-in after the first. */
+  sessions: number
 }
 
 export interface SkillMeasure extends Measure {
   skill: string
   label: string
-  /** The computed verdict on its targeted-test line (0063), when it has a step. */
-  verdict: Verdict | null
 }
 
 export interface SectionMeasure extends Measure {
@@ -58,15 +79,28 @@ export interface SectionMeasure extends Measure {
   skills: SkillMeasure[]
   /** The SAT's own band for this domain, from the latest score report that gave one. */
   band: { range: Band; on: string } | null
-  verdict: Verdict | null
+  /** Lessons and diagnostics since the latest point — "3 sessions since the last check-in". */
+  sinceLast: number
 }
 
-export interface SubjectMeasure extends Measure {
+export interface SubjectMeasure {
   subject: Subject
+  /** Diagnostics and check-ins done in the subject. */
+  tests: number
+  /** Questions reached on them, and right. */
+  answered: number
+  right: number
+  /** Lessons done in the subject. */
+  lessons: number
+  /** The latest test's day, or null. */
+  latestAt: string | null
   sections: SectionMeasure[]
   /** Skills by the colour of their latest attempt; `none` for never asked. */
   skillCounts: Record<Rag | 'none', number>
 }
+
+/** A subject with nothing in it yet: every domain reads as not tested. */
+export const EMPTY_PROGRESS: StudentProgress = { sessions: [], targeted: [], items: [], config: null, summaries: [], overrides: [] }
 
 /** A subject's four sections in College Board's order — the score report's — with the app's names. */
 export function sectionsInSatOrder(subject: Subject): { value: string; label: string }[] {
@@ -80,9 +114,20 @@ export function percent(a: { right: number; of: number } | null | undefined): nu
   return a && a.of > 0 ? Math.round((a.right / a.of) * 100) : null
 }
 
-export function measureOf(attempts: Attempt[]): Measure {
+/** A line, read as a part's measure. */
+export function measureOf(line: ProgressLine | null): Measure {
+  const attempts: Attempt[] = (line?.points ?? []).map((x) => ({
+    sessionId: x.sessionId,
+    at: x.at,
+    mode: x.kind === 'diagnostic' ? 'diagnostic' : 'targeted',
+    right: x.correct,
+    of: x.reached,
+    level: x.level,
+    sessionsBefore: x.sessionsBefore,
+  }))
   const first = attempts[0] ?? null
   const latest = attempts[attempts.length - 1] ?? null
+  const two = attempts.length > 1
   return {
     attempts,
     first,
@@ -90,72 +135,73 @@ export function measureOf(attempts: Attempt[]): Measure {
     answered: attempts.reduce((n, a) => n + a.of, 0),
     right: attempts.reduce((n, a) => n + a.right, 0),
     rag: latest ? ragFor(latest.right, latest.of) : null,
-    change: attempts.length > 1 ? percent(latest)! - percent(first)! : null,
+    change: two ? percent(latest)! - percent(first)! : null,
+    levelChange: two ? Math.round(latest!.level - first!.level) : null,
+    verdict: line?.points[line.points.length - 1]?.step?.verdict ?? null,
+    sessions: line ? sessionsSpent(line) : 0,
   }
 }
 
 /**
- * The part's attempts: one for each completed session that reached at least
- * one question on it, oldest first.
+ * One subject, by section and by skill. A section is its domain's line
+ * (lib/progress domainLine) and a skill its own line: the diagnostic baseline,
+ * then each check-in that asked it. `bluebook` gives each section the SAT's
+ * own band.
  */
-function attemptsOn(
-  done: StudentProgress['sessions'],
-  bySession: Map<string, ProgressItem[]>,
-  on: (i: ProgressItem) => boolean,
-): Attempt[] {
-  const out: Attempt[] = []
-  for (const s of done) {
-    const mine = (bySession.get(s.id) ?? []).filter(on)
-    if (mine.length === 0) continue
-    out.push({ sessionId: s.id, at: s.at, mode: s.mode, right: mine.filter((i) => i.is_correct).length, of: mine.length })
-  }
-  return out
-}
-
-/** One subject, by section and by skill. `bluebook` gives each section the SAT's own band. */
 export function measureSubject(subject: Subject, p: StudentProgress, bluebook: BluebookRow[] = []): SubjectMeasure {
-  const done = p.sessions
-    .filter((s) => s.status === 'completed')
-    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-  const bySession = new Map<string, ProgressItem[]>()
-  for (const i of p.items) {
-    if (!reached(i)) continue
-    const list = bySession.get(i.session_id)
-    if (list) list.push(i)
-    else bySession.set(i.session_id, [i])
-  }
-
-  const lines = progressLines(p)
-  const verdictOn = (section: string, skill: string | null): Verdict | null => {
-    const line = lines.find((l) => l.section === section && l.skill === skill)
-    return line?.points[line.points.length - 1]?.step?.verdict ?? null
-  }
   const report = latestDomains(bluebook)
-
   const skillCounts: Record<Rag | 'none', number> = { green: 0, amber: 0, red: 0, none: 0 }
+
   const sections: SectionMeasure[] = sectionsInSatOrder(subject).map((sec) => {
     const skills: SkillMeasure[] = (SKILLS[sec.value] ?? []).map((sk) => {
-      const m = measureOf(attemptsOn(done, bySession, (i) => i.section === sec.value && i.skill === sk.value))
+      const m = measureOf(progressLine(p, sec.value, sk.value))
       skillCounts[m.rag ?? 'none']++
-      return { ...m, skill: sk.value, label: sk.label, verdict: verdictOn(sec.value, sk.value) }
+      return { ...m, skill: sk.value, label: sk.label }
     })
+    const line = domainLine(p, sec.value)
     const range = report?.domains?.[sec.value]
     return {
-      ...measureOf(attemptsOn(done, bySession, (i) => i.section === sec.value)),
+      ...measureOf(line),
       section: sec.value,
       label: sec.label,
       skills,
       band: range && report ? { range, on: report.taken_on } : null,
-      verdict: verdictOn(sec.value, null),
+      sinceLast: line.points.length > 0 ? line.sinceLast : 0,
     }
   })
 
+  // The subject's tests: diagnostics and check-ins with anything reached.
+  const asked = new Set(p.items.filter(reached).map((i) => i.session_id))
+  const done = p.sessions.filter((x) => x.status === 'completed')
+  const tests = done.filter((x) => x.mode !== 'live' && asked.has(x.id))
+  const testIds = new Set(tests.map((x) => x.id))
+  const met = p.items.filter((i) => reached(i) && testIds.has(i.session_id))
+  const latestAt = tests.map((x) => x.at).sort().pop() ?? null
+
   return {
-    ...measureOf(attemptsOn(done, bySession, () => true)),
     subject,
+    tests: tests.length,
+    answered: met.length,
+    right: met.filter((i) => i.is_correct).length,
+    lessons: done.filter((x) => x.mode === 'live').length,
+    latestAt,
     sections,
     skillCounts,
   }
+}
+
+/**
+ * The domains to lead with: the strongest and the weakest that have been
+ * tested, by the latest attempt's share right — ties to the one tested later.
+ */
+export function strongestAndWeakest(m: SubjectMeasure): { strongest: SectionMeasure | null; weakest: SectionMeasure | null } {
+  const tested = m.sections.filter((s) => s.latest)
+  if (tested.length === 0) return { strongest: null, weakest: null }
+  const share = (s: SectionMeasure) => s.latest!.right / s.latest!.of
+  const byShare = [...tested].sort((a, b) => share(b) - share(a) || b.latest!.at.localeCompare(a.latest!.at))
+  const strongest = byShare[0]
+  const weakest = byShare[byShare.length - 1]
+  return { strongest, weakest: tested.length > 1 ? weakest : null }
 }
 
 /**

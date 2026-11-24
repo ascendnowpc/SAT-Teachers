@@ -46,7 +46,7 @@ export function defaultConfig(subject: Subject): ProgressConfig {
     improved_at: 5,
     declined_at: -5,
     long_words: subject === 'english' ? 75 : 40,
-    default_set_size: 12,
+    default_set_size: 10,
     pattern_min_each: 4,
     pattern_gap: 0.4,
   }
@@ -411,12 +411,20 @@ export function progressLine(
   p: StudentProgress,
   section: string,
   skill: string | null,
+  scope: 'line' | 'domain' = 'line',
 ): ProgressLine {
   const cfg = p.config ?? defaultConfig('english')
   const byId = new Map(p.sessions.map((s) => [s.id, s]))
+  const domain = scope === 'domain' && skill === null
+  // A domain's line takes every test that asked it (domainLine); a line, the
+  // tests that are on it.
+  const onThis = (t: ProgressTargeted) =>
+    domain
+      ? p.items.some((i) => i.session_id === t.session_id && reached(i) && i.section === section)
+      : testOnLine(t, section, skill)
 
   const tests = p.targeted
-    .filter((t) => testOnLine(t, section, skill))
+    .filter(onThis)
     .map((t) => ({ t, s: byId.get(t.session_id) }))
     .filter(
       (x): x is { t: ProgressTargeted; s: ProgressSession } => !!x.s && x.s.status === 'completed',
@@ -457,7 +465,9 @@ export function progressLine(
   }
 
   for (const { t, s } of tests) {
-    const mine = pointItems(p, t, section, skill)
+    const mine = domain
+      ? p.items.filter((i) => i.session_id === t.session_id && reached(i) && i.section === section)
+      : pointItems(p, t, section, skill)
     // A test with nothing reached — on this skill, for a test of several — has
     // no score to plot here.
     if (mine.length === 0) continue
@@ -470,8 +480,8 @@ export function progressLine(
       correct,
       reached: mine.length,
       timedOut: mine.filter((i) => i.timed_out).length,
-      notReached: Math.max(0, setCountOn(t, skill) - mine.length),
-      ofSkills: onSeveral(t) ? skillsOn(t)!.length : null,
+      notReached: Math.max(0, (domain ? setCountInDomain(p, t, section) ?? mine.length : setCountOn(t, skill)) - mine.length),
+      ofSkills: !domain && onSeveral(t) ? skillsOn(t)!.length : null,
       raw: r,
       level: mapScore(r, cfg.score_points),
     })
@@ -506,8 +516,10 @@ export function progressLine(
     // The wording for this step: the test's, or on a test of several skills,
     // the one written for this line's skill (0086).
     const key = x.ofSkills !== null ? (skill ?? '') : ''
+    // On a domain's line, only a test on the whole domain has wording about it.
+    const wordedHere = !domain || p.targeted.some((t) => t.session_id === x.sessionId && testOnLine(t, section, null))
     const o =
-      x.kind === 'test'
+      x.kind === 'test' && wordedHere
         ? p.overrides.find((v) => v.session_id === x.sessionId && (v.skill ?? '') === key)
         : undefined
     return {
@@ -523,7 +535,7 @@ export function progressLine(
   const sinceLast = last
     ? completedBetween(p.sessions, new Date(last.at).getTime(), null, pointIds)
     : 0
-  const what = skill === null ? 'section' : 'skill'
+  const what = skill !== null ? 'skill' : domain ? 'domain' : 'section'
 
   return {
     section,
@@ -536,6 +548,38 @@ export function progressLine(
         : null,
     summary: p.summaries.find((s) => s.section === section && s.skill === (skill ?? '')) ?? null,
   }
+}
+
+/**
+ * How many of a test's set were in a domain: all of a test on the whole
+ * domain, the domain's skills' share of a test on skills, or null when the
+ * rows do not say.
+ */
+function setCountInDomain(p: StudentProgress, t: ProgressTargeted, section: string): number | null {
+  const skills = skillsOn(t)
+  if (skills === null) return t.section === section ? t.set_count : null
+  if (t.set_by_skill) {
+    return skills
+      .filter((k) => sectionFor(p, t, k) === section)
+      .reduce((n, k) => n + (t.set_by_skill?.[k] ?? 0), 0)
+  }
+  return skills.every((k) => sectionFor(p, t, k) === section) ? t.set_count : null
+}
+
+/**
+ * A domain's line — one of the SAT's eight sections (the section-tracker
+ * scope's F6): the diagnostic baseline, then every targeted test that asked
+ * the domain, whatever else it asked, each made of the domain's questions in
+ * it. The lessons between are counted, not plotted, and every step has its
+ * computed verdict, as on a skill's line.
+ */
+export function domainLine(p: StudentProgress, section: string): ProgressLine {
+  return progressLine(p, section, null, 'domain')
+}
+
+/** Sessions from a line's baseline to its latest point: every lesson and test after the first. */
+export function sessionsSpent(line: Pick<ProgressLine, 'points'>): number {
+  return line.points.slice(1).reduce((n, x) => n + x.sessionsBefore + 1, 0)
 }
 
 /** The lines a test is a point on: its whole section's, or each of its skills'. */

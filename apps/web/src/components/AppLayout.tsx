@@ -33,6 +33,10 @@ export function AppLayout() {
             <NavLink to="/sessions" className={cls}>
               <IconCalendar /> Sessions
             </NavLink>
+            {/* Every student someone is responsible for, at a glance (0104). */}
+            <NavLink to="/students" end className={cls}>
+              <IconUsers /> Students
+            </NavLink>
             {/* The three tests are the first thing Questions opens on, so a
                 second nav item for them would point at the same list. */}
             {isTeacher && (
