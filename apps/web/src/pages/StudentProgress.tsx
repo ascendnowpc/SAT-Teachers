@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
 import { DomainDashboard, useBothSubjects } from '../components/DomainDashboard'
-import { ColourKey, Guidance, PerformanceTimeline, SectionBoxes } from '../components/StudentDashboard'
+import { ColourKey, focusFrom, Guidance, PerformanceTimeline, SectionBoxes } from '../components/StudentDashboard'
 import { AimingFor, GoalPanel } from '../components/StudentGoal'
 import { IconBack } from '../components/icons'
 import {
@@ -161,9 +161,10 @@ export function StudentProgress() {
         </div>
         <div className="dash-top">
           <AimingFor goal={hasGoal(goal) ? goal : null} sat={latestSat(satRows)} who="their" />
-          <Guidance who="they" daysToExam={days} ask={(h) => askForPlan({ studentId: id, horizon: h })} />
+          <Guidance who="they" daysToExam={days} focus={focusFrom(measures)} ask={(h) => askForPlan({ studentId: id, horizon: h })} />
         </div>
         <PerformanceTimeline
+          who="they"
           points={points}
           selected={chosen}
           onSelect={setSelected}

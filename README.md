@@ -966,6 +966,13 @@ goal, *What should they do?*, the timeline and the two boxes — with *Book a ch
 that needs work, the baseline/change/sessions table under it, and the score card reading
 screenshots too.
 
+**The look.** The student's pages keep the blueprint's layout and dress it as a dashboard: icon
+tiles, the timeline as a score chart, each section score as a ring, bars that fill, a "Focus
+first" list of the lowest domains beside *What should I do?*, and buttons that lift under the
+pointer and give when pressed. On a phone the four places move to a tab bar along the bottom. The
+icons are drawn in `components/Icon.tsx` (no icon package); headings use Plus Jakarta Sans. Every
+animation starts from a keyframe, so with reduced motion turned on nothing is left hidden.
+
 **The goal** (`0101`, `0105`, `0106`). The total they aim for (400–1600; the two sections optional, and
 with no total the two added), the SAT date and its registration deadline, and what their college
 needs. Never locked: the student changes it whenever they like with `student_set_goal`, and their

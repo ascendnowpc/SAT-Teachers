@@ -16,6 +16,7 @@ import {
 import { deadlineFor, satDateFor, upcomingSatDates } from '../lib/satDates'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
+import { Icon } from './Icon'
 import { Field, Notice } from './ui'
 
 export interface LatestSat {
@@ -34,7 +35,7 @@ export function AimingFor({
   goal,
   sat,
   onEdit,
-  editLabel = 'edit',
+  editLabel = 'Edit',
   who = 'your',
 }: {
   goal: StudentGoal | null
@@ -51,43 +52,63 @@ export function AimingFor({
   const gap = toGo(sat?.total, total)
   return (
     <section className="dash-panel aim-card" aria-label="Aiming for">
-      <div className="aim-label">Aiming for</div>
-      <div className="aim-row">
-        <span className="aim-figure num">{total ?? '—'}</span>
+      <header className="card-head">
+        <span className="card-icon tone-lime">
+          <Icon name="target" />
+        </span>
+        <div>
+          <h2>Aiming for</h2>
+          <p>We work the sections, not the total</p>
+        </div>
         {onEdit && (
-          <button type="button" className="aim-edit" onClick={onEdit}>
-            ✎ {editLabel}
+          <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm card-head-end" onClick={onEdit}>
+            <Icon name="pencil" size={14} /> {editLabel}
           </button>
         )}
+      </header>
+      <div className="aim-row">
+        <span className="aim-figure num">{total ?? '—'}</span>
+        {gap && <span className={`aim-gap${gap === 'Reached' ? ' is-done' : ''}`}>{gap}</span>}
+        {total === null && <span className="aim-unset">Set {who} goal</span>}
       </div>
-      <p className="aim-note">
-        {total === null ? `Set ${who} goal — ` : ''}total score kept small on purpose —{' '}
-        <b>we work the sections, not the big number</b>
-      </p>
       <ul className="aim-facts">
         {sat && (
           <li>
-            Latest SAT <b className="num">{sat.total}</b>
-            {gap && <span className="aim-gap">{gap.toLowerCase()}</span>}
+            <Icon name="trend" size={16} />
+            <span>
+              Latest SAT <b className="num">{sat.total}</b>
+            </span>
           </li>
         )}
         <li>
+          <Icon name="calendar" size={16} />
           {next ? (
-            <>
-              SAT <b>{dayLabel(next)}</b> <span className="aim-gap">{countdownLabel(next, today)}</span>
-            </>
+            <span>
+              SAT <b>{dayLabel(next)}</b> <span className="aim-chip">{countdownLabel(next, today)}</span>
+            </span>
           ) : (
             <span className="muted">SAT date not set</span>
           )}
         </li>
-        {reg && <li className={reg.urgent ? 'is-urgent' : ''}>{reg.text}</li>}
+        {reg && (
+          <li className={reg.urgent ? 'is-urgent' : ''}>
+            <Icon name={reg.urgent ? 'alert' : 'clock'} size={16} />
+            <span>{reg.text}</span>
+          </li>
+        )}
         {goal?.college_note && (
           <li>
-            College: <b>{goal.college_note}</b>
+            <Icon name="cap" size={16} />
+            <span>
+              <b>{goal.college_note}</b>
+            </span>
           </li>
         )}
         {hasGoal(goal) && (
-          <li className="muted">{goal?.confirmed_at ? '✓ Confirmed by the PC' : 'The PC will go through it'}</li>
+          <li className={goal?.confirmed_at ? 'is-ok' : 'muted'}>
+            <Icon name={goal?.confirmed_at ? 'check' : 'clock'} size={16} />
+            <span>{goal?.confirmed_at ? 'Confirmed by the PC' : 'Waiting for the PC'}</span>
+          </li>
         )}
       </ul>
     </section>
