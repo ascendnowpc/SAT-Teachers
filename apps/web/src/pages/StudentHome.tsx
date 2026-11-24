@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BluebookAdd } from '../components/BluebookScores'
+import { Icon } from '../components/Icon'
 import { Onboarding } from '../components/Onboarding'
 import {
   ColourKey,
+  focusFrom,
   Guidance,
   PerformanceTimeline,
   SectionBoxes,
@@ -152,7 +154,18 @@ export function StudentHome() {
   return (
     <StudentShell student={home?.student}>
       <main className="student-main dashboard blueprint">
-        <h1 className="dash-hello">{first ? `Hi, ${first}` : 'Your dashboard'}</h1>
+        <header className="dash-greet">
+          <div>
+            <h1 className="dash-hello">{first ? `Hi, ${first}` : 'Your dashboard'}</h1>
+            <p>{greeting(days)}</p>
+          </div>
+          {days !== null && days >= 0 && (
+            <span className={`countdown-pill${days <= 14 ? ' is-near' : ''}`}>
+              <Icon name="calendar" size={15} />
+              <b className="num">{days}</b> {days === 1 ? 'day' : 'days'} to your SAT
+            </span>
+          )}
+        </header>
 
         {error && <Notice kind="error">{error}</Notice>}
         {!home && !error && <p className="muted">Loading…</p>}
@@ -162,7 +175,7 @@ export function StudentHome() {
             {editing ? (
               <GoalForm
                 title="Your goal"
-                intro="Change anything, any time — nothing is locked in. Your PC sees the change."
+                intro="Change anything, any time. Your PC sees it."
                 initial={goal}
                 onSubmit={async (g) => {
                   setGoalState(await saveStudentGoal(key, g))
@@ -172,8 +185,8 @@ export function StudentHome() {
               />
             ) : (
               <div className="dash-top">
-                <AimingFor goal={goal} sat={latest} onEdit={() => setEditing(true)} editLabel="editable" />
-                <Guidance daysToExam={days} ask={(h) => askForPlan({ key, horizon: h })} />
+                <AimingFor goal={goal} sat={latest} onEdit={() => setEditing(true)} />
+                <Guidance daysToExam={days} focus={focusFrom(measures)} ask={(h) => askForPlan({ key, horizon: h })} />
               </div>
             )}
 
@@ -183,8 +196,8 @@ export function StudentHome() {
               onSelect={setSelected}
               empty={
                 <>
-                  No SAT scores yet. Upload a score report below — an official SAT or a Bluebook practice test, from before
-                  you joined too — and it starts your timeline.
+                  <Icon name="upload" size={22} />
+                  <span>No SAT scores yet. Add a score report below to start your chart.</span>
                 </>
               }
             />
@@ -217,20 +230,27 @@ export function StudentHome() {
               />
             </div>
 
-            <p className="practice-line">
-              More practice:{' '}
-              {PRACTICE_RESOURCES.map((r, i) => (
-                <span key={r.href}>
-                  {i > 0 && ' · '}
-                  <a href={r.href} target="_blank" rel="noreferrer">
-                    {r.label}
-                  </a>
-                </span>
+            <nav className="practice-line" aria-label="More practice">
+              <span>More practice</span>
+              {PRACTICE_RESOURCES.map((r) => (
+                <a key={r.href} href={r.href} target="_blank" rel="noreferrer">
+                  {r.label.split(' — ')[0]}
+                  <Icon name="external" size={13} />
+                </a>
               ))}
-            </p>
+            </nav>
           </>
         )}
       </main>
     </StudentShell>
   )
+}
+
+/** One short line under the greeting, by how near the SAT is. */
+function greeting(days: number | null): string {
+  if (days === null || days < 0) return 'Here’s where you stand.'
+  if (days === 0) return 'It’s SAT day. You’ve got this.'
+  if (days <= 7) return 'Final week — keep it light and sharp.'
+  if (days <= 14) return 'Two weeks out — time to lock it in.'
+  return 'Here’s where you stand.'
 }

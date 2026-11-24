@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { storeStudentKey, storedStudentKey } from '../lib/studentAccount'
 import { studentSignOut } from '../lib/studentApi'
+import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 
 /**
@@ -34,18 +35,17 @@ export function StudentShell({
       <header className="student-bar no-print">
         <Logo />
         <nav className="student-nav" aria-label="Your account">
-          <NavLink to="/student" end className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
-            My tests
-          </NavLink>
-          <NavLink to="/student/reports" className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
-            Reports
-          </NavLink>
-          <NavLink to="/student/report" end className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
-            Progress
-          </NavLink>
-          <NavLink to="/student/settings" end className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}>
-            Settings
-          </NavLink>
+          {PLACES.map((p) => (
+            <NavLink
+              key={p.to}
+              to={p.to}
+              end={p.end}
+              className={({ isActive }) => `student-nav-link${isActive ? ' on' : ''}`}
+            >
+              <Icon name={p.icon} size={17} />
+              <span>{p.label}</span>
+            </NavLink>
+          ))}
         </nav>
         <div className="student-bar-who">
           {student && (
@@ -58,8 +58,9 @@ export function StudentShell({
             </span>
           )}
           {actions}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-            Sign out
+          <button type="button" className="btn btn-ghost btn-sm signout-btn" onClick={() => void signOut()}>
+            <Icon name="logout" size={16} />
+            <span>Sign out</span>
           </button>
         </div>
       </header>
@@ -67,6 +68,13 @@ export function StudentShell({
     </div>
   )
 }
+
+const PLACES: { to: string; label: string; icon: IconName; end: boolean }[] = [
+  { to: '/student', label: 'My tests', icon: 'home', end: true },
+  { to: '/student/reports', label: 'Reports', icon: 'reports', end: false },
+  { to: '/student/report', label: 'Progress', icon: 'chart', end: true },
+  { to: '/student/settings', label: 'Settings', icon: 'sliders', end: true },
+]
 
 /** Up to two letters, for the chip in the bar. */
 export function initials(name: string): string {

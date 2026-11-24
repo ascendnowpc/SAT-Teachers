@@ -1,13 +1,22 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { dayLabel, type BluebookReading } from '../lib/bluebook'
 import type { BluebookApi } from '../lib/bluebookApi'
 import { localToday, parseTotal, type StudentGoal } from '../lib/goal'
 import { deadlineFor } from '../lib/satDates'
 import { BluebookAdd } from './BluebookScores'
+import { Icon, type IconName } from './Icon'
 import { SatDatePicker } from './StudentGoal'
 import { Notice } from './ui'
 
-const STEPS = ['Welcome', 'SAT date?', 'Taken it before?', 'Target + why', 'Let’s start'] as const
+const STEPS: { label: string; icon: IconName }[] = [
+  { label: 'Welcome', icon: 'rocket' },
+  { label: 'SAT date?', icon: 'calendar' },
+  { label: 'Taken it before?', icon: 'trend' },
+  { label: 'Target + why', icon: 'target' },
+  { label: 'Let’s start', icon: 'sparkles' },
+]
+
+const QUICK_TARGETS = [1200, 1300, 1400, 1500]
 
 /**
  * The first login (the dashboard blueprint's onboarding): welcome, when is
@@ -45,9 +54,11 @@ export function Onboarding({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const first = name.split(' ')[0]
+  const last = STEPS.length - 1
+  const target = parseTotal(total)
 
   const goal = (): StudentGoal => ({
-    target_total: parseTotal(total) ?? null,
+    target_total: target ?? null,
     target_rw: initial?.target_rw ?? null,
     target_math: initial?.target_math ?? null,
     next_test_on: nextOn || null,
@@ -57,8 +68,8 @@ export function Onboarding({
 
   async function next() {
     setError(null)
-    if (step === 3 && parseTotal(total) === undefined) {
-      setError('Your goal is a score from 400 to 1600, in tens — or leave it for later.')
+    if (step === 3 && target === undefined) {
+      setError('A target is 400 to 1600, in tens — or leave it for later.')
       return
     }
     if (step === 1 || step === 3) {
@@ -72,7 +83,7 @@ export function Onboarding({
       }
       setBusy(false)
     }
-    setStep((s) => Math.min(STEPS.length - 1, s + 1))
+    setStep((s) => Math.min(last, s + 1))
   }
 
   async function finish() {
@@ -88,32 +99,45 @@ export function Onboarding({
 
   return (
     <section className="onboard" aria-label="Let’s start">
-      <div className="onboard-label">First login — let’s start</div>
-      <ol className="onboard-steps">
+      <div className="onboard-label">
+        <Icon name="sparkles" size={14} /> First login
+      </div>
+      <ol className="onboard-steps" style={{ ['--done' as string]: step / last } as CSSProperties}>
         {STEPS.map((s, i) => (
-          <li key={s} className={i === step ? 'on' : i < step ? 'done' : ''}>
-            <span className="num">{i + 1}</span> {s}
+          <li key={s.label} className={i === step ? 'on' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}>
+            <span className="onboard-step-dot">
+              <Icon name={i < step ? 'tick' : s.icon} size={15} />
+            </span>
+            <span className="onboard-step-name">{s.label}</span>
           </li>
         ))}
       </ol>
 
-      <div className="onboard-card">
+      <div className={`onboard-card${step === last ? ' is-done' : ''}`} key={step}>
+        {step === last && <Confetti />}
+        <span className="onboard-art" aria-hidden="true">
+          <Icon name={STEPS[step].icon} size={26} />
+        </span>
         {error && <Notice kind="error">{error}</Notice>}
 
         {step === 0 && (
           <>
-            <h2>Hi {first} — welcome to Ascend Now</h2>
-            <p>
-              Four quick questions, then your dashboard. We coach the SAT by its parts — English and Math, and the domains
-              inside them — so that is what your dashboard shows. Skip anything; you can change it all later.
-            </p>
+            <h2>Hi {first}, welcome!</h2>
+            <p>Four quick questions, then your dashboard. Skip any of them.</p>
+            <ul className="onboard-preview">
+              {STEPS.slice(1, last).map((st, i) => (
+                <li key={st.label} style={{ ['--i' as string]: i } as CSSProperties}>
+                  <Icon name={st.icon} size={15} /> {st.label}
+                </li>
+              ))}
+            </ul>
           </>
         )}
 
         {step === 1 && (
           <>
             <h2>When’s your SAT?</h2>
-            <p>An official date in a tap, another day, or not sure yet.</p>
+            <p>Pick a date, or not sure yet.</p>
             <SatDatePicker
               value={nextOn}
               today={today}
@@ -122,25 +146,37 @@ export function Onboarding({
                 setRegOn(deadlineFor(day, today) ?? '')
               }}
             />
-            {regOn && <p className="onboard-note">Registration closes {dayLabel(regOn)} — from College Board’s calendar.</p>}
+            {regOn && (
+              <p className="onboard-note">
+                <Icon name="alert" size={15} /> Register by <b>{dayLabel(regOn)}</b>
+              </p>
+            )}
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2>Taken it before?</h2>
-            <p>A real SAT or a Bluebook practice test, before you joined us. It goes on your timeline.</p>
-            <div className="onboard-choice" role="group" aria-label="Taken it before">
-              <button type="button" className={`sat-chip${before === 'no' ? ' on' : ''}`} onClick={() => setBefore('no')}>
-                No, this is my first
+            <h2>Taken the SAT before?</h2>
+            <p>Official or practice — it goes on your chart.</p>
+            <div className="choice-cards" role="group" aria-label="Taken it before">
+              <button type="button" className={`choice-card${before === 'no' ? ' on' : ''}`} aria-pressed={before === 'no'} onClick={() => setBefore('no')}>
+                <span className="choice-icon">
+                  <Icon name="flag" size={20} />
+                </span>
+                <b>First time</b>
+                <span>Start fresh</span>
               </button>
-              <button type="button" className={`sat-chip${before === 'yes' ? ' on' : ''}`} onClick={() => setBefore('yes')}>
-                Yes
+              <button type="button" className={`choice-card${before === 'yes' ? ' on' : ''}`} aria-pressed={before === 'yes'} onClick={() => setBefore('yes')}>
+                <span className="choice-icon">
+                  <Icon name="trend" size={20} />
+                </span>
+                <b>I have a score</b>
+                <span>Upload or type it</span>
               </button>
             </div>
             {before === 'yes' && (
               <div className="onboard-upload">
-                {added > 0 && <Notice kind="ok">Added — {added === 1 ? 'it is' : 'they are'} on your timeline. Add another, or carry on.</Notice>}
+                {added > 0 && <Notice kind="ok">Added to your chart. Add another, or carry on.</Notice>}
                 <BluebookAdd
                   key={added}
                   api={scores}
@@ -159,70 +195,107 @@ export function Onboarding({
 
         {step === 3 && (
           <>
-            <h2>What are you aiming for — and why?</h2>
-            <p>Your total goal, and what your college needs. We keep the big number small: the work is in the sections.</p>
-            <div className="goal-form-fields">
-              <label className="field">
-                <span className="label">Aiming for</span>
-                <input
-                  className="input"
-                  type="number"
-                  inputMode="numeric"
-                  min={400}
-                  max={1600}
-                  step={10}
-                  placeholder="e.g. 1450"
-                  value={total}
-                  onChange={(e) => setTotal(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span className="label">What your college needs</span>
-                <input
-                  className="input"
-                  maxLength={200}
-                  placeholder="e.g. NYU, 1450+"
-                  value={college}
-                  onChange={(e) => setCollege(e.target.value)}
-                />
-              </label>
+            <h2>What’s your target?</h2>
+            <p>Your total — and what your college needs.</p>
+            <div className="target-pick">
+              <div className="target-figure">
+                <b className="num">{target ?? '—'}</b>
+                <span>{target ? 'out of 1600' : 'Drag or pick one'}</span>
+              </div>
+              <input
+                className="target-slider"
+                type="range"
+                min={400}
+                max={1600}
+                step={10}
+                aria-label="Target score"
+                value={target ?? 1200}
+                style={{ ['--fill' as string]: `${(((target ?? 1200) - 400) / 1200) * 100}%` } as CSSProperties}
+                onChange={(e) => setTotal(e.target.value)}
+              />
+              <div className="target-quick" role="group" aria-label="Quick picks">
+                {QUICK_TARGETS.map((v) => (
+                  <button key={v} type="button" className={`sat-chip${target === v ? ' on' : ''}`} aria-pressed={target === v} onClick={() => setTotal(String(v))}>
+                    {v}
+                  </button>
+                ))}
+                <button type="button" className={`sat-chip${!total ? ' on' : ''}`} aria-pressed={!total} onClick={() => setTotal('')}>
+                  Not sure
+                </button>
+              </div>
             </div>
+            <label className="field onboard-college">
+              <span className="label">
+                <Icon name="cap" size={15} /> Dream college <small>optional</small>
+              </span>
+              <input
+                className="input"
+                maxLength={200}
+                placeholder="e.g. NYU, 1450+"
+                value={college}
+                onChange={(e) => setCollege(e.target.value)}
+              />
+            </label>
           </>
         )}
 
-        {step === 4 && (
+        {step === last && (
           <>
-            <h2>You’re set, {first}</h2>
-            <p>
-              Your dashboard shows every test on a timeline, and English and Math broken into their domains — green when it’s
-              mastered, amber when it needs work, red to focus on now. “What should I do?” turns your scores into a plan.
-            </p>
+            <h2>You’re all set, {first}!</h2>
+            <p>Your chart, your sections, your plan — all in one place.</p>
           </>
         )}
 
         <div className="onboard-actions">
-          {step > 0 && step < 4 && (
-            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setStep((s) => s - 1)}>
-              Back
+          {step > 0 && step < last && (
+            <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={busy} onClick={() => setStep((s) => s - 1)}>
+              <Icon name="back" size={15} /> Back
             </button>
           )}
           <span className="spring" />
-          {step < 4 ? (
+          {step < last ? (
             <>
-              <button type="button" className="link-btn" disabled={busy} onClick={() => setStep(4)}>
-                Skip to the end
+              <button type="button" className="link-btn" disabled={busy} onClick={() => setStep(last)}>
+                Skip all
               </button>
-              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void next()}>
-                {busy ? 'Saving…' : step === 0 ? 'Start' : step === 2 && before === null ? 'Skip' : 'Next'}
+              <button type="button" className="ui-btn ui-btn--primary" disabled={busy} onClick={() => void next()}>
+                {busy ? <span className="spinner" aria-hidden="true" /> : null}
+                {busy ? 'Saving…' : step === 0 ? 'Let’s go' : step === 2 && before === null ? 'Skip' : 'Next'}
+                {!busy && <Icon name="arrow" size={16} className="nudge" />}
               </button>
             </>
           ) : (
-            <button type="button" className="btn-lime" disabled={busy} onClick={() => void finish()}>
-              Go to my dashboard →
+            <button type="button" className="ui-btn ui-btn--go ui-btn--lg" disabled={busy} onClick={() => void finish()}>
+              {busy ? <span className="spinner" aria-hidden="true" /> : null}
+              Go to my dashboard
+              <Icon name="arrow" size={17} className="nudge" />
             </button>
           )}
         </div>
       </div>
     </section>
+  )
+}
+
+/** A short burst of colour on the last step. */
+function Confetti() {
+  const colours = ['#CEE177', '#3BA4DE', '#7A52D9', '#F27C3E', '#2F9E6B', '#FFC94D']
+  return (
+    <span className="confetti" aria-hidden="true">
+      {Array.from({ length: 22 }, (_, i) => (
+        <i
+          key={i}
+          style={
+            {
+              ['--x' as string]: `${((i * 37) % 100) - 50}%`,
+              ['--r' as string]: `${(i * 71) % 360}deg`,
+              ['--d' as string]: `${(i % 7) * 60}ms`,
+              background: colours[i % colours.length],
+              left: `${8 + ((i * 41) % 84)}%`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </span>
   )
 }
