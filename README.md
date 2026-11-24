@@ -47,7 +47,7 @@ npm run dev                                    # http://localhost:5173
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | The student's **Progress** page, opened with the student's ID and PIN: English and Math apart, and inside each its four SAT domains measured one by one — the diagnostic baseline, then each check-in that asked it as columns with the lessons between, the change in level points with its verdict, the sessions spent, and every skill on its own line (`0070`) |
-| **The student's dashboard** | The blueprint Ascend Now aligned on: a first-login "let's start" (SAT date, taken it before, target and what the college needs — all skippable), then the goal kept small, **What should I do?** (an AI plan from their own scores), every full test on a **performance timeline** (click a point for its breakdown), English and Math boxes opening into their domains **out of 40**, green / amber / red, and **upload a score report** — PDF or screenshot, read by AI (`0101`, `0105`) |
+| **The student's dashboard** | The blueprint Ascend Now aligned on: a first-login "let's start" (SAT date, taken it before, target and what the college needs — all skippable), then the goal kept small, **What should I do?** (an AI plan from their own scores), every full test on a **performance timeline** (click a point for its breakdown), English and Math boxes opening into their domains **out of 40**, green / amber / red, and **upload a score report** — PDF or screenshot, read by AI (`0101`, `0105`, `0106`) |
 | **Check-ins** | A new targeted test starts at 10 questions (3 easy, 3 medium, 4 hard, easiest first), a minute a question in English and a minute and a half in Math (`0102`) |
 | **Domain dashboard** | On a student's progress page, for staff and their PC: the eight domains of both subjects — baseline, latest, change since the baseline with its verdict, sessions spent and where it stands (`lib/progress domainLine`) |
 | **Section Progress Report** | The parent's one-page-per-subject report: a headline sentence, the four domains with baseline, latest, change and colour in words, sessions spent, patterns in plain words, what happens next, and the goal and gap. The PC downloads it as a PDF or emails it to the parent with a note (`0103`) |
@@ -966,14 +966,14 @@ goal, *What should they do?*, the timeline and the two boxes — with *Book a ch
 that needs work, the baseline/change/sessions table under it, and the score card reading
 screenshots too.
 
-**The goal** (`0101`, `0105`). The total they aim for (400–1600; the two sections optional, and
+**The goal** (`0101`, `0105`, `0106`). The total they aim for (400–1600; the two sections optional, and
 with no total the two added), the SAT date and its registration deadline, and what their college
 needs. Never locked: the student changes it whenever they like with `student_set_goal`, and their
 change clears the PC's confirmation, so the PC sees it to confirm again; the PC (their own
 students) or an admin sets it with `set_student_goal`, which confirms it. Every version is kept in
-`student_goal_history`. `student_goal(key)` returns the goal, the day they joined and whether they
-have been through the first login. Staff read every student's goal; a PC their own students'
-(`student_goal.sql`).
+`student_goal_history`. `student_goal_state(key)` returns the goal, the day they joined and whether
+they have been through the first login; `student_goal(key)` the goal alone, or null. Staff read
+every student's goal; a PC their own students' (`student_goal.sql`).
 
 **The domain dashboard** (staff and the student's PC, `/students/:id/progress`). Above the skill
 lines, the eight domains of both subjects on one screen: baseline, latest level, change since the
@@ -1520,11 +1520,14 @@ show a broken picture. Neither holds a destructive statement, so both go through
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
 
-**Order, for `0105`.** Apply it **with** the app that has the blueprint dashboard: it replaces
-`student_set_goal` and `set_student_goal` with versions that take the total and the college, so
-the branch app from before it cannot save a goal once it is applied (the app on `main` never
-called them). Deploy the two new functions with it; both read `GEMINI_API_KEY`, which
-`extract_session_context` already has, and `READER_MODEL` / `PLAN_MODEL` if set:
+**Order, for `0105` and `0106`.** Apply them together. `0105` alone replaced `student_set_goal` and
+`set_student_goal` with versions that take the total and the college, and changed what
+`student_goal` returns, so the app on `main` (`0101`'s goal panel) could not save a goal. `0106`
+brings `0101`'s doors back beside the new ones (the four- and five-argument savers keep the total
+and the college already set) and moves the blueprint's answer to `student_goal_state`. The
+`0101` versions can go once `main` has the blueprint dashboard. Deploy the two new functions with
+them; both read `GEMINI_API_KEY`, which `extract_session_context` already has, and
+`READER_MODEL` / `PLAN_MODEL` if set:
 
 ```bash
 supabase functions deploy read_score_report

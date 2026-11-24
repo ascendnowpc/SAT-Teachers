@@ -26,7 +26,7 @@ import { CORS, json } from '../_shared/http.ts'
  *     →  { plan: { headline, steps }, model, generated_at }
  *
  * `horizon` is 'now', 'two_weeks' or 'one_week'. The numbers are read through
- * the doors the pages use — student_report and student_goal by the key, or
+ * the doors the pages use — student_report and student_goal_state by the key, or
  * student_progress and the tables under row-level security for staff and the
  * PC — so this sees no more than the asker could; lib/studyPlan turns them into
  * what the model is shown, and checks the plan that comes back. Nothing is
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ------------------------------------------------------ the student ---
     const [rep, g, b] = await Promise.all([
       db.rpc('student_report', { p_key: body.key }),
-      db.rpc('student_goal', { p_key: body.key }),
+      db.rpc('student_goal_state', { p_key: body.key }),
       db.rpc('student_bluebook_scores', { p_key: body.key }),
     ])
     const err = rep.error ?? g.error ?? b.error

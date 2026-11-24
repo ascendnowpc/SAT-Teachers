@@ -67,7 +67,7 @@ export async function changeStudentPin(key: string, current: string, next: strin
 
 /** Their goal, when they joined, and whether they have been through the first login (0101, 0105). */
 export async function loadStudentGoal(key: string): Promise<GoalState> {
-  const { data, error } = await supabase.rpc('student_goal', { p_key: key })
+  const { data, error } = await supabase.rpc('student_goal_state', { p_key: key })
   if (error) throw new Error(error.message)
   return data as GoalState
 }
