@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
+import { DomainDashboard, useBothSubjects } from '../components/DomainDashboard'
+import { GoalPanel } from '../components/StudentGoal'
 import { IconBack } from '../components/icons'
 import {
   ProgressLineView,
@@ -21,6 +23,7 @@ import {
 } from '../lib/progress'
 import { signedInBluebook } from '../lib/bluebookApi'
 import { loadConfig, loadProgress } from '../lib/progressApi'
+import { EMPTY_PROGRESS, measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
 import { row, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import type { Profile, Subject } from '../lib/types'
@@ -87,12 +90,20 @@ export function StudentProgress() {
   )
   const completed = progress?.sessions.filter((s) => s.status === 'completed').length ?? 0
 
+  // The eight domains, both subjects at once (F7).
+  const both = useBothSubjects(id)
+  const measures = useMemo(() => {
+    const out: Partial<Record<Subject, SubjectMeasure>> = {}
+    for (const s of SUBJECT_ORDER) out[s] = measureSubject(s, both.progress[s] ?? EMPTY_PROGRESS)
+    return out
+  }, [both.progress])
+
   if (!id) return <div className="page">No such student.</div>
 
   return (
     <div className="page page-wide">
-      <Link className="back-link" to="/sessions">
-        <IconBack /> Sessions
+      <Link className="back-link" to="/students">
+        <IconBack /> Students
       </Link>
 
       <div className="page-head">
@@ -102,6 +113,17 @@ export function StudentProgress() {
         </h1>
       </div>
       {student?.pc && <p className="muted">PC: {student.pc}</p>}
+      <GoalPanel studentId={id} canEdit={isAdmin || (isPc && !!student && student.pc_id === profile?.id)} />
+
+      <section className="staff-domains">
+        <div className="staff-domains-head">
+          <h2>Domains</h2>
+          <Link className="btn btn-ghost btn-sm" to={`/students/${id}/section-report`}>
+            Section Progress Report
+          </Link>
+        </div>
+        {both.loading ? <div className="page-loading">Loading…</div> : <DomainDashboard measures={measures} />}
+      </section>
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
       {bluebook && (isTeacher || isPc) && (

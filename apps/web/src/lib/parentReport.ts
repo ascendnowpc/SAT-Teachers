@@ -6,16 +6,16 @@
  * It is drawn from the same numbers and the same line as the staff's progress
  * page (lib/progress), so the two cannot disagree.
  */
-import { SECTIONS, SKILLS, skillLabel } from './constants'
+import { SECTIONS, SKILLS, skillLabel } from './constants.ts'
 import {
   progressLines,
   reached,
   type ProgressConfig,
   type ProgressLine,
   type StudentProgress,
-} from './progress'
-import type { BluebookRow } from './bluebook'
-import type { SessionMode, SessionStatus, Subject } from './types'
+} from './progress.ts'
+import type { BluebookRow } from './bluebook.ts'
+import type { SessionMode, SessionStatus, Subject } from './types.ts'
 
 /**
  * Where a skill turns amber and green, as a share of the questions reached.

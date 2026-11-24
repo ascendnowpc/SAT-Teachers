@@ -15,34 +15,34 @@ import { winAnsi, wrapText, type PdfClaim, type ReportPdfDoc } from '../../../ap
  * code, nothing the edge runtime cannot run inside its two seconds of CPU.
  */
 
-const PAGE_W = 595.28
-const PAGE_H = 841.89
-const LEFT = 48
-const RIGHT = 48
+export const PAGE_W = 595.28
+export const PAGE_H = 841.89
+export const LEFT = 48
+export const RIGHT = 48
 const TOP = 48
 const BOTTOM = 60
-const WIDTH = PAGE_W - LEFT - RIGHT
+export const WIDTH = PAGE_W - LEFT - RIGHT
 
-function hex(h: string): RGB {
+export function hex(h: string): RGB {
   return rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255)
 }
 
 // The app's own tokens (styles.css), so the PDF reads as the same product.
-const INK = hex('#1E2752')
-const INK_2 = hex('#3D4D8F')
-const MUTED = hex('#8796C6')
-const FAINT = hex('#AFB9D9')
-const BORDER = hex('#D7DCEC')
-const WASH = hex('#EEF0F7')
-const LIME = hex('#CEE177')
+export const INK = hex('#1E2752')
+export const INK_2 = hex('#3D4D8F')
+export const MUTED = hex('#8796C6')
+export const FAINT = hex('#AFB9D9')
+export const BORDER = hex('#D7DCEC')
+export const WASH = hex('#EEF0F7')
+export const LIME = hex('#CEE177')
 const SKY = hex('#40B0E5')
 const OK = hex('#2F7D55')
 const BAD = hex('#C0433A')
-const WHITE = rgb(1, 1, 1)
+export const WHITE = rgb(1, 1, 1)
 // The navy the logo is drawn on, so the band and the picture are one surface.
-const BAND = hex('#293366')
+export const BAND = hex('#293366')
 
-interface Fonts {
+export interface Fonts {
   regular: PDFFont
   bold: PDFFont
   italic: PDFFont
@@ -59,7 +59,7 @@ interface TextStyle {
 }
 
 /** A cursor down the page that starts a new one when it runs out of room. */
-class Layout {
+export class Layout {
   readonly pages: PDFPage[] = []
   page!: PDFPage
   y = 0

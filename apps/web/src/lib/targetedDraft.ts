@@ -36,16 +36,27 @@ export interface TargetedDraft {
 
 export const newSeed = () => Math.floor(Math.random() * 2 ** 31)
 
-export function emptyDraft(_subject: Subject): TargetedDraft {
+/**
+ * Each question's clock, to start with: a minute in English and a minute and
+ * a half in Math, close to the real SAT's pace (the section-tracker scope,
+ * 0102). The teacher can still change it on each test.
+ */
+export const QUESTION_SECONDS: Record<Subject, number> = { english: 60, mathematics: 90 }
+
+/** How many questions a new check-in starts at, before the admin's setting is read (0102). */
+export const CHECK_IN_SIZE = 10
+
+export function emptyDraft(subject: Subject): TargetedDraft {
+  const each = QUESTION_SECONDS[subject] ?? 60
   return {
     section: null,
     skills: [],
     how: null,
     size: 0,
     seed: newSeed(),
-    // The brief's mini-test: about a minute a question (0069), twelve of them (0089).
-    questionSeconds: 60,
-    overallMinutes: suggestedMinutes(12, 60),
+    // The check-in: ten questions (0102), at the subject's pace.
+    questionSeconds: each,
+    overallMinutes: suggestedMinutes(CHECK_IN_SIZE, each),
     overallAuto: true,
     allowRepeats: false,
     questions: [],

@@ -19,6 +19,7 @@ import { Paper } from './pages/Paper'
 import { Questions } from './pages/Questions'
 import { SessionNew } from './pages/SessionNew'
 import { SessionReport } from './pages/SessionReport'
+import { SectionReport } from './pages/SectionReport'
 import { Join } from './pages/Join'
 import { SessionRoom } from './pages/SessionRoom'
 import { Sessions } from './pages/Sessions'
@@ -27,6 +28,7 @@ import { ParentReport } from './pages/ParentReport'
 import { StudentHome } from './pages/StudentHome'
 import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
+import { StudentsOverview } from './pages/StudentsOverview'
 import { StudentReportView } from './pages/StudentReportView'
 import { StudentReports } from './pages/StudentReports'
 import { StudentSettings } from './pages/StudentSettings'
@@ -111,7 +113,11 @@ export function App() {
         <Route path="/sessions/:id" element={<SessionRoom />} />
         <Route path="/sessions/:id/report" element={<SessionReport />} />
         {/* Staff and the student's PC; student_progress decides who (0063). */}
+        {/* My students: a PC's, a teacher's, an admin's (0104). */}
+        <Route path="/students" element={<StudentsOverview />} />
         <Route path="/students/:id/progress" element={<StudentProgress />} />
+        {/* The parent's Section Progress Report: the PC sends it (0103). */}
+        <Route path="/students/:id/section-report" element={<SectionReport />} />
         <Route path="/account" element={<Account />} />
         <Route path="/about-sat" element={<AboutSat />} />
         {isAdmin && (

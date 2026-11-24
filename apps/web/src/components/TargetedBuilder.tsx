@@ -9,6 +9,7 @@ import {
   draftOnLabel,
   newSeed,
   overallMinutesOf,
+  QUESTION_SECONDS,
   withSet,
   type TargetedDraft,
 } from '../lib/targetedDraft'
@@ -287,7 +288,7 @@ export function TargetedBuilder({
           <Select
             value={draft.questionSeconds === null ? 'own' : 'fixed'}
             onChange={(e) =>
-              onChange({ ...draft, questionSeconds: e.target.value === 'own' ? null : 60 })
+              onChange({ ...draft, questionSeconds: e.target.value === 'own' ? null : QUESTION_SECONDS[subject] })
             }
           >
             <option value="fixed">The same for every question</option>
