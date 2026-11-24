@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EXTRACTION_SCHEMA } from './extractionPrompt'
-import { DEFAULT_MODEL, readerFrom, toGeminiSchema } from './gemini'
+import { BUSY_MESSAGE, DEFAULT_MODEL, geminiReader, readerFrom, toGeminiSchema } from './gemini'
 
 /** An env reader over a plain object, which is what both runtimes reduce to. */
 function envOf(vars: Record<string, string>) {
@@ -75,5 +75,51 @@ describe('readerFrom', () => {
 
   it('names the variable to set when the key is missing', () => {
     expect(() => readerFrom(envOf({}))).toThrow(/GEMINI_API_KEY/)
+  })
+})
+
+describe('geminiReader when a model is overloaded', () => {
+  const ok = () =>
+    new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"a":1}' }] }, finishReason: 'STOP' }] }), { status: 200 })
+  const busy = () => new Response('{"error":{"code":503,"message":"high demand"}}', { status: 503 })
+  const call = { system: 's', prompt: 'p', schema: { type: 'object' } }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** Answers by the model in the URL; records which were asked. */
+  function stub(answer: (model: string) => Response) {
+    const asked: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      const model = /models\/([^:]+):/.exec(url)![1]
+      asked.push(model)
+      return answer(model)
+    })
+    return asked
+  }
+
+  it('asks the fallback once the chosen model is busy on a retry too', async () => {
+    const asked = stub((m) => (m === 'slow' ? busy() : ok()))
+    const r = geminiReader('k', 'slow', { fallback: 'spare', backoffMs: 0 })
+    await expect(r.read(call)).resolves.toEqual({ a: 1 })
+    expect(asked).toEqual(['slow', 'slow', 'spare'])
+  })
+
+  it('says so in plain words when every model is busy', async () => {
+    const asked = stub(() => busy())
+    const r = geminiReader('k', 'slow', { fallback: 'spare', backoffMs: 0 })
+    await expect(r.read(call)).rejects.toThrow(BUSY_MESSAGE)
+    expect(asked).toEqual(['slow', 'slow', 'spare', 'spare', 'spare'])
+  })
+
+  it('without a fallback, retries the chosen model three times', async () => {
+    const asked = stub(() => busy())
+    await expect(geminiReader('k', 'slow', { backoffMs: 0 }).read(call)).rejects.toThrow(BUSY_MESSAGE)
+    expect(asked).toEqual(['slow', 'slow', 'slow', 'slow'])
+  })
+
+  it('does not reach for the fallback on a fault that is not load', async () => {
+    const asked = stub(() => new Response('nope', { status: 404 }))
+    await expect(geminiReader('k', 'gone', { fallback: 'spare', backoffMs: 0 }).read(call)).rejects.toThrow(/404/)
+    expect(asked).toEqual(['gone'])
   })
 })

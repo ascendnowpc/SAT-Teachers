@@ -27,7 +27,7 @@ function pointTag(p: TimelinePoint): string {
 /**
  * Every full test over time, and the goal at the end (the blueprint's
  * performance timeline), drawn as a line: a test from before the student
- * joined is hollow and dashed, the goal is lime, and the step from the latest
+ * joined is hollow and dashed, the goal carries a flag, and the step from the latest
  * test to the goal is dashed. Choosing a point opens its breakdown in the
  * English and Math boxes below. The points are spaced evenly, in order.
  */
@@ -47,7 +47,7 @@ export function PerformanceTimeline({
   return (
     <section className="dash-panel timeline-card" aria-label="Performance timeline">
       <header className="card-head">
-        <span className="card-icon tone-sky">
+        <span className="card-icon">
           <Icon name="trend" />
         </span>
         <div>
@@ -101,8 +101,8 @@ function TimelineChart({
           <svg className="tl-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="tl-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--sky)" stopOpacity=".28" />
-                <stop offset="100%" stopColor="var(--sky)" stopOpacity="0" />
+                <stop offset="0%" stopColor="var(--navy-500)" stopOpacity=".28" />
+                <stop offset="100%" stopColor="var(--navy-500)" stopOpacity="0" />
               </linearGradient>
             </defs>
             {area && <path className="tl-area" d={area} fill="url(#tl-area)" />}
@@ -429,7 +429,7 @@ export function Guidance({
           <ul>
             {focus.map((f) => (
               <li key={`${f.subject}/${f.label}`}>
-                <span className={`test-icon tone-${SUBJECT_VIEW[f.subject].tone}`}>
+                <span className="test-icon">
                   <Icon name={SUBJECT_ICON[f.subject]} size={14} />
                 </span>
                 <span className="guide-focus-name">{f.label}</span>
@@ -484,7 +484,7 @@ export function YourTests({
   return (
     <section className="dash-panel tests-card" aria-label="Your tests">
       <header className="card-head">
-        <span className="card-icon tone-navy">
+        <span className="card-icon">
           <Icon name="reports" />
         </span>
         <div>
@@ -502,7 +502,7 @@ export function YourTests({
             const view = SUBJECT_VIEW[t.subject]
             return (
               <li key={t.id} className={ready ? 'is-ready' : ''} style={{ ['--i' as string]: i } as CSSProperties}>
-                <span className={`test-icon tone-${view.tone}`}>
+                <span className="test-icon">
                   <Icon name={SUBJECT_ICON[t.subject]} size={17} />
                 </span>
                 <div className="test-main">
@@ -556,7 +556,7 @@ export function UploadCard({ children, open, onOpen }: { children: ReactNode; op
       {open ? (
         <>
           <header className="card-head">
-            <span className="card-icon tone-sky">
+            <span className="card-icon">
               <Icon name="upload" />
             </span>
             <div>

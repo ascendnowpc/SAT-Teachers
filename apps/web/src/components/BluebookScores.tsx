@@ -16,6 +16,7 @@ import {
 import { addedBy, type BluebookApi, type BluebookListRow } from '../lib/bluebookApi'
 import { pdfLines } from '../lib/pdfText'
 import { DomainBands } from './DomainBands'
+import { Icon } from './Icon'
 import { Field, Input, Notice, Textarea } from './ui'
 
 type Row = BluebookListRow
@@ -270,6 +271,8 @@ export function BluebookAdd({
   const [reading, setReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   function takeReading(r: BluebookReading) {
     setScore(r.score)
@@ -345,42 +348,73 @@ export function BluebookAdd({
 
   return (
     <div className="bluebook-add">
-      <div className="grid-2">
-        <Field
-          label="Read it off the score report"
-          hint={
-            readPicture
-              ? 'College Board’s PDF, or a screenshot or photo of the report. It is read and not kept: only the scores are saved, once you have checked them.'
-              : 'College Board’s PDF: the SAT score report, or a practice test’s from My Practice. It is read here and not kept: only the scores are saved.'
+      <label
+        className={`file-drop${dragging ? ' is-drag' : ''}${reading ? ' is-busy' : ''}${fileName && !reading ? (error ? ' has-error' : ' has-file') : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!reading) setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          const f = e.dataTransfer.files?.[0]
+          if (f && !reading) {
+            setFileName(f.name)
+            void fromFile(f)
           }
-        >
-          <input
-            type="file"
-            accept={readPicture ? '.pdf,.txt,application/pdf,text/plain,image/*' : '.pdf,.txt,application/pdf,text/plain'}
-            disabled={reading}
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void fromFile(f)
-              e.target.value = ''
-            }}
-          />
-        </Field>
-        <div>
-          <Field label="Or paste the report’s text">
-            <Textarea rows={3} value={paste} onChange={(e) => setPaste(e.target.value)} />
-          </Field>
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={!paste.trim()}
-            onClick={() => take(paste)}
-          >
-            Read it
-          </button>
-        </div>
-      </div>
+        }}
+      >
+        <input
+          className="file-drop-input"
+          type="file"
+          accept={readPicture ? '.pdf,.txt,application/pdf,text/plain,image/*' : '.pdf,.txt,application/pdf,text/plain'}
+          disabled={reading}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) {
+              setFileName(f.name)
+              void fromFile(f)
+            }
+            e.target.value = ''
+          }}
+        />
+        <span className="file-drop-orb" aria-hidden="true">
+          {reading ? <span className="spinner" /> : <Icon name={!fileName ? 'upload' : error ? 'alert' : 'check'} size={26} />}
+        </span>
+        <b>{reading ? 'Reading your report…' : fileName ?? 'Upload the score report'}</b>
+        <span className="file-drop-hint">
+          {reading
+            ? 'This takes a few seconds.'
+            : fileName
+              ? error
+                ? 'Could not read it — try another file, or type the scores below.'
+                : 'Read. Check the scores below, then save.'
+              : readPicture
+                ? 'A PDF or a screenshot — drag it here, or'
+                : 'College Board’s PDF — drag it here, or'}
+        </span>
+        {!reading && (
+          <span className="file-drop-btn">
+            <Icon name="file" size={16} /> {fileName ? 'Choose another file' : 'Choose file'}
+          </span>
+        )}
+        <span className="file-drop-types">{readPicture ? 'PDF · PNG · JPG · HEIC' : 'PDF · TXT'}</span>
+      </label>
+      <p className="file-drop-note">
+        <Icon name="check" size={14} /> Only the scores are saved — the file is not kept.
+      </p>
+      <details className="file-drop-paste">
+        <summary>Or paste the report’s text</summary>
+        <Textarea rows={3} value={paste} onChange={(e) => setPaste(e.target.value)} aria-label="The report’s text" />
+        <button type="button" className="btn btn-sm" disabled={!paste.trim()} onClick={() => take(paste)}>
+          Read it
+        </button>
+      </details>
 
-      {reading && <p className="muted">Reading the report…</p>}
+      <div className="file-drop-or">
+        <span>Check or type the scores</span>
+      </div>
       {someoneElse && (
         <Notice kind="error">
           This report is for {someoneElse}, and you are adding it to {studentName}. Check it is

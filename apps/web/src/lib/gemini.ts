@@ -145,39 +145,65 @@ const RETRY_ON = 503
 const RETRIES = 3
 const BACKOFF_MS = 2000
 
+/**
+ * The model to try when the chosen one is overloaded: measured here on the
+ * same work (above), slower but there. Google's 503 is "high demand", and it
+ * can last minutes; a student pressing "What should I do?" should not wait it
+ * out.
+ */
+export const FALLBACK_MODEL = 'gemini-3.5-flash'
+
+/** What a person sees when every model asked was overloaded. */
+export const BUSY_MESSAGE = 'The AI is busy right now — try again in a minute.'
+
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function geminiReader(apiKey: string, model: string = DEFAULT_MODEL): Reader {
+export interface ReaderOptions {
+  /** Asked once the chosen model has answered 503 on a retry too. */
+  fallback?: string
+  /** The wait before the first retry; doubled, tripled after. Tests set it to 0. */
+  backoffMs?: number
+}
+
+export function geminiReader(apiKey: string, model: string = DEFAULT_MODEL, options: ReaderOptions = {}): Reader {
+  const backoff = options.backoffMs ?? BACKOFF_MS
+  const fallback = options.fallback && options.fallback !== model ? options.fallback : null
   return {
     model,
     async read({ system, prompt, schema, files }) {
-      const response = await withRetry(() =>
-        fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: 'POST',
-            headers: { 'x-goog-api-key': apiKey, 'content-type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: system }] },
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    ...(files ?? []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })),
-                    { text: prompt },
-                  ],
+      const ask = (m: string, retries: number) =>
+        withRetry(
+          () =>
+            fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+              method: 'POST',
+              headers: { 'x-goog-api-key': apiKey, 'content-type': 'application/json' },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: system }] },
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      ...(files ?? []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })),
+                      { text: prompt },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  responseSchema: toGeminiSchema(schema),
+                  maxOutputTokens: MAX_TOKENS,
                 },
-              ],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                responseSchema: toGeminiSchema(schema),
-                maxOutputTokens: MAX_TOKENS,
-              },
+              }),
             }),
-          },
-        ),
-      )
+          retries,
+          backoff,
+        )
 
+      // With somewhere else to go, one retry on the chosen model, then the other.
+      let response = await ask(model, fallback ? 1 : RETRIES)
+      if (response.status === RETRY_ON && fallback) response = await ask(fallback, 2)
+
+      if (response.status === RETRY_ON) throw new Error(BUSY_MESSAGE)
       if (!response.ok) {
         const body = await response.text()
         throw new Error(`Gemini returned ${response.status}: ${body.slice(0, 600)}`)
@@ -216,10 +242,10 @@ export function geminiReader(apiKey: string, model: string = DEFAULT_MODEL): Rea
 }
 
 /** Rides out a 503, which is load rather than a fault, and leaves the rest alone. */
-async function withRetry(send: () => Promise<Response>): Promise<Response> {
+async function withRetry(send: () => Promise<Response>, retries: number, backoffMs: number): Promise<Response> {
   let response = await send()
-  for (let attempt = 1; attempt <= RETRIES && response.status === RETRY_ON; attempt += 1) {
-    await wait(BACKOFF_MS * attempt)
+  for (let attempt = 1; attempt <= retries && response.status === RETRY_ON; attempt += 1) {
+    await wait(backoffMs * attempt)
     response = await send()
   }
   return response

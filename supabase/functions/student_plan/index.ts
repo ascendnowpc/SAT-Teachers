@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 
 import type { BluebookRow } from '../../../apps/web/src/lib/bluebook.ts'
-import { DEFAULT_MODEL, KEY_VAR, geminiReader } from '../../../apps/web/src/lib/gemini.ts'
+import { DEFAULT_MODEL, FALLBACK_MODEL, KEY_VAR, geminiReader } from '../../../apps/web/src/lib/gemini.ts'
 import { daysUntil, goalTotal, latestSat, type StudentGoal } from '../../../apps/web/src/lib/goal.ts'
 import { asProgress, type StudentReport } from '../../../apps/web/src/lib/parentReport.ts'
 import type { StudentProgress } from '../../../apps/web/src/lib/progress.ts'
@@ -116,7 +116,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: 'there is nothing to plan from yet: take a check-in, or add an SAT score' }, 409)
   }
 
-  const reader = geminiReader(apiKey, Deno.env.get('PLAN_MODEL') || DEFAULT_MODEL)
+  const reader = geminiReader(apiKey, Deno.env.get('PLAN_MODEL') || DEFAULT_MODEL, { fallback: Deno.env.get('FALLBACK_MODEL') || FALLBACK_MODEL })
   try {
     const answer = await reader.read({ system: PLAN_SYSTEM, prompt: planPrompt(facts), schema: PLAN_SCHEMA })
     return json({ plan: parsePlan(answer, facts), model: reader.model, horizon, generated_at: new Date().toISOString() })

@@ -969,7 +969,10 @@ screenshots too.
 **The look.** The student's pages keep the blueprint's layout and dress it as a dashboard: icon
 tiles, the timeline as a score chart, each section score as a ring, bars that fill, a "Focus
 first" list of the lowest domains beside *What should I do?*, and buttons that lift under the
-pointer and give when pressed. On a phone the four places move to a tab bar along the bottom. The
+pointer and give when pressed. On a phone the four places move to a tab bar along the bottom. One
+colour, the brand's navy, for everything that is not a verdict; green, amber and red only for how a
+domain stands (and for a file read or not, a deadline near). The score report goes in through one
+clear drop area — drag it there or **Choose file** — with pasting its text tucked under a link. The
 icons are drawn in `components/Icon.tsx` (no icon package); headings use Plus Jakarta Sans. Every
 animation starts from a keyframe, so with reduced motion turned on nothing is left hidden.
 
@@ -1534,7 +1537,9 @@ brings `0101`'s doors back beside the new ones (the four- and five-argument save
 and the college already set) and moves the blueprint's answer to `student_goal_state`. The
 `0101` versions can go once `main` has the blueprint dashboard. Deploy the two new functions with
 them; both read `GEMINI_API_KEY`, which `extract_session_context` already has, and
-`READER_MODEL` / `PLAN_MODEL` if set:
+`READER_MODEL` / `PLAN_MODEL` if set. When Google answers 503 ("high demand") on a retry too, they ask
+`FALLBACK_MODEL` (default `gemini-3.5-flash`) instead, and if that is busy as well the person reads
+"The AI is busy right now — try again in a minute." rather than Google's error:
 
 ```bash
 supabase functions deploy read_score_report
