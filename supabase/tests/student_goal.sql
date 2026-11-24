@@ -18,9 +18,8 @@
 --    * every version is kept; staff and the student's PC read goals and
 --      history, another PC does not; nobody writes the tables directly
 --    * the grants: the student's doors signed out too, the PC's never
---    * 0101's doors, which the site on main still calls, keep working: the
---      goal itself (or null), and the four- and five-argument savers, which
---      keep the total and the college note already set (0106)
+--    * student_goal reads the goal itself (0106); 0101's four- and
+--      five-argument savers are gone (0108)
 --
 --  Every row must read PASS. Cleans up after itself.
 -- ============================================================================
@@ -177,49 +176,20 @@ begin
   return query select '7 grants'::text, 'goal_record — nobody'::text, 'nobody'::text,
     (case when has_function_privilege('authenticated', 'public.goal_record(uuid,uuid,text,int,int,int,date,date,text)', 'execute') then 'authenticated' else 'nobody' end),
     __verdict(not has_function_privilege('authenticated', 'public.goal_record(uuid,uuid,text,int,int,int,date,date,text)', 'execute'));
-  return query select '7 grants'::text, '0101''s student_set_goal — signed out too'::text, 'anon'::text,
-    (case when has_function_privilege('anon', 'public.student_set_goal(text,int,int,date,date)', 'execute') then 'anon' else 'nobody' end),
-    __verdict(has_function_privilege('anon', 'public.student_set_goal(text,int,int,date,date)', 'execute'));
-  return query select '7 grants'::text, '0101''s set_student_goal — never signed out'::text, 'nobody'::text,
-    (case when has_function_privilege('anon', 'public.set_student_goal(uuid,int,int,date,date)', 'execute') then 'anon' else 'nobody' end),
-    __verdict(not has_function_privilege('anon', 'public.set_student_goal(uuid,int,int,date,date)', 'execute'));
   return query select '7 grants'::text, 'goal_json — nobody'::text, 'nobody'::text,
     (case when has_function_privilege('anon', 'public.goal_json(uuid)', 'execute') then 'anon' else 'nobody' end),
     __verdict(not has_function_privilege('anon', 'public.goal_json(uuid)', 'execute'));
 
-  -- ============ 8. the site on main: 0101's doors (0106) ============
-  perform __as(null, 'anon');
-  perform student_set_goal(k, 1500, 700, 750, current_date + 30, null, 'MIT');
-  j := student_set_goal(k, 710, 760, current_date + 40);
-  return query select '8 main'::text, 'four arguments: the goal itself, total and college kept'::text, '710/760/1500/MIT'::text,
-    concat(j->>'target_rw', '/', j->>'target_math', '/', j->>'target_total', '/', j->>'college_note'),
-    __verdict(not (j ? 'goal') and (j->>'target_rw')::int = 710 and (j->>'target_math')::int = 760
-              and (j->>'target_total')::int = 1500 and j->>'college_note' = 'MIT'
-              and (j->>'next_test_on')::date = current_date + 40);
-  j := student_set_goal(k, 720, 770, current_date + 40, current_date + 10);
-  return query select '8 main'::text, 'five arguments: the deadline too'::text, '720/770, deadline'::text,
-    concat(j->>'target_rw', '/', j->>'target_math', case when (j->>'registration_deadline_on')::date = current_date + 10 then ', deadline' end),
-    __verdict((j->>'target_rw')::int = 720 and (j->>'registration_deadline_on')::date = current_date + 10
-              and (j->>'target_total')::int = 1500);
+  -- ============ 8. 0101's doors are gone (0108) ============
+  return query select '8 gone'::text, '0101''s student_set_goal'::text, 'absent'::text,
+    (case when to_regprocedure('public.student_set_goal(text,int,int,date,date)') is null then 'absent' else 'present' end),
+    __verdict(to_regprocedure('public.student_set_goal(text,int,int,date,date)') is null);
+  return query select '8 gone'::text, '0101''s set_student_goal'::text, 'absent'::text,
+    (case when to_regprocedure('public.set_student_goal(uuid,int,int,date,date)') is null then 'absent' else 'present' end),
+    __verdict(to_regprocedure('public.set_student_goal(uuid,int,int,date,date)') is null);
   j := student_goal(k);
-  return query select '8 main'::text, 'student_goal reads the goal itself'::text, '720, no state'::text,
-    concat(j->>'target_rw', case when j ? 'onboarded_at' then ', state' else ', no state' end),
-    __verdict((j->>'target_rw')::int = 720 and not (j ? 'onboarded_at') and not (j ? 'goal'));
-  perform __as(t_id);
-  begin perform set_student_goal(stu.id, 600, 600, null, null); txt := 'set';
-  exception when others then txt := 'refused'; end;
-  return query select '8 main'::text, 'a teacher does not set it, by 0101''s door either'::text, 'refused'::text, txt,
-    __verdict(txt = 'refused');
-  perform __as(pc.id);
-  perform set_student_goal(stu.id, 690, 780, current_date + 40, current_date + 10);
-  perform __as(null, 'anon');
-  j := student_goal_state(k);
-  return query select '8 main'::text, 'the PC by 0101''s door: confirmed, total and college kept'::text, '690/780/1500/MIT confirmed'::text,
-    concat(j->'goal'->>'target_rw', '/', j->'goal'->>'target_math', '/', j->'goal'->>'target_total', '/', j->'goal'->>'college_note',
-           case when j->'goal'->>'confirmed_at' is not null then ' confirmed' end),
-    __verdict((j->'goal'->>'target_rw')::int = 690 and (j->'goal'->>'target_total')::int = 1500
-              and j->'goal'->>'college_note' = 'MIT' and j->'goal'->>'confirmed_at' is not null);
-  perform __as(null, 'postgres');
+  return query select '8 gone'::text, 'student_goal still reads the goal itself'::text, 'no state'::text,
+    (case when j ? 'onboarded_at' then 'state' else 'no state' end), __verdict(coalesce(not (j ? 'onboarded_at'), true));
 
   -- Cleanup.
   delete from student_login_keys where student_id = stu.id;

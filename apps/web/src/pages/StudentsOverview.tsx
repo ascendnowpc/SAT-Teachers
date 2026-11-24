@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RetentionNotices } from '../components/RetentionNotices'
 import { Notice } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { dayLabel } from '../lib/bluebook'
@@ -48,6 +49,8 @@ export function StudentsOverview() {
       </p>
 
       {error && <Notice kind="error">{error}</Notice>}
+
+      {(isPc || isAdmin) && <RetentionNotices />}
 
       <div className="stats">
         <div className="stat">

@@ -29,6 +29,7 @@ import { StudentHome } from './pages/StudentHome'
 import { StudentLink } from './pages/StudentLink'
 import { StudentProgress } from './pages/StudentProgress'
 import { StudentsOverview } from './pages/StudentsOverview'
+import { FixedSets } from './pages/FixedSets'
 import { StudentReportView } from './pages/StudentReportView'
 import { StudentReports } from './pages/StudentReports'
 import { StudentSettings } from './pages/StudentSettings'
@@ -115,6 +116,8 @@ export function App() {
         {/* Staff and the student's PC; student_progress decides who (0063). */}
         {/* My students: a PC's, a teacher's, an admin's (0104). */}
         <Route path="/students" element={<StudentsOverview />} />
+        {/* Sets A to D per domain, reviewed by the tutors (0109). */}
+        <Route path="/fixed-sets" element={<FixedSets />} />
         <Route path="/students/:id/progress" element={<StudentProgress />} />
         {/* The parent's Section Progress Report: the PC sends it (0103). */}
         <Route path="/students/:id/section-report" element={<SectionReport />} />

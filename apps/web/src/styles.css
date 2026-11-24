@@ -2908,6 +2908,26 @@ td .cell-sub.cell-names { display: flex; gap: 4px; margin-top: 2px; max-width: 3
 .retention-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12.5px; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
 .retention-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
 .retention-table .muted { margin-left: 6px; }
+/* 0107: who the PC was told about, and the PC's panel on My students. */
+.badge-warn { background: var(--warn-bg); color: #7A5600; }
+.text-danger { color: var(--danger); }
+.retention-sub { margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.retention-names { margin: 0; font-size: 13.5px; color: var(--ink); }
+.retention-notices { margin: 14px 0 18px; border-color: #F3D3A4; background: #FFFBF3; }
+.retention-notices-head p { margin: 2px 0 10px; font-size: 13.5px; }
+.retention-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.retention-rows li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--border);
+}
+.retention-rows li.is-picked { border-color: var(--navy-400); box-shadow: 0 0 0 3px rgba(30, 39, 82, .1); }
+.retention-who { display: flex; flex-direction: column; min-width: 0; }
+.retention-who strong { font-size: 14.5px; }
+.retention-who .muted { font-size: 12.5px; }
+.retention-act { display: flex; gap: 6px; }
+@media (max-width: 560px) {
+  .retention-rows li { grid-template-columns: 1fr; }
+}
 /* A student's saved reports, opened under their row (0087). */
 .retention-saved td { padding-top: 6px; padding-bottom: 6px; font-size: 13px; color: var(--ink-2); }
 .retention-saved td:first-child { padding-left: 18px; }
@@ -4306,6 +4326,69 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
   .target-figure b { font-size: 40px; }
 }
 
+/* ---------------------------- gaps, strengths and the calendar (F12, F15) --- */
+.aim-gap.is-near, .section-goal.is-near { background: var(--lv-amber-bg); color: #9A5A0E; }
+.section-goal { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 999px; background: var(--navy-50); color: var(--navy-700); font-size: 12px; font-weight: 700; }
+.section-goal.is-done { background: var(--lv-green-bg); color: var(--ok-fg); }
+.guide-strong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0; }
+.guide-strong > span:first-child { margin-right: 2px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.aim-cal-toggle {
+  justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; border: 0; background: none;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--navy-600); cursor: pointer;
+}
+.aim-cal-toggle .icon:last-child { transition: transform .3s var(--spring); }
+.aim-cal-toggle .icon.is-open { transform: rotate(180deg); }
+.aim-cal-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.mini-cal { display: grid; gap: 10px; animation: rise-in .3s var(--ease) both; }
+.mini-cal-months { display: flex; flex-wrap: wrap; gap: 14px; }
+.mini-cal-month { flex: 1 1 180px; }
+.mini-cal-title { font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 4px; }
+.mini-cal-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mini-cal-grid th { font-size: 10.5px; font-weight: 600; color: var(--faint); padding: 2px 0; }
+.mini-cal-grid td { padding: 1px; text-align: center; }
+.mc-day { position: relative; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 11.5px; color: var(--ink-2); }
+.mc-day.is-past { color: var(--faint); }
+.mc-day.is-today { box-shadow: inset 0 0 0 1.5px var(--navy-300); font-weight: 700; color: var(--ink); }
+.mc-day.is-sat { background: var(--navy-700); color: #fff; font-weight: 700; }
+.mc-day.is-reg { box-shadow: inset 0 0 0 2px var(--lv-amber); color: #9A5A0E; font-weight: 700; }
+.mc-dot { position: absolute; bottom: 1px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--navy-500); }
+.mc-day.is-sat .mc-dot { background: #fff; }
+.mini-cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.mini-cal-list li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; color: var(--ink-2); }
+.mini-cal-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.mini-cal-left { font-size: 12px; font-weight: 700; color: var(--navy-600); }
+.mc-key { width: 10px; height: 10px; border-radius: 50%; }
+.mc-key.is-sat { background: var(--navy-700); }
+.mc-key.is-registration { box-shadow: inset 0 0 0 2px var(--lv-amber); }
+.mc-key.is-test { background: var(--navy-300); }
+
+/* ------------------------------------------------- after the exam (0108) --- */
+.after-exam { display: grid; gap: 12px; }
+.after-exam .card-head { margin-bottom: 0; }
+.after-lead { margin: 0; font-size: 14px; color: var(--ink-2); }
+.after-versus { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.after-versus li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 12px 14px; border-radius: 14px; background: var(--page); border: 1px solid var(--border); }
+.after-versus li > span:first-child { width: 100%; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.after-versus b { font-family: var(--font-dash); font-size: 24px; font-weight: 800; color: var(--navy-700); }
+.after-versus small { font-size: 12.5px; color: var(--muted); }
+.after-form { display: grid; gap: 4px; }
+.after-form .field { margin-bottom: 10px; }
+.after-form textarea { resize: vertical; min-height: 56px; }
+.after-retake { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.after-retake .label { margin: 0 4px 0 0; font-size: 13.5px; font-weight: 500; }
+.after-retake .sat-chip { padding: 7px 16px; }
+.after-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.after-answers { margin: 0; display: grid; gap: 8px; }
+.after-answers div { padding: 10px 12px; border-radius: 12px; background: var(--page); }
+.after-answers dt { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.after-answers dd { margin: 2px 0 0; font-size: 14px; color: var(--ink); }
+.after-pc { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--border-strong); }
+.after-pc-label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.after-pc p { margin: 0; font-size: 14px; color: var(--ink); }
+.after-pc .link-btn { justify-self: start; }
+.after-pc .field { margin-bottom: 4px; }
+.after-pc .btn { justify-self: start; }
+
 /* ------------------------------------- a score report, dropped or chosen --- */
 .file-drop {
   position: relative; display: grid; justify-items: center; gap: 6px; padding: 26px 18px 20px; text-align: center;
@@ -4355,3 +4438,29 @@ tr.row-link:hover .cell-link-name { color: var(--sky-dark); }
 .staff-same-view { margin: 18px 0 26px; }
 .staff-same-view .domain-row-detail .dash-chip { justify-self: start; }
 .staff-domain-detail summary { cursor: pointer; font-weight: 600; color: var(--sky-dark); margin-bottom: 10px; }
+
+/* ------------------------------------------------- fixed sets (0109) --- */
+.fs-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0; }
+.fs-domain { margin-bottom: 14px; }
+.fs-domain-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.fs-domain-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.fs-domain-head p { margin: 2px 0 0; font-size: 13px; }
+.fs-sets { display: grid; gap: 10px; }
+.fs-set { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; background: #fff; }
+.fs-set.is-approved { border-color: #BFE3CF; background: #FAFDFB; }
+.fs-set-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fs-set-toggle { display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; padding: 4px 0; font: inherit; cursor: pointer; color: var(--ink); }
+.fs-set-toggle b { font-size: 15px; }
+.fs-set-act { display: flex; gap: 6px; }
+.fs-set-by { margin: 4px 0 0; font-size: 12.5px; }
+.fs-questions { list-style: none; margin: 10px 0 2px; padding: 0; display: grid; gap: 6px; counter-reset: q; }
+.fs-questions li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--page); font-size: 13px; }
+.fs-diff { justify-self: start; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
+.fs-diff.is-easy { background: var(--easy-bg); color: var(--easy-fg); }
+.fs-diff.is-medium { background: var(--medium-bg); color: var(--medium-fg); }
+.fs-diff.is-hard { background: var(--hard-bg); color: var(--hard-fg); }
+.fs-q { display: flex; flex-direction: column; min-width: 0; }
+.fs-skill { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.fs-stem { color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fs-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.fs-pick > span { font-size: 13px; font-weight: 600; color: var(--ink-2); }

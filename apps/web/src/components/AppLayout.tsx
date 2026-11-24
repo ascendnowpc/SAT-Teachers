@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './Logo'
-import { IconBook, IconCalendar, IconHome, IconLogout, IconSliders, IconStack, IconUsers } from './icons'
+import { IconBook, IconCalendar, IconClipboard, IconHome, IconLogout, IconSliders, IconStack, IconUsers } from './icons'
 
 function initials(name: string, fallback: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -42,6 +42,12 @@ export function AppLayout() {
             {isTeacher && (
               <NavLink to="/questions" className={cls}>
                 <IconStack /> Questions
+              </NavLink>
+            )}
+            {/* The fixed sets each domain's check-ins are booked from (0109). */}
+            {(isTeacher || isAdmin) && (
+              <NavLink to="/fixed-sets" className={cls}>
+                <IconClipboard /> Fixed sets
               </NavLink>
             )}
             {/* Last, and only for an admin. It is about people — the sessions

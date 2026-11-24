@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appBase, escapeHtml, inviteEmail, parentReportEmail, reportEmail } from './pcMail'
+import { appBase, escapeHtml, inviteEmail, parentReportEmail, reportEmail, retentionNoticeEmail } from './pcMail'
 
 describe('inviteEmail', () => {
   const input = {
@@ -150,5 +150,35 @@ describe('the parent’s progress report (0103)', () => {
     expect(m.html).toContain('&lt;script&gt;')
     expect(m.text).toContain('Hello,')
     expect(m.text).toContain('could not be attached')
+  })
+})
+
+describe('retentionNoticeEmail', () => {
+  const mail = retentionNoticeEmail({
+    studentName: 'Amarra <Test>',
+    displayId: '0067',
+    toName: 'Priya Coach',
+    lastActive: '2026-09-25',
+    deleteOn: '2026-12-08',
+    days: 60,
+    base: 'https://sat-teachers.vercel.app',
+    studentId: 'abc-123',
+  })
+
+  it('says who, since when, and the day they go', () => {
+    expect(mail.subject).toBe("Keep Amarra <Test>'s account?")
+    expect(mail.text).toContain('Amarra <Test> (0067) has had no check-in or session for 60 days — the last was on 25 Sep 2026.')
+    expect(mail.text).toContain('it will be deleted on 8 Dec 2026')
+    expect(mail.text).toContain('Their reports are saved as PDFs first.')
+  })
+
+  it('both buttons open My students, for that student', () => {
+    expect(mail.text).toContain('https://sat-teachers.vercel.app/students?retention=keep&student=abc-123')
+    expect(mail.text).toContain('https://sat-teachers.vercel.app/students?retention=delete&student=abc-123')
+  })
+
+  it('escapes the name in the HTML', () => {
+    expect(mail.html).toContain('Amarra &lt;Test&gt;')
+    expect(mail.html).not.toContain('<Test>')
   })
 })

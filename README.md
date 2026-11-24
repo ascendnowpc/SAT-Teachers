@@ -1546,6 +1546,31 @@ supabase functions deploy read_score_report
 supabase functions deploy student_plan
 ```
 
+**Inactive students** (`0107`, the scope's Data and retention). With the clean-up on, a student with no
+check-in or session for 60 days has their PC emailed (`retention_notice`), with **Keep** (another 60
+days) and **Delete now**; both open My students, signed in, where the PC confirms. Unanswered after
+14 days they are deleted, their reports saved as PDFs first (`0087`); saved PDFs are deleted after 2
+years. Activity after a notice voids it. The admin sets the windows and sees who is told, whether the
+mail went and who goes next; the rule stays **off** until an admin turns it on
+(`retention_notice.sql`). Deploy the mailer with `--no-verify-jwt`, as `archive_reports` is: the
+database calls it through pg_net, and it acts only on what the database says is due.
+
+```bash
+supabase functions deploy retention_notice --no-verify-jwt
+```
+
+**After the exam** (`0108`, F16). Once the goal's SAT date has passed, the dashboard waits for the
+result ("Waiting for your results") until a score dated on or after it is added; then it shows the
+result beside the goal, asks three short questions and whether they will retake ("Set new goals"),
+and the PC adds one summary line. One reflection per SAT date (`reflection.sql`). `0108` also drops
+`0101`'s four- and five-argument goal savers.
+
+**Fixed sets** (`0109`, F3). Staff → Fixed sets: Sets A–D per domain, drafted from the bank (3 easy,
+3 medium, 4 hard, easiest first, spread over the skills, no question in two sets of a domain), then
+swapped and approved by Malya and the tutors; an approved set is locked. A targeted test on a whole
+domain can be booked from an approved set, and records which (`fixed_sets.sql`).
+
+
 **Order, for `0101`–`0104`.** All four are safe for the app being served before them: new tables
 and functions, and `0102` only moves a default an admin had not changed. Apply them **before or
 with** the app that uses them — its pages read the goals and the overview on the side, so they

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
 import { DomainDashboard, useBothSubjects } from '../components/DomainDashboard'
-import { ColourKey, focusFrom, Guidance, PerformanceTimeline, SectionBoxes } from '../components/StudentDashboard'
+import { AfterExam } from '../components/AfterExam'
+import { ColourKey, focusFrom, Guidance, PerformanceTimeline, SectionBoxes, strongFrom } from '../components/StudentDashboard'
 import { AimingFor, GoalPanel } from '../components/StudentGoal'
 import { IconBack } from '../components/icons'
 import {
@@ -26,6 +27,7 @@ import { signedInBluebook } from '../lib/bluebookApi'
 import { loadConfig, loadProgress } from '../lib/progressApi'
 import { EMPTY_PROGRESS, measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
 import { row, rows, supabase } from '../lib/supabase'
+import { examStage, type Reflection } from '../lib/afterExam'
 import type { BluebookRow } from '../lib/bluebook'
 import { daysUntil, hasGoal, latestSat, localToday, type StudentGoal } from '../lib/goal'
 import { askForPlan, readScorePicture } from '../lib/studentApi'
@@ -102,8 +104,14 @@ export function StudentProgress() {
   const [goal, setGoal] = useState<StudentGoal | null>(null)
   const [version, setVersion] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+  const [reflections, setReflections] = useState<Reflection[]>([])
   useEffect(() => {
     if (!id) return
+    void supabase
+      .from('student_reflections')
+      .select('exam_on, went_well, was_hard, next_time, retake, pc_summary, pc_at, updated_at')
+      .eq('student_id', id)
+      .then(({ data }) => setReflections(rows<Reflection>(data)))
     void supabase
       .from('bluebook_scores')
       .select('test_name, taken_on, total, reading_writing, math, official, domains')
@@ -129,6 +137,7 @@ export function StudentProgress() {
   )
   const chosen = selected && points.some((p) => p.id === selected) ? selected : defaultPoint(points)
   const days = goal?.next_test_on ? daysUntil(goal.next_test_on, localToday()) : null
+  const afterExam = examStage(hasGoal(goal) ? goal : null, satRows, reflections, localToday())
 
   if (!id) return <div className="page">No such student.</div>
 
@@ -159,9 +168,35 @@ export function StudentProgress() {
             Section Progress Report
           </Link>
         </div>
+        {afterExam.kind !== 'none' && (
+          <AfterExam
+            stage={afterExam}
+            goal={hasGoal(goal) ? goal : null}
+            who="they"
+            onSummary={
+              isAdmin || (isPc && !!student && student.pc_id === profile?.id)
+                ? async (text) => {
+                    const { error: err } = await supabase.rpc('set_reflection_summary', {
+                      p_student: id,
+                      p_exam_on: afterExam.examOn,
+                      p_summary: text,
+                    })
+                    if (err) throw new Error(err.message)
+                    setVersion((v) => v + 1)
+                  }
+                : undefined
+            }
+          />
+        )}
         <div className="dash-top">
           <AimingFor goal={hasGoal(goal) ? goal : null} sat={latestSat(satRows)} who="their" />
-          <Guidance who="they" daysToExam={days} focus={focusFrom(measures)} ask={(h) => askForPlan({ studentId: id, horizon: h })} />
+          <Guidance
+            who="they"
+            daysToExam={days}
+            focus={focusFrom(measures)}
+            strong={strongFrom(measures)}
+            ask={(h) => askForPlan({ studentId: id, horizon: h })}
+          />
         </div>
         <PerformanceTimeline
           who="they"
@@ -177,9 +212,12 @@ export function StudentProgress() {
             measures={measures}
             point={points.find((p) => p.id === chosen) ?? null}
             asOf={asOfDay(points, chosen)}
+            goal={hasGoal(goal) ? goal : null}
+            latest={latestSat(satRows)}
+            daysToExam={days}
             action={(_, d) =>
               isTeacher && d.rag !== 'green' ? (
-                <Link className="dash-chip" to="/sessions/new/targeted">
+                <Link className="dash-chip" to={`/sessions/new/targeted?student=${id}&section=${d.section}`}>
                   Book a check-in →
                 </Link>
               ) : null

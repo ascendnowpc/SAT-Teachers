@@ -86,6 +86,8 @@ export interface RetentionRun {
   waiting?: number
   /** Whether the run asked archive_reports to save them. */
   queued?: boolean
+  /** PCs told about an inactive student on this run (0107). */
+  noticed?: number
 }
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -98,7 +100,8 @@ export function lastRunText(at: string | null, run: RetentionRun | null): string
   if (!at || !run) return 'It has not run yet.'
   const when = `Last run ${formatUtc(at)}: `
   if (!run.ran) return `${when}off, nothing deleted.`
-  const deleted = `${count(run.students ?? 0, 'student')} and ${count(run.transcripts ?? 0, 'recording')} deleted.`
+  const told = run.noticed ? `${count(run.noticed, 'PC notice')} sent; ` : ''
+  const deleted = `${told}${count(run.students ?? 0, 'student')} and ${count(run.transcripts ?? 0, 'recording')} deleted.`
   const waiting = run.waiting ?? 0
   if (waiting === 0) return `${when}${deleted}`
   const held = run.held ?? 0

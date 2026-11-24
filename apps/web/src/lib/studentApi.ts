@@ -1,4 +1,5 @@
 import { sectionLabel, skillList, skillsOn, subjectLabel } from './constants'
+import type { Reflection } from './afterExam'
 import type { BluebookReading } from './bluebook'
 import { callFunction } from './functions'
 import type { GoalState, StudentGoal } from './goal'
@@ -92,6 +93,31 @@ export async function finishOnboarding(key: string): Promise<GoalState> {
   const { data, error } = await supabase.rpc('student_finish_onboarding', { p_key: key })
   if (error) throw new Error(error.message)
   return data as GoalState
+}
+
+/** Every reflection of theirs on a real SAT, newest first (0108). */
+export async function loadReflections(key: string): Promise<Reflection[]> {
+  const { data, error } = await supabase.rpc('student_reflections', { p_key: key })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Reflection[]
+}
+
+/** Their three answers and the retake, on the SAT of examOn (0108). */
+export async function saveReflection(
+  key: string,
+  examOn: string,
+  a: Pick<Reflection, 'went_well' | 'was_hard' | 'next_time' | 'retake'>,
+): Promise<Reflection[]> {
+  const { data, error } = await supabase.rpc('student_save_reflection', {
+    p_key: key,
+    p_exam_on: examOn,
+    p_went_well: a.went_well,
+    p_was_hard: a.was_hard,
+    p_next_time: a.next_time,
+    p_retake: a.retake,
+  })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Reflection[]
 }
 
 /** A file's bytes as base64, in chunks a long picture does not overflow. */
