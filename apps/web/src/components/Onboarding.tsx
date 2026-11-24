@@ -279,7 +279,7 @@ export function Onboarding({
 
 /** A short burst of colour on the last step. */
 function Confetti() {
-  const colours = ['#CEE177', '#3BA4DE', '#7A52D9', '#F27C3E', '#2F9E6B', '#FFC94D']
+  const colours = ['#1E2752', '#3D4D8F', '#8796C6', '#AFB9D9', '#2F9E6B']
   return (
     <span className="confetti" aria-hidden="true">
       {Array.from({ length: 22 }, (_, i) => (

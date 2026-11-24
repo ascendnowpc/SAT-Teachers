@@ -53,7 +53,7 @@ export function AimingFor({
   return (
     <section className="dash-panel aim-card" aria-label="Aiming for">
       <header className="card-head">
-        <span className="card-icon tone-lime">
+        <span className="card-icon">
           <Icon name="target" />
         </span>
         <div>
