@@ -239,3 +239,55 @@ export function parentReportEmail(input: ParentReportEmailInput): Email {
 
   return { subject, html, text }
 }
+
+// ------------------------------------------------------- an inactive student --
+
+export interface RetentionNoticeInput {
+  studentName: string
+  displayId: string | null
+  /** The PC (or admin) told. */
+  toName: string | null
+  /** YYYY-MM-DD: their last check-in or session. */
+  lastActive: string
+  /** YYYY-MM-DD: when they go if nobody answers. */
+  deleteOn: string
+  days: number
+  /** The page that answers it: My students, signed in. */
+  base: string
+  studentId: string
+}
+
+/** "4 Dec 2026", in English, whatever the server's locale. */
+function longDay(day: string): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const [y, m, d] = day.slice(0, 10).split('-').map(Number)
+  return `${d} ${months[m - 1]} ${y}`
+}
+
+/**
+ * The 60-day notice (0107): a student has had no check-in or session, and is
+ * deleted on a day unless the PC keeps them. Both buttons open My students,
+ * signed in — the mail itself decides nothing.
+ */
+export function retentionNoticeEmail(input: RetentionNoticeInput): Email {
+  const first = input.toName?.trim().split(/\s+/)[0] || 'there'
+  const who = `${input.studentName}${input.displayId ? ` (${input.displayId})` : ''}`
+  const keep = `${input.base}/students?retention=keep&student=${encodeURIComponent(input.studentId)}`
+  const drop = `${input.base}/students?retention=delete&student=${encodeURIComponent(input.studentId)}`
+  const subject = `Keep ${input.studentName}'s account?`
+  const lead =
+    `${who} has had no check-in or session for ${input.days} days — the last was on ${longDay(input.lastActive)}. ` +
+    `Unless you keep the account, it will be deleted on ${longDay(input.deleteOn)}. Their reports are saved as PDFs first.`
+
+  const html = frame(`
+    <p style="margin:0 0 14px">Hello ${escapeHtml(first)},</p>
+    <p style="margin:0 0 18px">${escapeHtml(lead)}</p>
+    <p style="margin:0 0 10px">${button(keep, `Keep ${input.studentName.split(' ')[0]}`)}
+      &nbsp; <a href="${escapeHtml(drop)}" style="color:${MUTED};font-weight:600">Delete now</a></p>
+    <p style="margin:18px 0 0;color:${FAINT};font-size:13px">Both open My students on Ascend Now, where you confirm. Keeping them gives another ${input.days} days.</p>
+  `)
+  const text =
+    `Hello ${first},\n\n${lead}\n\nKeep them: ${keep}\nDelete now: ${drop}\n\n` +
+    `Both open My students on Ascend Now, where you confirm. Keeping them gives another ${input.days} days.\n`
+  return { subject, html, text }
+}

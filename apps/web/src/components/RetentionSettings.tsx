@@ -21,10 +21,25 @@ interface Due {
   reports_waiting?: number
 }
 
+interface NoticeRow {
+  student_id: string
+  full_name: string
+  display_id: string | null
+  pc: string | null
+  last_active: string
+  delete_at: string
+  decision: 'delete' | null
+  stage: 'noticed' | 'due'
+  emailed_at: string | null
+  email_error: string | null
+}
+
 interface Preview {
   policy: {
     enabled: boolean
-    student_months: number
+    notice_days: number
+    grace_days: number
+    archive_years: number
     transcript_days: number
     updated_at: string
     last_run_at: string | null
@@ -32,6 +47,11 @@ interface Preview {
   }
   students_due: Due[]
   students_soon: Due[]
+  /** Told, and not answered yet (0107). */
+  notices: NoticeRow[]
+  /** To be told at the next run. */
+  to_notice: { student_id: string; full_name: string; display_id: string | null; last_active: string }[]
+  reports_expiring: number
   transcripts_due: number
   /** Reports a deletion due now would take that are not saved yet (0087). */
   reports_waiting: number
@@ -50,8 +70,10 @@ interface Preview {
  */
 export function RetentionSettings() {
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [months, setMonths] = useState('12')
+  const [notice, setNotice] = useState('60')
+  const [grace, setGrace] = useState('14')
   const [days, setDays] = useState('90')
+  const [years, setYears] = useState('2')
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -68,8 +90,10 @@ export function RetentionSettings() {
     }
     const p = data as Preview
     setPreview(p)
-    setMonths(String(p.policy.student_months))
+    setNotice(String(p.policy.notice_days))
+    setGrace(String(p.policy.grace_days))
     setDays(String(p.policy.transcript_days))
+    setYears(String(p.policy.archive_years))
     setArchive((kept.data ?? []) as SavedReport[])
   }, [])
 
@@ -79,22 +103,23 @@ export function RetentionSettings() {
 
   async function save(enabled: boolean) {
     if (!preview) return
-    const m = Number(months)
     const d = Number(days)
     if (enabled && !preview.policy.enabled) {
-      const n = preview.students_due.length
+      const n = preview.to_notice.length
       const ok = window.confirm(
-        `Turn on the clean-up?\n\n${n === 0 ? 'No student is due yet' : `${n} student${n === 1 ? ' is' : 's are'} due now and will be deleted with all their records`} at the next daily run (03:17 UTC), and recordings older than ${d} days with them — each once its reports are saved as PDFs. A deletion cannot be undone.`,
+        `Turn on the clean-up?\n\nAt the next daily run (03:17 UTC) ${n === 0 ? 'no PC is told yet' : `the PCs of ${n} inactive student${n === 1 ? '' : 's'} are emailed`}. A student is deleted only ${grace} days after their PC was told, if the PC does not keep them — reports saved as PDFs first. Recordings older than ${d} days go too. A deletion cannot be undone.`,
       )
       if (!ok) return
     }
     setBusy(true)
     setError(null)
     setSaved(null)
-    const { error: err } = await supabase.rpc('set_retention_policy', {
+    const { error: err } = await supabase.rpc('set_retention_rules', {
       p_enabled: enabled,
-      p_student_months: m,
+      p_notice_days: Number(notice),
+      p_grace_days: Number(grace),
       p_transcript_days: d,
+      p_archive_years: Number(years),
     })
     setBusy(false)
     if (err) setError(err.message)
@@ -132,17 +157,25 @@ export function RetentionSettings() {
       <section className="card card-pad">
         <div className="section-title">When old data is deleted</div>
         <p className="settings-lead">
-          Inactive students and old recordings are deleted after the times below. Reports are always saved
-          first, as PDFs.
+          A student with no check-in or session for the days below: their PC is emailed, with Keep and Delete
+          now. Unanswered after the grace, they are deleted — their reports saved as PDFs first.
         </p>
         <div className="grid-2">
           <label className="field">
-            <span className="label">Keep a student for (months)</span>
-            <Input type="number" min={3} max={60} value={months} onChange={(e) => setMonths(e.target.value)} />
+            <span className="label">Tell the PC after (days quiet)</span>
+            <Input type="number" min={14} max={365} value={notice} onChange={(e) => setNotice(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="label">Then delete after (days of grace)</span>
+            <Input type="number" min={7} max={60} value={grace} onChange={(e) => setGrace(e.target.value)} />
           </label>
           <label className="field">
             <span className="label">Keep a recording for (days)</span>
             <Input type="number" min={30} max={730} value={days} onChange={(e) => setDays(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="label">Keep a saved report PDF for (years)</span>
+            <Input type="number" min={1} max={10} value={years} onChange={(e) => setYears(e.target.value)} />
           </label>
         </div>
         <div className="retention-actions">
@@ -171,13 +204,17 @@ export function RetentionSettings() {
       </section>
 
       <section className="card card-pad">
-        <div className="section-title">What it would delete</div>
-        <DueList title="Students due now" rows={preview.students_due} empty="No student is due." />
-        <DueList
-          title="Students due in the next 30 days"
-          rows={preview.students_soon}
-          empty="None in the next 30 days."
-        />
+        <div className="section-title">Who is flagged</div>
+        <NoticeList rows={preview.notices} />
+        <div className="retention-sub">To be told at the next run</div>
+        {preview.to_notice.length === 0 ? (
+          <p className="muted">Nobody.</p>
+        ) : (
+          <p className="retention-names">
+            {preview.to_notice.map((t) => t.full_name).join(', ')}
+          </p>
+        )}
+        <DueList title="Deleted at the next run" rows={preview.students_due} empty="Nobody." />
         <p className="retention-last">
           Recordings due now: <strong className="num">{preview.transcripts_due}</strong>
           {preview.reports_waiting > 0 && (
@@ -185,6 +222,12 @@ export function RetentionSettings() {
               {' '}
               · Reports to save before these go:{' '}
               <strong className="num">{preview.reports_waiting}</strong>
+            </>
+          )}
+          {preview.reports_expiring > 0 && (
+            <>
+              {' '}
+              · Saved PDFs past {p.archive_years} years: <strong className="num">{preview.reports_expiring}</strong>
             </>
           )}
         </p>
@@ -198,6 +241,39 @@ export function RetentionSettings() {
         setBusy={setBusy}
       />
     </div>
+  )
+}
+
+/** The students whose PC was told, when they go, and whether the mail went. */
+function NoticeList({ rows }: { rows: NoticeRow[] }) {
+  if (rows.length === 0) return <p className="muted">No PC has been told about anyone.</p>
+  return (
+    <table className="retention-table">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>PC</th>
+          <th>Last active</th>
+          <th>Deleted</th>
+          <th>Mail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.student_id}>
+            <td>
+              {r.full_name} <span className="muted num">{r.display_id}</span>
+            </td>
+            <td>{r.pc ?? <span className="muted">no PC — admins told</span>}</td>
+            <td className="num">{formatUtc(r.last_active).split(',')[0]}</td>
+            <td className="num">
+              {r.decision === 'delete' ? 'now (Delete now)' : r.stage === 'due' ? 'at the next run' : formatUtc(r.delete_at).split(',')[0]}
+            </td>
+            <td>{r.email_error ? <span className="text-danger">{r.email_error}</span> : r.emailed_at ? 'sent' : 'sending'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

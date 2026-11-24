@@ -87,6 +87,9 @@ begin
   returning id into s_ahead_past;
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
   values (t_id, ahead_s.id, 'english', now() + interval '3 days') returning id into s_ahead_next;
+  -- Since 0107 nobody goes without a notice their PC could answer: Olga's PC was
+  -- told 15 days ago, past the 14-day grace.
+  insert into retention_notices (student_id, noticed_at) values (old_s.id, now() - interval '15 days');
 
   insert into session_transcripts (session_id, body) values (s_old, 'OLD-TRANSCRIPT'), (s_rec_old, 'RECORDING-100-DAYS'), (s_rec_new, 'RECORDING-10-DAYS');
   insert into session_context_extractions (session_id, body, transcript_md5, model, offset_seconds)
@@ -120,11 +123,11 @@ begin
   j := retention_preview();
   select string_agg(e->>'full_name', ',' order by e->>'full_name') into txt from jsonb_array_elements(j->'students_due') e
    where e->>'full_name' like '%Retain';
-  return query select '3 due'::text, 'nothing for 12 months: due now'::text, 'Olga Retain'::text, coalesce(txt, '(none)'),
+  return query select '3 due'::text, 'inactive, told 15 days ago: due now'::text, 'Olga Retain'::text, coalesce(txt, '(none)'),
     __verdict(txt = 'Olga Retain');
   select string_agg(e->>'full_name', ',' order by e->>'full_name') into txt from jsonb_array_elements(j->'students_soon') e
    where e->>'full_name' like '%Retain';
-  return query select '3 due'::text, 'at 11½ months: due in the next 30 days'::text, 'Sami Retain'::text, coalesce(txt, '(none)'),
+  return query select '3 due'::text, 'inactive, not told yet: due within 30 days'::text, 'Sami Retain'::text, coalesce(txt, '(none)'),
     __verdict(txt = 'Sami Retain');
   return query select '3 due'::text, 'a recent student and one booked ahead: neither'::text, 'absent'::text,
     (case when position('Nora Retain' in j::text) > 0 or position('Ali Retain' in j::text) > 0 then 'present' else 'absent' end),

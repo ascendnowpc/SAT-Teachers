@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Combobox, type ComboboxOption } from '../components/Combobox'
 import { IconBack } from '../components/icons'
 import {
@@ -14,7 +14,7 @@ import { StudentIdNote } from '../components/StudentAccess'
 import { CopyButton, Field, Input, Notice, Select } from '../components/ui'
 import { SESSION_SELECT } from '../hooks/useLiveSession'
 import { useAuth } from '../context/AuthContext'
-import { LEVELS, SUBJECTS } from '../lib/constants'
+import { LEVELS, SECTIONS, SUBJECTS } from '../lib/constants'
 import { loadPcs } from '../lib/pcApi'
 import type { StudentProgress } from '../lib/progress'
 import { loadProgress } from '../lib/progressApi'
@@ -63,9 +63,14 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
   const [loadingStudents, setLoadingStudents] = useState(true)
 
   const targeted = kind === 'targeted'
+  // "Book a check-in →" on a student's view: ?student=…&section=… picks them
+  // and the domain that needs the work.
+  const [params] = useSearchParams()
+  const preSection = targeted ? params.get('section') : null
+  const preSubject: Subject = preSection && SECTIONS.mathematics.some((x) => x.value === preSection) ? 'mathematics' : 'english'
   /** Which of the two kinds of student this session is for. A targeted test's is always one on the roster. */
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
-  const [studentId, setStudentId] = useState('')
+  const [studentId, setStudentId] = useState(() => (targeted ? (params.get('student') ?? '') : ''))
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
 
@@ -75,9 +80,11 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
   /** The PC this booking is under: chosen here, or the student's own. */
   const [pcId, setPcId] = useState('')
 
-  const [subject, setSubject] = useState<Subject>('english')
+  const [subject, setSubject] = useState<Subject>(preSection ? preSubject : 'english')
   const [progress, setProgress] = useState<StudentProgress | null>(null)
-  const [draft, setDraft] = useState<TargetedDraft>(() => emptyDraft('english'))
+  const [draft, setDraft] = useState<TargetedDraft>(() =>
+    preSection ? { ...emptyDraft(preSubject), section: preSection } : emptyDraft('english'),
+  )
   const [title, setTitle] = useState('')
   const [scheduledAt, setScheduledAt] = useState(defaultUtcSlot)
   const [duration, setDuration] = useState(60)
@@ -219,12 +226,51 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
       .filter((x) => x.mode === 'diagnostic' && x.status !== 'cancelled')
       .sort((a, b) => a.at.localeCompare(b.at))[0] ?? null
 
-  // A new subject starts the set again.
+  // A new subject starts the set again — but not the first time, when a
+  // section may have come with the link.
+  const firstSubject = useRef(true)
   useEffect(() => {
+    if (firstSubject.current) {
+      firstSubject.current = false
+      return
+    }
     setDraft(emptyDraft(subject))
   }, [subject])
 
   const targetedProblem = targeted ? draftProblem(draft) : null
+
+  // Fixed sets (0109): a check-in on a whole domain can be booked from one of
+  // its approved Sets A–D, so before and after ask the same questions.
+  const [fixedSets, setFixedSets] = useState<{ id: string; label: string; questions: string[] }[]>([])
+  const [fixedSet, setFixedSet] = useState<string | null>(null)
+  const domainOnly = targeted && !!draft.section && draft.skills.length === 0
+  useEffect(() => {
+    if (!domainOnly) {
+      setFixedSets([])
+      return
+    }
+    let active = true
+    void supabase
+      .from('fixed_sets')
+      .select('id, label, fixed_set_items(question_id, position)')
+      .eq('section', draft.section!)
+      .eq('status', 'approved')
+      .order('label')
+      .then(({ data }) => {
+        if (!active) return
+        setFixedSets(
+          ((data ?? []) as { id: string; label: string; fixed_set_items: { question_id: string; position: number }[] }[]).map((x) => ({
+            id: x.id,
+            label: x.label,
+            questions: [...x.fixed_set_items].sort((a, b) => a.position - b.position).map((i) => i.question_id),
+          })),
+        )
+      })
+    return () => {
+      active = false
+    }
+  }, [domainOnly, draft.section])
+  const usingSet = fixedSets.find((x) => x.id === fixedSet && x.questions.join() === draft.questions.join()) ?? null
 
   const noPcs = pcsRead && pcOptions.length === 0
   // Fixed and already on the row, or chosen here from the ones that can be.
@@ -299,6 +345,11 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
           p_overall_seconds: overallMinutesOf(draft) * 60,
         })
         if (err) throw new Error(err.message)
+        if (usingSet) {
+          // Which set it came from; the questions are already the set's.
+          const { error: setErr } = await supabase.rpc('record_fixed_set', { p_session: data as string, p_set: usingSet.id })
+          if (setErr) console.warn('the fixed set could not be recorded:', setErr.message)
+        }
         const { data: made, error: readErr } = await supabase
           .from('sessions')
           .select(SESSION_SELECT)
@@ -494,6 +545,25 @@ export function SessionNew({ kind }: { kind: SessionKind }) {
         {targeted && (
           <div className="card card-pad">
             <div className="section-title">The test</div>
+            {studentId && domainOnly && fixedSets.length > 0 && (
+              <div className="fs-pick" role="group" aria-label="Fixed sets">
+                <span>Use a fixed set:</span>
+                {fixedSets.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className={`mode-opt ${usingSet?.id === x.id ? 'on' : ''}`}
+                    aria-pressed={usingSet?.id === x.id}
+                    onClick={() => {
+                      setFixedSet(x.id)
+                      setDraft({ ...draft, how: 'manual', questions: x.questions, asks: [] })
+                    }}
+                  >
+                    Set {x.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {studentId ? (
               <TargetedBuilder
                 studentId={studentId}

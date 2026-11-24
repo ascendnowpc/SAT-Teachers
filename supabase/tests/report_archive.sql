@@ -113,6 +113,9 @@ begin
   insert into session_transcripts (session_id, body) values (s_rec_kept, 'KEPT-RECORDING'), (s_rec_bare, 'BARE-RECORDING');
   insert into sessions (teacher_id, student_id, subject, scheduled_at)
   values (t_id, act_s.id, 'english', now() + interval '3 days');
+  -- Since 0107 a student goes only after their PC was told and the grace ran out.
+  insert into retention_notices (student_id, noticed_at)
+  values (kept_s.id, now() - interval '15 days'), (bare_s.id, now() - interval '15 days');
 
   -- ============ 1. what is waiting ============
   select string_agg(kind, ',' order by kind) into txt from retention_reports_waiting() w where w.student_id = kept_s.id;

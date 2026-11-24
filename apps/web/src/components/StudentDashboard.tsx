@@ -8,6 +8,7 @@ import { HORIZON_LABEL, horizonsFor, type Horizon, type StudyPlan } from '../lib
 import { SUBJECT_ORDER, SUBJECT_VIEW, type SubjectMeasure } from '../lib/subjectProgress'
 import { domainsAt, monthYearShort, type DomainAt, type TimelinePoint } from '../lib/timeline'
 import { formatUtc } from '../lib/time'
+import { GAP_FLAG_DAYS, toGo, type StudentGoal } from '../lib/goal'
 import type { Subject } from '../lib/types'
 import { Icon } from './Icon'
 
@@ -192,12 +193,20 @@ export function SectionBoxes({
   point,
   asOf,
   action,
+  goal = null,
+  latest = null,
+  daysToExam = null,
 }: {
   measures: Partial<Record<Subject, SubjectMeasure>>
   point: TimelinePoint | null
   asOf: string | null
   /** Something to offer on a domain that needs work — the staff's "book a check-in". */
   action?: (subject: Subject, d: DomainAt) => ReactNode
+  /** The section goals, for the gap (F15). */
+  goal?: StudentGoal | null
+  /** The latest SAT's section scores. */
+  latest?: { rw: number; math: number } | null
+  daysToExam?: number | null
 }) {
   return (
     <div className="section-boxes">
@@ -206,7 +215,11 @@ export function SectionBoxes({
         const view = SUBJECT_VIEW[subject]
         const score = point ? (subject === 'english' ? point.rw : point.math) : null
         const domains = m ? domainsAt(m, asOf) : []
-        const goal = point?.kind === 'target'
+        const isGoal = point?.kind === 'target'
+        const target = subject === 'english' ? goal?.target_rw : goal?.target_math
+        const gap = toGo(latest ? (subject === 'english' ? latest.rw : latest.math) : null, target)
+        // F15: flagged in the last month before the SAT.
+        const near = daysToExam !== null && daysToExam >= 0 && daysToExam <= GAP_FLAG_DAYS && !!gap && gap !== 'Reached'
         return (
           <section key={subject} className={`section-box tone-${view.tone}`} aria-label={view.name}>
             <header className="section-box-head">
@@ -216,10 +229,16 @@ export function SectionBoxes({
               <div className="section-box-title">
                 <h2>{view.name}</h2>
                 <span className="section-box-sub">{subject === 'english' ? 'Reading & Writing' : '4 domains'}</span>
+                {target != null && (
+                  <span className={`section-goal${gap === 'Reached' ? ' is-done' : near ? ' is-near' : ''}`}>
+                    Goal {target}
+                    {gap ? ` · ${gap.toLowerCase()}` : ''}
+                  </span>
+                )}
               </div>
-              <ScoreRing score={score} goal={goal} />
+              <ScoreRing score={score} goal={isGoal} />
               <span className="sr-only">
-                {goal ? 'Goal: ' : ''}
+                {isGoal ? 'Goal: ' : ''}
                 {score ?? 'no score'} out of 800
               </span>
             </header>
@@ -240,7 +259,7 @@ export function SectionBoxes({
             )}
             <p className="section-box-foot">
               <Icon name="clock" size={13} />
-              {asOf && point ? `As of ${dayLabel(asOf)} · ${point.kind === 'target' ? 'your goal' : point.name}` : 'All check-ins so far'}
+              {asOf && point ? `As of ${dayLabel(asOf)} · ${isGoal ? 'your goal' : point.name}` : 'All check-ins so far'}
             </p>
           </section>
         )
@@ -327,6 +346,17 @@ export interface FocusDomain {
   rag: Rag
 }
 
+/** Up to n domains, highest first, that are mastered — the strengths to keep light (the journey's "close to the exam"). */
+export function strongFrom(measures: Partial<Record<Subject, SubjectMeasure>>, n = 2): FocusDomain[] {
+  const out: FocusDomain[] = []
+  for (const subject of SUBJECT_ORDER) {
+    for (const d of measures[subject]?.sections ?? []) {
+      if (d.latest && d.rag === 'green') out.push({ subject, label: d.label, level: d.latest.level, rag: d.rag })
+    }
+  }
+  return out.sort((a, b) => b.level - a.level).slice(0, n)
+}
+
 /** Up to three domains, lowest first, that are not green — from every check-in so far. */
 export function focusFrom(measures: Partial<Record<Subject, SubjectMeasure>>, n = 3): FocusDomain[] {
   const out: FocusDomain[] = []
@@ -347,12 +377,15 @@ export function Guidance({
   daysToExam,
   ask,
   focus = [],
+  strong = [],
   who = 'you',
 }: {
   daysToExam: number | null
   ask: (h: Horizon) => Promise<StudyPlan>
   /** The domains to name before a plan is asked for. */
   focus?: FocusDomain[]
+  /** The strongest, to keep light. */
+  strong?: FocusDomain[]
   who?: 'you' | 'they'
 }) {
   const [horizon, setHorizon] = useState<Horizon>('now')
@@ -439,6 +472,16 @@ export function Guidance({
               </li>
             ))}
           </ul>
+          {strong.length > 0 && (
+            <p className="guide-strong">
+              <span>Going well</span>
+              {strong.map((f) => (
+                <span key={`${f.subject}/${f.label}`} className="rag-pill rag-green">
+                  {f.label} · {outOf40(f.level)}/{LEVEL_MAX}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       )}
       {plan && !busy && (

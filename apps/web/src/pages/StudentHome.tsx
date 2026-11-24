@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { AfterExam } from '../components/AfterExam'
 import { BluebookAdd } from '../components/BluebookScores'
 import { Icon } from '../components/Icon'
 import { Onboarding } from '../components/Onboarding'
@@ -9,12 +10,14 @@ import {
   Guidance,
   PerformanceTimeline,
   SectionBoxes,
+  strongFrom,
   UploadCard,
   YourTests,
 } from '../components/StudentDashboard'
 import { AimingFor, GoalForm } from '../components/StudentGoal'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
+import { examStage, type Reflection } from '../lib/afterExam'
 import { byDay, type BluebookRow } from '../lib/bluebook'
 import { studentBluebook } from '../lib/bluebookApi'
 import { daysUntil, latestSat, localToday, type GoalState } from '../lib/goal'
@@ -27,8 +30,10 @@ import {
   loadStudentGoal,
   loadStudentHome,
   loadStudentReport,
+  loadReflections,
   loadStudentReports,
   readScorePicture,
+  saveReflection,
   saveStudentGoal,
 } from '../lib/studentApi'
 import { rememberEntry } from '../lib/studentEntry'
@@ -59,6 +64,7 @@ export function StudentHome() {
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [reflections, setReflections] = useState<Reflection[]>([])
 
   const scores = useMemo(() => (key ? studentBluebook(key) : null), [key])
 
@@ -84,6 +90,9 @@ export function StudentHome() {
         .catch(() => setDetail(null))
       loadStudentGoal(key)
         .then(setGoalState)
+        .catch(() => undefined)
+      loadReflections(key)
+        .then(setReflections)
         .catch(() => undefined)
       void loadScores()
     } catch (err) {
@@ -120,6 +129,7 @@ export function StudentHome() {
   const reportFor = useMemo(() => new Set((reports ?? []).map((r) => r.session_id)), [reports])
   const today = localToday()
   const days = goal?.next_test_on ? daysUntil(goal.next_test_on, today) : null
+  const stage = examStage(goal, sat, reflections, today)
 
   if (!key || signedOut) return <Navigate to="/login?as=student" replace />
 
@@ -172,6 +182,19 @@ export function StudentHome() {
 
         {home && (
           <>
+            {stage.kind !== 'none' && !editing && (
+              <AfterExam
+                stage={stage}
+                goal={goal}
+                onAddScore={() => {
+                  setUploading(true)
+                  window.setTimeout(() => document.querySelector('.upload-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+                }}
+                onSave={async (a) => setReflections(await saveReflection(key, stage.examOn, a))}
+                onNewGoals={() => setEditing(true)}
+              />
+            )}
+
             {editing ? (
               <GoalForm
                 title="Your goal"
@@ -185,8 +208,13 @@ export function StudentHome() {
               />
             ) : (
               <div className="dash-top">
-                <AimingFor goal={goal} sat={latest} onEdit={() => setEditing(true)} />
-                <Guidance daysToExam={days} focus={focusFrom(measures)} ask={(h) => askForPlan({ key, horizon: h })} />
+                <AimingFor goal={goal} sat={latest} onEdit={() => setEditing(true)} tests={home.sessions} />
+                <Guidance
+                  daysToExam={days}
+                  focus={focusFrom(measures)}
+                  strong={strongFrom(measures)}
+                  ask={(h) => askForPlan({ key, horizon: h })}
+                />
               </div>
             )}
 
@@ -202,7 +230,14 @@ export function StudentHome() {
               }
             />
 
-            <SectionBoxes measures={measures} point={point} asOf={asOfDay(points, chosen)} />
+            <SectionBoxes
+              measures={measures}
+              point={point}
+              asOf={asOfDay(points, chosen)}
+              goal={goal}
+              latest={latest}
+              daysToExam={days}
+            />
             <ColourKey />
 
             <div className="dash-bottom">

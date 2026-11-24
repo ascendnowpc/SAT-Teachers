@@ -3,6 +3,7 @@ import { dayLabel } from '../lib/bluebook'
 import {
   countdownLabel,
   daysUntil,
+  GAP_FLAG_DAYS,
   goalProblem,
   goalTotal,
   hasGoal,
@@ -16,7 +17,9 @@ import {
 import { deadlineFor, satDateFor, upcomingSatDates } from '../lib/satDates'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
+import type { StudentTest } from '../lib/studentAccount'
 import { Icon } from './Icon'
+import { calendarEvents, MiniCalendar } from './MiniCalendar'
 import { Field, Notice } from './ui'
 
 export interface LatestSat {
@@ -37,6 +40,7 @@ export function AimingFor({
   onEdit,
   editLabel = 'Edit',
   who = 'your',
+  tests = [],
 }: {
   goal: StudentGoal | null
   sat: LatestSat | null
@@ -44,12 +48,18 @@ export function AimingFor({
   editLabel?: string
   /** "your" on the student's page, "their" on staff's. */
   who?: 'your' | 'their'
+  /** Their booked check-ins, for the calendar. */
+  tests?: StudentTest[]
 }) {
   const today = localToday()
+  const [calendar, setCalendar] = useState(false)
   const total = goalTotal(goal)
   const next = goal?.next_test_on && goal.next_test_on >= today ? goal.next_test_on : null
   const reg = next ? registrationLabel(goal?.registration_deadline_on, today) : null
   const gap = toGo(sat?.total, total)
+  // F15: the gap is flagged in the last month before the SAT.
+  const near = !!next && daysUntil(next, today) <= GAP_FLAG_DAYS && !!gap && gap !== 'Reached'
+  const events = calendarEvents(goal, tests)
   return (
     <section className="dash-panel aim-card" aria-label="Aiming for">
       <header className="card-head">
@@ -68,7 +78,7 @@ export function AimingFor({
       </header>
       <div className="aim-row">
         <span className="aim-figure num">{total ?? '—'}</span>
-        {gap && <span className={`aim-gap${gap === 'Reached' ? ' is-done' : ''}`}>{gap}</span>}
+        {gap && <span className={`aim-gap${gap === 'Reached' ? ' is-done' : near ? ' is-near' : ''}`}>{gap}</span>}
         {total === null && <span className="aim-unset">Set {who} goal</span>}
       </div>
       <ul className="aim-facts">
@@ -85,6 +95,10 @@ export function AimingFor({
           {next ? (
             <span>
               SAT <b>{dayLabel(next)}</b> <span className="aim-chip">{countdownLabel(next, today)}</span>
+            </span>
+          ) : goal?.next_test_on ? (
+            <span>
+              SAT <b>{dayLabel(goal.next_test_on)}</b> <span className="aim-chip">sat</span>
             </span>
           ) : (
             <span className="muted">SAT date not set</span>
@@ -111,6 +125,15 @@ export function AimingFor({
           </li>
         )}
       </ul>
+      {events.length > 0 && (
+        <>
+          <button type="button" className="aim-cal-toggle" aria-expanded={calendar} onClick={() => setCalendar((c) => !c)}>
+            <Icon name="calendar" size={15} /> {calendar ? 'Hide the calendar' : 'On the calendar'}
+            <Icon name="chevron" size={14} className={calendar ? 'is-open' : ''} />
+          </button>
+          {calendar && <MiniCalendar events={events} today={today} />}
+        </>
+      )}
     </section>
   )
 }
