@@ -20,6 +20,8 @@ import {
   type StudentProgress as Progress,
 } from '../lib/progress'
 import { signedInBluebook } from '../lib/bluebookApi'
+import { dayLabel } from '../lib/bluebook'
+import { goalTotal, type StudentGoal } from '../lib/goal'
 import { loadConfig, loadProgress } from '../lib/progressApi'
 import { row, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
@@ -53,6 +55,18 @@ export function StudentProgress() {
       .eq('id', id)
       .maybeSingle()
       .then(({ data }) => setStudent(row<Profile>(data)))
+  }, [id])
+
+  // The student's own goal (0101): staff read every one, a PC their own students'.
+  const [goal, setGoal] = useState<StudentGoal | null>(null)
+  useEffect(() => {
+    if (!id) return
+    void supabase
+      .from('student_goals')
+      .select('target_rw, target_math, next_test_on')
+      .eq('student_id', id)
+      .maybeSingle()
+      .then(({ data }) => setGoal(row<StudentGoal>(data)))
   }, [id])
 
   useEffect(() => {
@@ -102,6 +116,7 @@ export function StudentProgress() {
         </h1>
       </div>
       {student?.pc && <p className="muted">PC: {student.pc}</p>}
+      {goal && <p className="muted">Their goal: {goalLine(goal)}</p>}
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
       {bluebook && (isTeacher || isPc) && (
@@ -193,4 +208,15 @@ function SkillCard({
       )}
     </section>
   )
+}
+
+/** "Reading & Writing 700 · Math 750 (1450) · next SAT 5 Dec 2026" — what the student set (0101). */
+function goalLine(g: StudentGoal): string {
+  const parts: string[] = []
+  if (g.target_rw !== null) parts.push(`Reading & Writing ${g.target_rw}`)
+  if (g.target_math !== null) parts.push(`Math ${g.target_math}`)
+  const total = goalTotal(g)
+  const scores = parts.length > 0 ? `${parts.join(' · ')}${total !== null ? ` (${total})` : ''}` : null
+  const next = g.next_test_on ? `next SAT ${dayLabel(g.next_test_on)}` : null
+  return [scores, next].filter(Boolean).join(' · ')
 }

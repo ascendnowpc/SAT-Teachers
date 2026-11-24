@@ -1,4 +1,5 @@
 import { sectionLabel, skillList, skillsOn, subjectLabel } from './constants'
+import type { StudentGoal } from './goal'
 import type { StudentReport } from './parentReport'
 import type { SignInResult, StudentHome, StudentTest } from './studentAccount'
 import type { StudentReportBundle, StudentReportList } from './studentReports'
@@ -58,6 +59,25 @@ export async function changeStudentPin(key: string, current: string, next: strin
   const { data, error } = await supabase.rpc('student_change_pin', { p_key: key, p_current: current, p_new: next })
   if (error) throw new Error(error.message)
   return data as PinChange
+}
+
+/** Their goal and the day of their next SAT (0101), or null when none is set. */
+export async function loadStudentGoal(key: string): Promise<StudentGoal | null> {
+  const { data, error } = await supabase.rpc('student_goal', { p_key: key })
+  if (error) throw new Error(error.message)
+  return (data as StudentGoal | null) ?? null
+}
+
+/** Sets all three at once; all three empty forgets the goal (0101). */
+export async function saveStudentGoal(key: string, goal: StudentGoal): Promise<StudentGoal | null> {
+  const { data, error } = await supabase.rpc('student_set_goal', {
+    p_key: key,
+    p_target_rw: goal.target_rw,
+    p_target_math: goal.target_math,
+    p_next_test_on: goal.next_test_on,
+  })
+  if (error) throw new Error(error.message)
+  return (data as StudentGoal | null) ?? null
 }
 
 export async function studentSignOut(key: string): Promise<void> {
