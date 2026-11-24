@@ -112,8 +112,9 @@ describe('a subject by its sections', () => {
   })
 
   it('counts the skills by colour, never-asked included', () => {
-    // Systems green, inequalities red, percentages red; the other sixteen not asked.
-    expect(m.skillCounts).toEqual({ green: 1, amber: 0, red: 2, none: 16 })
+    // On the level score: systems 4/5 mastered, percentages 2/6 (27) needs work,
+    // inequalities 0/1 (20) focus now; the other sixteen not asked.
+    expect(m.skillCounts).toEqual({ green: 1, amber: 1, red: 1, none: 16 })
   })
 
   it('gives a section the SAT band from the latest report that has one', () => {

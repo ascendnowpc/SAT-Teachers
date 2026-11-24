@@ -8,8 +8,11 @@
  */
 import { SECTIONS, SKILLS, skillLabel } from './constants.ts'
 import {
+  defaultConfig,
+  mapScore,
   progressLines,
   reached,
+  type ScorePoints,
   type ProgressConfig,
   type ProgressLine,
   type StudentProgress,
@@ -18,25 +21,48 @@ import type { BluebookRow } from './bluebook.ts'
 import type { SessionMode, SessionStatus, Subject } from './types.ts'
 
 /**
- * Where a skill turns amber and green, as a share of the questions reached.
- * Suggested to Ascend Now for confirmation; this is the one place to change.
+ * The one colour rule, everywhere a domain or a skill is coloured: on the
+ * level score — the school's scale, shown out of 40 (8 right of 10 = 40,
+ * 5 = 30, 0 = 20). From the dashboard blueprint Ascend Now aligned on:
+ * mastered from 36, focus now below 25, and everything between needs work —
+ * "a 30 and a 35 both flag, even if one's higher". This is the one place to
+ * change it.
  */
-export const RAG_CUTOFFS = { green: 0.7, amber: 0.4 } as const
+export const LEVEL_CUTOFFS = { green: 36, amber: 25 } as const
+
+/** What a domain is shown out of. */
+export const LEVEL_MAX = 40
 
 export type Rag = 'green' | 'amber' | 'red'
 
 export const RAG_LABEL: Record<Rag, string> = {
-  green: 'Strong',
-  amber: 'Getting there',
-  red: 'Needs work',
+  green: 'Mastered',
+  amber: 'Needs work',
+  red: 'Focus now',
 }
 
-export function ragFor(right: number, of: number): Rag | null {
-  if (of <= 0) return null
-  const share = right / of
-  if (share >= RAG_CUTOFFS.green) return 'green'
-  if (share >= RAG_CUTOFFS.amber) return 'amber'
+/** What each colour asks of the student, as the blueprint's key says it. */
+export const RAG_HINT: Record<Rag, string> = {
+  green: 'Mastered — keep light',
+  amber: 'Needs work',
+  red: 'Focus now',
+}
+
+export function ragForLevel(level: number): Rag {
+  if (level >= LEVEL_CUTOFFS.green) return 'green'
+  if (level >= LEVEL_CUTOFFS.amber) return 'amber'
   return 'red'
+}
+
+/** A level as the dashboard shows it: a whole number, at most 40. */
+export function outOf40(level: number): number {
+  return Math.min(LEVEL_MAX, Math.round(level))
+}
+
+/** The colour of `right` of `of`, through the school's mapping (the default one unless given). */
+export function ragFor(right: number, of: number, points: ScorePoints = defaultConfig('english').score_points): Rag | null {
+  if (of <= 0) return null
+  return ragForLevel(mapScore((right / of) * 10, points))
 }
 
 /* ------------------------------------------------------------ the payload --- */

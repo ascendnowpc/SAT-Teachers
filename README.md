@@ -47,7 +47,7 @@ npm run dev                                    # http://localhost:5173
 | **What a session is for** | A diagnostic or a targeted test (`0059`), each with its own tab under Sessions and its own booking form. A student's first diagnostic in a subject is their baseline on every skill |
 | **Targeted tests** | A short set on one skill, on several from any section, or on a whole section — built by the teacher, sat alone on the link against the clock, and read back with its own report (`0061`, `0062`, `0086`) |
 | **Parent report** | The student's **Progress** page, opened with the student's ID and PIN: English and Math apart, and inside each its four SAT domains measured one by one — the diagnostic baseline, then each check-in that asked it as columns with the lessons between, the change in level points with its verdict, the sessions spent, and every skill on its own line (`0070`) |
-| **The student's goals** | "Let's set our goals" on joining: the SAT date, its registration deadline, and a target for Reading & Writing and for Math. The PC confirms them, and from then on only the PC changes them, every version kept. Across the top of the student's home and Progress pages, with the latest SAT, the gap and the days left — flagged in the last month (`0101`) |
+| **The student's dashboard** | The blueprint Ascend Now aligned on: a first-login "let's start" (SAT date, taken it before, target and what the college needs — all skippable), then the goal kept small, **What should I do?** (an AI plan from their own scores), every full test on a **performance timeline** (click a point for its breakdown), English and Math boxes opening into their domains **out of 40**, green / amber / red, and **upload a score report** — PDF or screenshot, read by AI (`0101`, `0105`) |
 | **Check-ins** | A new targeted test starts at 10 questions (3 easy, 3 medium, 4 hard, easiest first), a minute a question in English and a minute and a half in Math (`0102`) |
 | **Domain dashboard** | On a student's progress page, for staff and their PC: the eight domains of both subjects — baseline, latest, change since the baseline with its verdict, sessions spent and where it stands (`lib/progress domainLine`) |
 | **Section Progress Report** | The parent's one-page-per-subject report: a headline sentence, the four domains with baseline, latest, change and colour in words, sessions spent, patterns in plain words, what happens next, and the goal and gap. The PC downloads it as a PDF or emails it to the parent with a note (`0103`) |
@@ -927,25 +927,53 @@ colour is its latest point, at the cut-offs (green 70%+, amber 40–69%, red bel
 `lib/subjectProgress.ts`, from `student_report(key)`'s rows (`student_report.sql`). Printed, both
 subjects come out, each on its own page.
 
-**The student's home page** opens on their goals (below), then English and Math side by side,
-each with its own tests done, accuracy, tests to do and SAT section score, **each domain's
-standing with the strongest and the one to focus on named**, its last test split by section (a
-lesson's by what the teacher revealed, a targeted test's by every question reached — the same
-rule as its score), what is up next and its earlier results. Under them, **a calendar** from this
-month to the SAT: the registration deadline, the test day and the check-ins booked between, each
-with the days to go (`lib/calendar.ts`).
+**The student's dashboard** (`/student`, the blueprint Ascend Now aligned on). The one rule: the
+total is de-emphasised — the platform lives in the two sections, the domains and the timeline.
 
-**The goals** (`0101`). A student with none opens their home page on **"Let's set our goals"**: the
-SAT date, its registration deadline, and the score they aim for in Reading and Writing and in Math
-(200–800 in tens; the total is the two added, never stored). They — or their parent, on the
-student's account — set them with `student_set_goal(key, rw, math, next_on, reg_on)`, until **their
-PC confirms them**: the PC (their own students) or an admin, with `set_student_goal(student, …)`
-on the staff progress page — *Confirm as they are*, or *Change*, which confirms too. From then on
-the student reads them and only the PC changes them, and every version is kept in
-`student_goal_history` with who set it. Across the top of the student's pages: the goal, the
-latest SAT and the gap, the next SAT and the days left, and the registration deadline, urgent in
-its last week; in the last 30 days before the test, each half still short of its goal is flagged
-in points to go. Staff read every student's goals; a PC their own students' (`student_goal.sql`).
+- **First login** — "let's start", five steps, every one skippable and nothing locked in: welcome;
+  *when's your SAT* — the next official dates in a tap (`lib/satDates.ts`, College Board's 2026–27
+  calendar, which also fills the registration deadline), another day, or not sure yet; *taken it
+  before* — upload the report (PDF or screenshot) or type the score, which goes on the timeline,
+  marked as from before they joined; *target and why* — the total and what their college needs;
+  *let's start*. Finishing or skipping is remembered (`student_finish_onboarding`). Students still
+  sign in with their ID and PIN: Google sign-in needs a Google OAuth client in the Supabase project
+  and a way to tie a Google account to a student, and is not built yet.
+- **Aiming for** — the total goal, small on purpose, editable whenever they like; the latest SAT,
+  the SAT date with the days left, the registration deadline (urgent in its last week) and the
+  college.
+- **Guidance, on demand** — *What should I do?* asks `student_plan`, which shows the model each
+  domain and skill out of 40 with its colour, the goal, the latest SAT and the days to the exam, and
+  nothing else (`lib/studyPlan.ts`); it writes a headline and three to five steps, each naming a
+  domain or skill it was shown and the numbers behind it, and a step about anything else is
+  dropped. *2 weeks to exam* and *1 week to go* ask for the plan for those last weeks.
+- **Performance timeline** — every full test (official SATs and practice tests, those from before
+  they joined dashed) and the target at the end (`lib/timeline.ts`). Clicking a point sets the
+  boxes below to that test: its section scores, and each domain as it stood on its day.
+- **English and Math** — each box's badge is the chosen test's section score out of 800; inside,
+  its four domains **out of 40** (the level score: 8 right of 10 = 40) with a bar, the SAT's own
+  band where the report gave one, and a click into its skills. **One colour rule**, everywhere in
+  the app (`LEVEL_CUTOFFS`, `lib/parentReport.ts`): mastered from 36, focus now below 25, and
+  between them needs work — "a 30 and a 35 both flag".
+- **Upload the score report** — College Board's PDF is read in the browser as before; a screenshot,
+  a photo or a scanned PDF goes to `read_score_report`, which has the model copy what is printed
+  and checks it against the SAT's scale (`lib/scoreReader.ts`) — off-scale numbers dropped, three
+  that do not add up flagged, a PSAT refused. Either way it lands in the form, checked, and is saved
+  only when they press Save. Nothing is kept but the scores.
+- **Your tests** — what is booked and the latest scores, both subjects.
+
+**The teacher sees the same view**: the staff progress page opens on the student's own dashboard —
+goal, *What should they do?*, the timeline and the two boxes — with *Book a check-in* on a domain
+that needs work, the baseline/change/sessions table under it, and the score card reading
+screenshots too.
+
+**The goal** (`0101`, `0105`). The total they aim for (400–1600; the two sections optional, and
+with no total the two added), the SAT date and its registration deadline, and what their college
+needs. Never locked: the student changes it whenever they like with `student_set_goal`, and their
+change clears the PC's confirmation, so the PC sees it to confirm again; the PC (their own
+students) or an admin sets it with `set_student_goal`, which confirms it. Every version is kept in
+`student_goal_history`. `student_goal(key)` returns the goal, the day they joined and whether they
+have been through the first login. Staff read every student's goal; a PC their own students'
+(`student_goal.sql`).
 
 **The domain dashboard** (staff and the student's PC, `/students/:id/progress`). Above the skill
 lines, the eight domains of both subjects on one screen: baseline, latest level, change since the
@@ -1456,6 +1484,8 @@ supabase functions deploy manage_pc                          # an admin's browse
 supabase functions deploy accept_pc_invite --no-verify-jwt   # the join page calls it, signed out
 supabase functions deploy archive_reports --no-verify-jwt    # the clean-up calls it, with no token (0087)
 supabase functions deploy email_parent_report                # a PC's browser calls it, signed in (0103)
+supabase functions deploy read_score_report                  # reads a score report's picture (0105)
+supabase functions deploy student_plan                       # "What should I do?" (0105)
 
 # once per project, so the triggers know where to call:
 #   insert into app_config (key, value)
@@ -1489,6 +1519,17 @@ show a broken picture. Neither holds a destructive statement, so both go through
 **Order, for `0090`.** Safe for the app being served: the new columns have defaults and
 `save_bluebook_score`'s new arguments are optional. It holds `drop function`, so it goes through the
 SQL editor.
+
+**Order, for `0105`.** Apply it **with** the app that has the blueprint dashboard: it replaces
+`student_set_goal` and `set_student_goal` with versions that take the total and the college, so
+the branch app from before it cannot save a goal once it is applied (the app on `main` never
+called them). Deploy the two new functions with it; both read `GEMINI_API_KEY`, which
+`extract_session_context` already has, and `READER_MODEL` / `PLAN_MODEL` if set:
+
+```bash
+supabase functions deploy read_score_report
+supabase functions deploy student_plan
+```
 
 **Order, for `0101`–`0104`.** All four are safe for the app being served before them: new tables
 and functions, and `0102` only moves a default an admin had not changed. Apply them **before or

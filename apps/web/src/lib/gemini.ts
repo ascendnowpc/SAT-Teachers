@@ -74,6 +74,8 @@ export interface ReadCall {
   prompt: string
   /** `EXTRACTION_SCHEMA` — plain JSON Schema, translated below. */
   schema: unknown
+  /** Files the model reads with the prompt — a score report's picture or PDF — base64, with their type. */
+  files?: { mimeType: string; data: string }[]
 }
 
 export interface Reader {
@@ -148,7 +150,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 export function geminiReader(apiKey: string, model: string = DEFAULT_MODEL): Reader {
   return {
     model,
-    async read({ system, prompt, schema }) {
+    async read({ system, prompt, schema, files }) {
       const response = await withRetry(() =>
         fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -157,7 +159,15 @@ export function geminiReader(apiKey: string, model: string = DEFAULT_MODEL): Rea
             headers: { 'x-goog-api-key': apiKey, 'content-type': 'application/json' },
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: system }] },
-              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    ...(files ?? []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })),
+                    { text: prompt },
+                  ],
+                },
+              ],
               generationConfig: {
                 responseMimeType: 'application/json',
                 responseSchema: toGeminiSchema(schema),

@@ -165,7 +165,7 @@ describe('the report', () => {
       latest: { right: 8, of: 10 },
       change: 16,
       verdict: 'Improved',
-      status: 'Strong',
+      status: 'Mastered',
       sessions: 4,
       tests: 3,
     })

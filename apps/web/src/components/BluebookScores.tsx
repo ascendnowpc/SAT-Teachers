@@ -10,6 +10,7 @@ import {
   ordinal,
   readBluebook,
   sameName,
+  type BluebookReading,
   type BluebookScore,
 } from '../lib/bluebook'
 import { addedBy, type BluebookApi, type BluebookListRow } from '../lib/bluebookApi'
@@ -37,9 +38,12 @@ export function BluebookScores({
   api,
   studentName,
   onChanged,
+  readPicture,
 }: {
   /** The door scores are read and written through: staff, the PC, or the student's key. */
   api: BluebookApi
+  /** Reads a picture of the report — a screenshot, a photo, a scanned PDF — when the app can (read_score_report). */
+  readPicture?: (file: File) => Promise<BluebookReading>
   /** Whom the page is for — a report for somebody else is said to be. */
   studentName: string | null
   /** After a score is added or deleted: for a page that shows them elsewhere too. */
@@ -104,6 +108,7 @@ export function BluebookScores({
         <BluebookAdd
           api={api}
           studentName={studentName}
+          readPicture={readPicture}
           onDone={async (saved) => {
             setAdding(false)
             if (saved) {
@@ -243,14 +248,18 @@ const asNumber = (v: string): number | null => (v.trim() === '' ? null : Number(
  * in the form, with what was and was not found, and nothing is saved until
  * Save — a teacher changing a score it read makes it a typed one.
  */
-function BluebookAdd({
+export function BluebookAdd({
   api,
   studentName,
   onDone,
+  readPicture,
+  cancelLabel = 'Cancel',
 }: {
   api: BluebookApi
   studentName: string | null
   onDone: (saved: boolean) => Promise<void>
+  readPicture?: (file: File) => Promise<BluebookReading>
+  cancelLabel?: string
 }) {
   const [score, setScore] = useState<BluebookScore>(EMPTY_SCORE)
   const [notes, setNotes] = useState<string[]>([])
@@ -262,8 +271,7 @@ function BluebookAdd({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  function take(text: string) {
-    const r = readBluebook(text)
+  function takeReading(r: BluebookReading) {
     setScore(r.score)
     setNotes(r.notes)
     setReportName(r.name)
@@ -271,14 +279,23 @@ function BluebookAdd({
     setEdited(false)
   }
 
+  function take(text: string) {
+    takeReading(readBluebook(text))
+  }
+
   async function fromFile(file: File) {
     setError(null)
     setReading(true)
     try {
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-        take((await pdfLines(await file.arrayBuffer())).join('\n'))
+        const r = readBluebook((await pdfLines(await file.arrayBuffer())).join('\n'))
+        // A scanned PDF has no text to read: its picture is read instead.
+        const nothing = r.score.total === null && r.score.readingWriting === null && r.score.math === null
+        takeReading(nothing && readPicture ? await readPicture(file) : r)
       } else if (file.type.startsWith('text/') || /\.txt$/i.test(file.name)) {
         take(await file.text())
+      } else if (file.type.startsWith('image/') && readPicture) {
+        takeReading(await readPicture(file))
       } else {
         setNotes([])
         setError('A picture cannot be read here. Type the scores from it below.')
@@ -331,11 +348,15 @@ function BluebookAdd({
       <div className="grid-2">
         <Field
           label="Read it off the score report"
-          hint="College Board’s PDF: the SAT score report, or a practice test’s from My Practice. It is read here and not kept: only the scores are saved."
+          hint={
+            readPicture
+              ? 'College Board’s PDF, or a screenshot or photo of the report. It is read and not kept: only the scores are saved, once you have checked them.'
+              : 'College Board’s PDF: the SAT score report, or a practice test’s from My Practice. It is read here and not kept: only the scores are saved.'
+          }
         >
           <input
             type="file"
-            accept=".pdf,.txt,application/pdf,text/plain"
+            accept={readPicture ? '.pdf,.txt,application/pdf,text/plain,image/*' : '.pdf,.txt,application/pdf,text/plain'}
             disabled={reading}
             onChange={(e) => {
               const f = e.target.files?.[0]
@@ -477,7 +498,7 @@ function BluebookAdd({
       {problem && <p className="field-hint">{problem}</p>}
       <div className="panel-actions">
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void onDone(false)}>
-          Cancel
+          {cancelLabel}
         </button>
         <button
           type="button"
