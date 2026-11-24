@@ -1,5 +1,9 @@
 import { sectionLabel, skillList, skillsOn, subjectLabel } from './constants'
-import type { StudentGoal } from './goal'
+import type { BluebookReading } from './bluebook'
+import { callFunction } from './functions'
+import type { GoalState, StudentGoal } from './goal'
+import { MAX_READ_BYTES } from './scoreReader'
+import type { Horizon, StudyPlan } from './studyPlan'
 import type { StudentReport } from './parentReport'
 import type { SignInResult, StudentHome, StudentTest } from './studentAccount'
 import type { StudentReportBundle, StudentReportList } from './studentReports'
@@ -61,24 +65,61 @@ export async function changeStudentPin(key: string, current: string, next: strin
   return data as PinChange
 }
 
-/** Their goal and the day of their next SAT (0101), or null when none is set. */
-export async function loadStudentGoal(key: string): Promise<StudentGoal | null> {
-  const { data, error } = await supabase.rpc('student_goal', { p_key: key })
+/** Their goal, when they joined, and whether they have been through the first login (0101, 0105). */
+export async function loadStudentGoal(key: string): Promise<GoalState> {
+  const { data, error } = await supabase.rpc('student_goal_state', { p_key: key })
   if (error) throw new Error(error.message)
-  return (data as StudentGoal | null) ?? null
+  return data as GoalState
 }
 
-/** Sets them all at once, until the PC confirms them; all empty forgets the goal (0101). */
-export async function saveStudentGoal(key: string, goal: StudentGoal): Promise<StudentGoal | null> {
+/** Sets the goal, whenever they like; it clears the PC's confirmation (0105). */
+export async function saveStudentGoal(key: string, goal: StudentGoal): Promise<GoalState> {
   const { data, error } = await supabase.rpc('student_set_goal', {
     p_key: key,
+    p_target_total: goal.target_total ?? null,
     p_target_rw: goal.target_rw,
     p_target_math: goal.target_math,
     p_next_test_on: goal.next_test_on,
     p_reg_on: goal.registration_deadline_on ?? null,
+    p_college_note: goal.college_note ?? null,
   })
   if (error) throw new Error(error.message)
-  return (data as StudentGoal | null) ?? null
+  return data as GoalState
+}
+
+/** The first-login steps are done, or skipped: they are not asked again (0105). */
+export async function finishOnboarding(key: string): Promise<GoalState> {
+  const { data, error } = await supabase.rpc('student_finish_onboarding', { p_key: key })
+  if (error) throw new Error(error.message)
+  return data as GoalState
+}
+
+/** A file's bytes as base64, in chunks a long picture does not overflow. */
+export async function fileBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binary)
+}
+
+/**
+ * A picture of a score report — a screenshot, a photo, a scanned PDF — read by
+ * read_score_report. With a key, as the student; without, as whoever is signed in.
+ */
+export async function readScorePicture(file: File, key?: string): Promise<BluebookReading> {
+  if (file.size > MAX_READ_BYTES) throw new Error('That file is over 6 MB. Try a smaller screenshot.')
+  const mime = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : '')
+  return await callFunction<BluebookReading>('read_score_report', { key, file: await fileBase64(file), mime })
+}
+
+/** "What should I do?" — the plan student_plan writes from their numbers. */
+export async function askForPlan(input: { key?: string; studentId?: string; horizon: Horizon }): Promise<StudyPlan> {
+  const r = await callFunction<{ plan: StudyPlan }>('student_plan', {
+    key: input.key,
+    student_id: input.studentId,
+    horizon: input.horizon,
+  })
+  return r.plan
 }
 
 export async function studentSignOut(key: string): Promise<void> {

@@ -42,10 +42,12 @@ const english: ReportSubject = {
 
 describe('ragFor', () => {
   it('is green from 70%, amber from 40%, red below', () => {
+    // On the level score: 7/10 ≈ 37 mastered; 6/10 ≈ 33 and 3/10 = 26 need work; 2/10 = 24 is focus now.
     expect(ragFor(7, 10)).toBe('green')
     expect(ragFor(4, 10)).toBe('amber')
     expect(ragFor(6, 10)).toBe('amber')
-    expect(ragFor(3, 10)).toBe('red')
+    expect(ragFor(3, 10)).toBe('amber')
+    expect(ragFor(2, 10)).toBe('red')
   })
 
   it('is nothing with nothing asked', () => {

@@ -10,7 +10,7 @@
  */
 import { SECTIONS, SKILLS } from './constants.ts'
 import { latestDomains, SAT_DOMAINS, type Band, type BluebookRow } from './bluebook.ts'
-import { ragFor, type Rag } from './parentReport.ts'
+import { ragForLevel, type Rag } from './parentReport.ts'
 import {
   domainLine,
   progressLine,
@@ -134,7 +134,7 @@ export function measureOf(line: ProgressLine | null): Measure {
     latest,
     answered: attempts.reduce((n, a) => n + a.of, 0),
     right: attempts.reduce((n, a) => n + a.right, 0),
-    rag: latest ? ragFor(latest.right, latest.of) : null,
+    rag: latest ? ragForLevel(latest.level) : null,
     change: two ? percent(latest)! - percent(first)! : null,
     levelChange: two ? Math.round(latest!.level - first!.level) : null,
     verdict: line?.points[line.points.length - 1]?.step?.verdict ?? null,

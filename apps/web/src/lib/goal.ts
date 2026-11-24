@@ -1,24 +1,56 @@
 /**
- * The student's goal (0101): the score they aim for in each half of the SAT —
- * Reading and Writing, and Math — the day of their next one and its
- * registration deadline. The total is the two added, and is never stored. The
- * student enters it on joining; their PC confirms it, and from then on only
- * the PC changes it.
+ * The student's goal (0101, 0105): the total they aim for — kept small on
+ * screen, on purpose — and, if they like, the two sections; the day of their
+ * next SAT and its registration deadline; and what their college needs. Set
+ * on their first login, editable whenever they like: nothing is locked in. The
+ * PC confirms it, and a change by the student waits for the PC again.
  */
 import { byDay, type BluebookRow } from './bluebook.ts'
 
 export interface StudentGoal {
+  /** The total they aim for, 400–1600; with none, the two sections added. */
+  target_total?: number | null
   target_rw: number | null
   target_math: number | null
   /** YYYY-MM-DD. */
   next_test_on: string | null
   /** YYYY-MM-DD; on or before the test. */
   registration_deadline_on?: string | null
+  /** What their college needs, in their words. */
+  college_note?: string | null
   /** When the PC confirmed it; null while it waits for them. */
   confirmed_at?: string | null
 }
 
-export const NO_GOAL: StudentGoal = { target_rw: null, target_math: null, next_test_on: null, registration_deadline_on: null }
+export const NO_GOAL: StudentGoal = {
+  target_total: null,
+  target_rw: null,
+  target_math: null,
+  next_test_on: null,
+  registration_deadline_on: null,
+  college_note: null,
+}
+
+/** What student_goal returns (0105): the goal, when they joined, and whether they have been through the first login. */
+export interface GoalState {
+  joined_on: string | null
+  onboarded_at: string | null
+  goal: StudentGoal | null
+}
+
+/** A total as College Board scores it: 400 to 1600, in tens. */
+export function isTotalScore(n: number): boolean {
+  return Number.isInteger(n) && n >= 400 && n <= 1600 && n % 10 === 0
+}
+
+/** "1450" → 1450, "" → null, anything else → undefined (not a total). */
+export function parseTotal(text: string): number | null | undefined {
+  const t = text.trim()
+  if (t === '') return null
+  if (!/^\d{3,4}$/.test(t)) return undefined
+  const n = Number(t)
+  return isTotalScore(n) ? n : undefined
+}
 
 /** A section score as College Board scores it: 200 to 800, in tens. */
 export function isSectionScore(n: number): boolean {
@@ -35,7 +67,8 @@ export function parseTarget(text: string): number | null | undefined {
 }
 
 /** What is wrong with a goal as typed, in the form's words, or null. */
-export function goalProblem(rw: string, math: string, nextOn: string, today: string, regOn = ''): string | null {
+export function goalProblem(rw: string, math: string, nextOn: string, today: string, regOn = '', total = ''): string | null {
+  if (parseTotal(total) === undefined) return 'Your goal is a score from 400 to 1600, in tens.'
   if (parseTarget(rw) === undefined) return 'Reading & Writing is a score from 200 to 800, in tens.'
   if (parseTarget(math) === undefined) return 'Math is a score from 200 to 800, in tens.'
   if (nextOn && !/^\d{4}-\d{2}-\d{2}$/.test(nextOn)) return 'Choose the day of your next SAT.'
@@ -81,11 +114,16 @@ export function gapFlag(
 
 /** The goal's total, when both halves are set. */
 export function goalTotal(g: StudentGoal | null): number | null {
-  return g && g.target_rw !== null && g.target_math !== null ? g.target_rw + g.target_math : null
+  if (!g) return null
+  if (g.target_total != null) return g.target_total
+  return g.target_rw !== null && g.target_math !== null ? g.target_rw + g.target_math : null
 }
 
 export function hasGoal(g: StudentGoal | null): boolean {
-  return !!g && (g.target_rw !== null || g.target_math !== null || g.next_test_on !== null || !!g.registration_deadline_on)
+  return (
+    !!g &&
+    (g.target_total != null || g.target_rw !== null || g.target_math !== null || g.next_test_on !== null || !!g.registration_deadline_on || !!g.college_note)
+  )
 }
 
 /** Today in the student's own calendar, YYYY-MM-DD. */

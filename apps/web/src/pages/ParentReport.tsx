@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
 import { DomainBands } from '../components/DomainBands'
-import { GoalBar } from '../components/StudentGoal'
 import { SubjectSwitch, SubjectView } from '../components/SubjectProgress'
 import { StudentShell } from '../components/StudentShell'
 import { Notice } from '../components/ui'
 import { byDay, dayLabel, latestDomains, ordinal, type BluebookRow } from '../lib/bluebook'
 import { latestSat, type StudentGoal } from '../lib/goal'
-import { asProgress, RAG_CUTOFFS, type StudentReport } from '../lib/parentReport'
+import { asProgress, LEVEL_CUTOFFS, LEVEL_MAX, RAG_HINT, type StudentReport } from '../lib/parentReport'
 import { storeStudentKey, storedStudentKey } from '../lib/studentAccount'
 import { studentBluebook } from '../lib/bluebookApi'
 import { loadStudentGoal, loadStudentReport } from '../lib/studentApi'
@@ -38,7 +37,7 @@ export function ParentReport() {
       setReport(await loadStudentReport(key))
       // On the side: a failure costs the page its goal, not the progress.
       loadStudentGoal(key)
-        .then(setGoal)
+        .then((state) => setGoal(state.goal))
         .catch(() => setGoal(null))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not load the report.'
@@ -117,13 +116,6 @@ export function ParentReport() {
               </div>
             </div>
 
-            <GoalBar
-              pinKey={key}
-              goal={goal}
-              sat={latest}
-              onSaved={setGoal}
-            />
-
             <SubjectSwitch
               measures={measures}
               sat={latest ? { rw: latest.rw, math: latest.math } : null}
@@ -149,17 +141,17 @@ export function ParentReport() {
               <p className="progress-key">
                 <span className="rag-chip rag-chip-green">
                   <span className="rag-chip-dot" aria-hidden="true" />
-                  Strong {Math.round(RAG_CUTOFFS.green * 100)}%+
+                  {RAG_HINT.green} · {LEVEL_CUTOFFS.green}+
                 </span>
                 <span className="rag-chip rag-chip-amber">
                   <span className="rag-chip-dot" aria-hidden="true" />
-                  Getting there {Math.round(RAG_CUTOFFS.amber * 100)}–{Math.round(RAG_CUTOFFS.green * 100) - 1}%
+                  {RAG_HINT.amber} · {LEVEL_CUTOFFS.amber}–{LEVEL_CUTOFFS.green - 1}
                 </span>
                 <span className="rag-chip rag-chip-red">
                   <span className="rag-chip-dot" aria-hidden="true" />
-                  Needs work below {Math.round(RAG_CUTOFFS.amber * 100)}%
+                  {RAG_HINT.red} · below {LEVEL_CUTOFFS.amber}
                 </span>
-                <span className="progress-key-note">From the latest test that asked it.</span>
+                <span className="progress-key-note">Out of {LEVEL_MAX}, from the latest test that asked it — not a predicted SAT score.</span>
               </p>
             </div>
           </>

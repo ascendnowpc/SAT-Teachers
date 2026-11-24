@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BluebookScores } from '../components/BluebookScores'
 import { DomainDashboard, useBothSubjects } from '../components/DomainDashboard'
-import { GoalPanel } from '../components/StudentGoal'
+import { ColourKey, Guidance, PerformanceTimeline, SectionBoxes } from '../components/StudentDashboard'
+import { AimingFor, GoalPanel } from '../components/StudentGoal'
 import { IconBack } from '../components/icons'
 import {
   ProgressLineView,
@@ -24,7 +25,11 @@ import {
 import { signedInBluebook } from '../lib/bluebookApi'
 import { loadConfig, loadProgress } from '../lib/progressApi'
 import { EMPTY_PROGRESS, measureSubject, SUBJECT_ORDER, type SubjectMeasure } from '../lib/subjectProgress'
-import { row, supabase } from '../lib/supabase'
+import { row, rows, supabase } from '../lib/supabase'
+import type { BluebookRow } from '../lib/bluebook'
+import { daysUntil, hasGoal, latestSat, localToday, type StudentGoal } from '../lib/goal'
+import { askForPlan, readScorePicture } from '../lib/studentApi'
+import { asOfDay, defaultPoint, timelinePoints } from '../lib/timeline'
 import { formatUtc } from '../lib/time'
 import type { Profile, Subject } from '../lib/types'
 
@@ -90,13 +95,40 @@ export function StudentProgress() {
   )
   const completed = progress?.sessions.filter((s) => s.status === 'completed').length ?? 0
 
-  // The eight domains, both subjects at once (F7).
+  // The student's own view (the dashboard blueprint: "teacher sees the same
+  // view"): their SAT scores on the timeline, their goal, and both subjects'
+  // eight domains.
+  const [satRows, setSatRows] = useState<BluebookRow[]>([])
+  const [goal, setGoal] = useState<StudentGoal | null>(null)
+  const [version, setVersion] = useState(0)
+  const [selected, setSelected] = useState<string | null>(null)
+  useEffect(() => {
+    if (!id) return
+    void supabase
+      .from('bluebook_scores')
+      .select('test_name, taken_on, total, reading_writing, math, official, domains')
+      .eq('student_id', id)
+      .then(({ data }) => setSatRows(rows<BluebookRow>(data)))
+    void supabase
+      .from('student_goals')
+      .select('target_total, target_rw, target_math, next_test_on, registration_deadline_on, college_note, confirmed_at')
+      .eq('student_id', id)
+      .maybeSingle()
+      .then(({ data }) => setGoal(row<StudentGoal>(data)))
+  }, [id, version])
+
   const both = useBothSubjects(id)
   const measures = useMemo(() => {
     const out: Partial<Record<Subject, SubjectMeasure>> = {}
-    for (const s of SUBJECT_ORDER) out[s] = measureSubject(s, both.progress[s] ?? EMPTY_PROGRESS)
+    for (const s of SUBJECT_ORDER) out[s] = measureSubject(s, both.progress[s] ?? EMPTY_PROGRESS, satRows)
     return out
-  }, [both.progress])
+  }, [both.progress, satRows])
+  const points = useMemo(
+    () => timelinePoints(satRows, hasGoal(goal) ? goal : null, student?.created_at?.slice(0, 10) ?? null),
+    [satRows, goal, student?.created_at],
+  )
+  const chosen = selected && points.some((p) => p.id === selected) ? selected : defaultPoint(points)
+  const days = goal?.next_test_on ? daysUntil(goal.next_test_on, localToday()) : null
 
   if (!id) return <div className="page">No such student.</div>
 
@@ -113,21 +145,63 @@ export function StudentProgress() {
         </h1>
       </div>
       {student?.pc && <p className="muted">PC: {student.pc}</p>}
-      <GoalPanel studentId={id} canEdit={isAdmin || (isPc && !!student && student.pc_id === profile?.id)} />
+      <GoalPanel
+        key={version}
+        studentId={id}
+        canEdit={isAdmin || (isPc && !!student && student.pc_id === profile?.id)}
+      />
 
-      <section className="staff-domains">
+      {/* What the student sees, as they see it: one place for the whole journey. */}
+      <section className="staff-same-view blueprint">
         <div className="staff-domains-head">
-          <h2>Domains</h2>
+          <h2>The student’s view</h2>
           <Link className="btn btn-ghost btn-sm" to={`/students/${id}/section-report`}>
             Section Progress Report
           </Link>
         </div>
-        {both.loading ? <div className="page-loading">Loading…</div> : <DomainDashboard measures={measures} />}
+        <div className="dash-top">
+          <AimingFor goal={hasGoal(goal) ? goal : null} sat={latestSat(satRows)} who="their" />
+          <Guidance who="they" daysToExam={days} ask={(h) => askForPlan({ studentId: id, horizon: h })} />
+        </div>
+        <PerformanceTimeline
+          points={points}
+          selected={chosen}
+          onSelect={setSelected}
+          empty="No SAT scores yet. Add one below — read from the report, or a screenshot of it."
+        />
+        {both.loading ? (
+          <div className="page-loading">Loading…</div>
+        ) : (
+          <SectionBoxes
+            measures={measures}
+            point={points.find((p) => p.id === chosen) ?? null}
+            asOf={asOfDay(points, chosen)}
+            action={(_, d) =>
+              isTeacher && d.rag !== 'green' ? (
+                <Link className="dash-chip" to="/sessions/new/targeted">
+                  Book a check-in →
+                </Link>
+              ) : null
+            }
+          />
+        )}
+        <ColourKey />
+        {!both.loading && (
+          <details className="staff-domain-detail">
+            <summary>Baseline, change and sessions by domain</summary>
+            <DomainDashboard measures={measures} />
+          </details>
+        )}
       </section>
 
       {/* The whole SAT, both sections: above the subjects, not inside one (0088). */}
       {bluebook && (isTeacher || isPc) && (
-        <BluebookScores api={bluebook} studentName={student?.full_name ?? null} />
+        <BluebookScores
+          api={bluebook}
+          studentName={student?.full_name ?? null}
+          readPicture={(file) => readScorePicture(file)}
+          onChanged={() => setVersion((v) => v + 1)}
+        />
       )}
 
       <div className="progress-tabs subject-tabs" role="group" aria-label="Subject">

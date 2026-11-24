@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { dayLabel } from '../lib/bluebook'
 import {
   countdownLabel,
-  gapFlag,
+  daysUntil,
   goalProblem,
   goalTotal,
   hasGoal,
   localToday,
   parseTarget,
+  parseTotal,
   registrationLabel,
   toGo,
   type StudentGoal,
 } from '../lib/goal'
-import { saveStudentGoal } from '../lib/studentApi'
+import { deadlineFor, satDateFor, upcomingSatDates } from '../lib/satDates'
 import { rows, supabase } from '../lib/supabase'
 import { formatUtc } from '../lib/time'
 import { Field, Notice } from './ui'
@@ -26,155 +26,83 @@ export interface LatestSat {
 }
 
 /**
- * The student's goals (0101), across the top of their home and progress
- * pages: the score they aim for in each half of the SAT beside the latest one,
- * and the day of their next SAT and its registration deadline, with the days
- * left. With none yet, the home page opens on "Let's set our goals". Their PC
- * confirms them; from then on the student reads them and the PC changes them.
+ * "Aiming for" (the dashboard blueprint): the total the student aims for —
+ * kept small on purpose, because the work is in the sections — with the day
+ * of their SAT and what their college needs. Editable whenever they like.
  */
-export function GoalBar({
-  pinKey,
+export function AimingFor({
   goal,
   sat,
-  onSaved,
-  onboarding = false,
+  onEdit,
+  editLabel = 'edit',
+  who = 'your',
 }: {
-  pinKey: string
   goal: StudentGoal | null
   sat: LatestSat | null
-  onSaved: (g: StudentGoal | null) => void
-  /** The home page: with no goal yet, the form itself, open. */
-  onboarding?: boolean
+  onEdit?: () => void
+  editLabel?: string
+  /** "your" on the student's page, "their" on staff's. */
+  who?: 'your' | 'their'
 }) {
-  const [editing, setEditing] = useState(false)
   const today = localToday()
-  const confirmed = !!goal?.confirmed_at
-
-  async function save(g: StudentGoal) {
-    onSaved(await saveStudentGoal(pinKey, g))
-    setEditing(false)
-  }
-
-  if (onboarding && !hasGoal(goal)) {
-    return (
-      <GoalForm
-        title="Let’s set our goals"
-        intro="The day of your SAT, its registration deadline, and the score you’re aiming for in each half. Your PC will go through them with you and confirm them."
-        initial={goal}
-        today={today}
-        submitLabel="Save my goals"
-        onSubmit={save}
-      />
-    )
-  }
-  if (editing) {
-    return <GoalForm title="Your goals" initial={goal} today={today} onSubmit={save} onCancel={() => setEditing(false)} />
-  }
-
   const total = goalTotal(goal)
-  const next = goal?.next_test_on ?? null
-  const passed = next !== null && next < today
-  const reg = !passed ? registrationLabel(goal?.registration_deadline_on, today) : null
-  const flag = gapFlag(goal, sat, today)
-
+  const next = goal?.next_test_on && goal.next_test_on >= today ? goal.next_test_on : null
+  const reg = next ? registrationLabel(goal?.registration_deadline_on, today) : null
+  const gap = toGo(sat?.total, total)
   return (
-    <>
-      <section className={`goal-bar${flag ? ' is-flagged' : ''}`} aria-label="Your goals">
-        <div className="goal-cell">
-          <div className="goal-label">Your goal</div>
-          {goal && (goal.target_rw !== null || goal.target_math !== null) ? (
+    <section className="dash-panel aim-card" aria-label="Aiming for">
+      <div className="aim-label">Aiming for</div>
+      <div className="aim-row">
+        <span className="aim-figure num">{total ?? '—'}</span>
+        {onEdit && (
+          <button type="button" className="aim-edit" onClick={onEdit}>
+            ✎ {editLabel}
+          </button>
+        )}
+      </div>
+      <p className="aim-note">
+        {total === null ? `Set ${who} goal — ` : ''}total score kept small on purpose —{' '}
+        <b>we work the sections, not the big number</b>
+      </p>
+      <ul className="aim-facts">
+        {sat && (
+          <li>
+            Latest SAT <b className="num">{sat.total}</b>
+            {gap && <span className="aim-gap">{gap.toLowerCase()}</span>}
+          </li>
+        )}
+        <li>
+          {next ? (
             <>
-              <div className="goal-figure num">{total ?? '—'}</div>
-              <div className="goal-parts">
-                <GoalPart name="Reading & Writing" target={goal.target_rw} score={sat?.rw ?? null} />
-                <GoalPart name="Math" target={goal.target_math} score={sat?.math ?? null} />
-              </div>
+              SAT <b>{dayLabel(next)}</b> <span className="aim-gap">{countdownLabel(next, today)}</span>
             </>
           ) : (
-            <p className="goal-empty">Set the score you’re aiming for in Reading &amp; Writing and in Math.</p>
+            <span className="muted">SAT date not set</span>
           )}
-        </div>
-
-        <div className="goal-cell">
-          <div className="goal-label">Latest SAT</div>
-          {sat ? (
-            <>
-              <div className="goal-figure num">{sat.total}</div>
-              <div className="goal-sub">
-                {dayLabel(sat.on)}
-                {total !== null && <span className="goal-gap">{toGo(sat.total, total)}</span>}
-              </div>
-            </>
-          ) : (
-            <p className="goal-empty">
-              No SAT score yet. <Link to="/student/report#sat-scores">Add one</Link>
-            </p>
-          )}
-        </div>
-
-        <div className="goal-cell">
-          <div className="goal-label">Next SAT</div>
-          {next && !passed ? (
-            <>
-              <div className="goal-figure goal-date">{dayLabel(next)}</div>
-              <div className="goal-sub">
-                <span className="goal-countdown">{countdownLabel(next, today)}</span>
-              </div>
-            </>
-          ) : (
-            <p className="goal-empty">
-              {passed ? `${dayLabel(next!)} has passed — add your next one.` : 'Add the day of your next SAT.'}
-            </p>
-          )}
-          {reg && (
-            <div className={`goal-reg${reg.urgent ? ' is-urgent' : ''}`}>
-              {reg.text}
-              {goal?.registration_deadline_on && <span> · {dayLabel(goal.registration_deadline_on)}</span>}
-            </div>
-          )}
-        </div>
-
-        <div className="goal-action no-print">
-          {confirmed ? (
-            <span className="goal-confirmed" title={`Confirmed ${formatUtc(goal!.confirmed_at!)}`}>
-              ✓ Confirmed by your PC
-            </span>
-          ) : (
-            <>
-              <button type="button" className={hasGoal(goal) ? 'goal-edit' : 'btn-lime'} onClick={() => setEditing(true)}>
-                {hasGoal(goal) ? 'Edit' : 'Set goals'}
-              </button>
-              {hasGoal(goal) && <span className="goal-waiting">Your PC will confirm these</span>}
-            </>
-          )}
-        </div>
-      </section>
-      {flag && (
-        <p className="goal-flag" role="status">
-          <b>{flag.days === 0 ? 'Test day.' : `${flag.days} day${flag.days === 1 ? '' : 's'} to the SAT.`}</b>{' '}
-          {flag.parts.map((p) => `${p.name}: ${p.gap} points to go`).join(' · ')}
-        </p>
-      )}
-    </>
+        </li>
+        {reg && <li className={reg.urgent ? 'is-urgent' : ''}>{reg.text}</li>}
+        {goal?.college_note && (
+          <li>
+            College: <b>{goal.college_note}</b>
+          </li>
+        )}
+        {hasGoal(goal) && (
+          <li className="muted">{goal?.confirmed_at ? '✓ Confirmed by the PC' : 'The PC will go through it'}</li>
+        )}
+      </ul>
+    </section>
   )
 }
 
-function GoalPart({ name, target, score }: { name: string; target: number | null; score: number | null }) {
-  const gap = toGo(score, target)
-  return (
-    <span className="goal-part">
-      <span className="goal-part-name">{name}</span> <b className="num">{target ?? '—'}</b>
-      {gap && <span className={`goal-part-gap${gap === 'Reached' ? ' is-reached' : ''}`}>{gap}</span>}
-    </span>
-  )
-}
-
-/** The four fields — two targets, two days — for the student or their PC. All empty forgets the goal. */
+/**
+ * The goal's fields — the total, the SAT date (an official one in a tap, or
+ * another day, or not sure yet), its registration deadline, what the college
+ * needs, and the two sections if they like. Everything may be left empty.
+ */
 export function GoalForm({
   title,
   intro,
   initial,
-  today,
   submitLabel = 'Save',
   onSubmit,
   onCancel,
@@ -182,22 +110,22 @@ export function GoalForm({
   title: string
   intro?: string
   initial: StudentGoal | null
-  today: string
   submitLabel?: string
   onSubmit: (g: StudentGoal) => Promise<void>
   onCancel?: () => void
 }) {
+  const today = localToday()
+  const [total, setTotal] = useState(initial?.target_total?.toString() ?? goalTotal(initial)?.toString() ?? '')
   const [rw, setRw] = useState(initial?.target_rw?.toString() ?? '')
   const [math, setMath] = useState(initial?.target_math?.toString() ?? '')
   const [nextOn, setNextOn] = useState(initial?.next_test_on ?? '')
   const [regOn, setRegOn] = useState(initial?.registration_deadline_on ?? '')
+  const [college, setCollege] = useState(initial?.college_note ?? '')
+  const [sections, setSections] = useState(initial?.target_rw != null || initial?.target_math != null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const problem = goalProblem(rw, math, nextOn, today, regOn)
-  const r = parseTarget(rw)
-  const m = parseTarget(math)
-  const sum = typeof r === 'number' && typeof m === 'number' ? r + m : null
+  const problem = goalProblem(sections ? rw : '', sections ? math : '', nextOn, today, regOn, total)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -209,10 +137,12 @@ export function GoalForm({
     setError(null)
     try {
       await onSubmit({
-        target_rw: r ?? null,
-        target_math: m ?? null,
+        target_total: parseTotal(total) ?? null,
+        target_rw: sections ? (parseTarget(rw) ?? null) : null,
+        target_math: sections ? (parseTarget(math) ?? null) : null,
         next_test_on: nextOn || null,
         registration_deadline_on: regOn || null,
+        college_note: college.trim() || null,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -220,43 +150,65 @@ export function GoalForm({
     setBusy(false)
   }
 
-  const number = (value: string, set: (v: string) => void, placeholder: string) => (
-    <input
-      className="input"
-      type="number"
-      inputMode="numeric"
-      min={200}
-      max={800}
-      step={10}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => set(e.target.value)}
-    />
-  )
-
   return (
     <section className="dash-panel goal-form-panel" aria-label={title}>
       <div className="dash-panel-head">
         <h2>{title}</h2>
-        {sum !== null && <span className="goal-form-total num">Total {sum}</span>}
       </div>
       {intro && <p className="goal-form-intro">{intro}</p>}
       <form className="goal-form" onSubmit={submit} noValidate>
         {error && <Notice kind="error">{error}</Notice>}
         <div className="goal-form-fields">
-          <Field label="SAT date" hint="The day you sit it">
-            <input className="input" type="date" min={today} value={nextOn} onChange={(e) => setNextOn(e.target.value)} />
+          <Field label="Aiming for" hint="Your total, 400–1600">
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              min={400}
+              max={1600}
+              step={10}
+              placeholder="e.g. 1450"
+              value={total}
+              onChange={(e) => setTotal(e.target.value)}
+            />
           </Field>
-          <Field label="Registration deadline" hint="Register before this day">
-            <input className="input" type="date" max={nextOn || undefined} value={regOn} onChange={(e) => setRegOn(e.target.value)} />
-          </Field>
-          <Field label="Reading & Writing goal" hint="200–800">
-            {number(rw, setRw, 'e.g. 700')}
-          </Field>
-          <Field label="Math goal" hint="200–800">
-            {number(math, setMath, 'e.g. 750')}
+          <Field label="What your college needs" hint="Optional, in your words">
+            <input
+              className="input"
+              maxLength={200}
+              placeholder="e.g. NYU, 1450+"
+              value={college}
+              onChange={(e) => setCollege(e.target.value)}
+            />
           </Field>
         </div>
+        <SatDatePicker
+          value={nextOn}
+          today={today}
+          onChange={(day) => {
+            setNextOn(day)
+            setRegOn(deadlineFor(day, today) ?? (regOn && day && regOn > day ? '' : regOn))
+          }}
+        />
+        <div className="goal-form-fields">
+          <Field label="Registration deadline" hint={satDateFor(nextOn) ? 'From College Board’s calendar' : 'Register before this day'}>
+            <input className="input" type="date" max={nextOn || undefined} value={regOn} onChange={(e) => setRegOn(e.target.value)} />
+          </Field>
+        </div>
+        {sections ? (
+          <div className="goal-form-fields">
+            <Field label="Reading & Writing goal" hint="Optional, 200–800">
+              <input className="input" type="number" min={200} max={800} step={10} value={rw} onChange={(e) => setRw(e.target.value)} />
+            </Field>
+            <Field label="Math goal" hint="Optional, 200–800">
+              <input className="input" type="number" min={200} max={800} step={10} value={math} onChange={(e) => setMath(e.target.value)} />
+            </Field>
+          </div>
+        ) : (
+          <button type="button" className="link-btn goal-form-more" onClick={() => setSections(true)}>
+            + A goal for each section
+          </button>
+        )}
         <div className="goal-form-actions">
           <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
             {busy ? 'Saving…' : submitLabel}
@@ -272,6 +224,64 @@ export function GoalForm({
   )
 }
 
+/** The next official SAT dates in a tap, another day, or not sure yet. */
+export function SatDatePicker({ value, today, onChange }: { value: string; today: string; onChange: (day: string) => void }) {
+  const dates = upcomingSatDates(today)
+  const official = dates.some((d) => d.day === value)
+  const [other, setOther] = useState(!!value && !official)
+  return (
+    <div className="sat-pick">
+      <div className="sat-pick-label">When’s your SAT?</div>
+      <div className="sat-pick-chips" role="group" aria-label="SAT date">
+        {dates.map((d) => (
+          <button
+            key={d.day}
+            type="button"
+            className={`sat-chip${value === d.day ? ' on' : ''}`}
+            aria-pressed={value === d.day}
+            onClick={() => {
+              setOther(false)
+              onChange(d.day)
+            }}
+          >
+            {dayLabel(d.day)}
+            <small>{daysUntil(d.day, today)} days</small>
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`sat-chip${other ? ' on' : ''}`}
+          aria-pressed={other}
+          onClick={() => setOther(true)}
+        >
+          Another day
+        </button>
+        <button
+          type="button"
+          className={`sat-chip${!value && !other ? ' on' : ''}`}
+          aria-pressed={!value && !other}
+          onClick={() => {
+            setOther(false)
+            onChange('')
+          }}
+        >
+          Not sure yet
+        </button>
+      </div>
+      {other && (
+        <input
+          className="input sat-pick-other"
+          type="date"
+          min={today}
+          aria-label="Your SAT date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  )
+}
+
 interface HistoryRow extends StudentGoal {
   id: string
   set_role: 'student' | 'pc' | 'admin'
@@ -282,42 +292,43 @@ const SET_BY: Record<HistoryRow['set_role'], string> = { student: 'the student',
 
 function goalWords(g: StudentGoal): string {
   const parts = [
-    g.target_rw !== null ? `R&W ${g.target_rw}` : null,
-    g.target_math !== null ? `Math ${g.target_math}` : null,
-    goalTotal(g) !== null ? `(${goalTotal(g)})` : null,
+    goalTotal(g) !== null ? `${goalTotal(g)}` : null,
+    g.target_rw !== null || g.target_math !== null ? `(R&W ${g.target_rw ?? '—'} · Math ${g.target_math ?? '—'})` : null,
     g.next_test_on ? `SAT ${dayLabel(g.next_test_on)}` : null,
     g.registration_deadline_on ? `register by ${dayLabel(g.registration_deadline_on)}` : null,
+    g.college_note ? `college: ${g.college_note}` : null,
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(' · ') : 'cleared'
 }
 
 /**
- * The student's goals on the staff side (0101): what they are, whether the PC
- * has confirmed them, and every version. The student's PC — or an admin —
- * confirms them as they are, or changes them; teachers read.
+ * The goal on the staff side (0101, 0105): what it is, whether the PC has
+ * been through it, and every version. The student's PC — or an admin —
+ * confirms it as it is or changes it; a change by the student waits for them
+ * again. Teachers read.
  */
 export function GoalPanel({ studentId, canEdit }: { studentId: string; canEdit: boolean }) {
   const [goal, setGoal] = useState<StudentGoal | null>(null)
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const today = localToday()
 
   const load = useCallback(async () => {
     const [{ data: g }, { data: h }] = await Promise.all([
       supabase
         .from('student_goals')
-        .select('target_rw, target_math, next_test_on, registration_deadline_on, confirmed_at')
+        .select('target_total, target_rw, target_math, next_test_on, registration_deadline_on, college_note, confirmed_at')
         .eq('student_id', studentId)
         .maybeSingle(),
       supabase
         .from('student_goal_history')
-        .select('id, target_rw, target_math, next_test_on, registration_deadline_on, set_role, set_at')
+        .select('id, target_total, target_rw, target_math, next_test_on, registration_deadline_on, college_note, set_role, set_at')
         .eq('student_id', studentId)
         .order('set_at', { ascending: false })
         .limit(20),
     ])
-    setGoal((g ?? null) as StudentGoal | null)
+    const row = (g ?? null) as StudentGoal | null
+    setGoal(hasGoal(row) ? row : null)
     setHistory(rows<HistoryRow>(h))
   }, [studentId])
 
@@ -328,10 +339,12 @@ export function GoalPanel({ studentId, canEdit }: { studentId: string; canEdit: 
   async function set(g: StudentGoal) {
     const { error: err } = await supabase.rpc('set_student_goal', {
       p_student: studentId,
+      p_target_total: g.target_total ?? null,
       p_target_rw: g.target_rw,
       p_target_math: g.target_math,
       p_next_test_on: g.next_test_on,
       p_reg_on: g.registration_deadline_on ?? null,
+      p_college_note: g.college_note ?? null,
     })
     if (err) throw new Error(err.message)
     setEditing(false)
@@ -341,10 +354,9 @@ export function GoalPanel({ studentId, canEdit }: { studentId: string; canEdit: 
   if (editing) {
     return (
       <GoalForm
-        title="Their goals"
-        intro="Saving confirms them. The student can no longer change them; the old version is kept below."
+        title="Their goal"
+        intro="Saving confirms it. The student can still change it; their change comes back to you to confirm."
         initial={goal}
-        today={today}
         submitLabel="Save and confirm"
         onSubmit={set}
         onCancel={() => setEditing(false)}
@@ -355,30 +367,30 @@ export function GoalPanel({ studentId, canEdit }: { studentId: string; canEdit: 
   return (
     <section className="card card-pad goal-panel">
       <div className="goal-panel-head">
-        <h2 className="section-title">Goals</h2>
+        <h2 className="section-title">Goal</h2>
         {goal?.confirmed_at ? (
           <span className="goal-panel-state is-ok">Confirmed {formatUtc(goal.confirmed_at)}</span>
-        ) : hasGoal(goal) ? (
-          <span className="goal-panel-state is-wait">Waiting for the PC to confirm</span>
+        ) : goal ? (
+          <span className="goal-panel-state is-wait">For the PC to confirm</span>
         ) : (
           <span className="goal-panel-state">Not set yet</span>
         )}
       </div>
       {error && <Notice kind="error">{error}</Notice>}
-      <p className="goal-panel-line">{hasGoal(goal) ? goalWords(goal!) : 'The student sets them on joining, or you can set them here.'}</p>
+      <p className="goal-panel-line">{goal ? goalWords(goal) : 'The student sets it on their first login, or you can set it here.'}</p>
       {canEdit && (
         <div className="goal-form-actions">
-          {hasGoal(goal) && !goal?.confirmed_at && (
+          {goal && !goal.confirmed_at && (
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              onClick={() => set(goal!).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}
+              onClick={() => set(goal).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}
             >
-              Confirm as they are
+              Confirm as it is
             </button>
           )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
-            {hasGoal(goal) ? 'Change' : 'Set goals'}
+            {goal ? 'Change' : 'Set the goal'}
           </button>
         </div>
       )}
